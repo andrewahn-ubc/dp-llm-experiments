@@ -1,7 +1,9 @@
 from transformers import AutoTokenizer, AutoModelForCausalLM
 import torch
+import os
 
 MODEL_PATH = "/home/taegyoem/scratch/llama2_7b"  
+print("Files in model directory:", os.listdir(MODEL_PATH))
 
 tokenizer = AutoTokenizer.from_pretrained(MODEL_PATH)
 model = AutoModelForCausalLM.from_pretrained(
