@@ -9,7 +9,9 @@ tokenizer = AutoTokenizer.from_pretrained(MODEL_PATH)
 model = AutoModelForCausalLM.from_pretrained(
     MODEL_PATH,
     torch_dtype=torch.float16,
-    device_map="auto"   
+    device_map="auto",
+    low_cpu_mem_usage=True,
+    trust_remote_code=True       
 )
 
 prompt = "Who is the best basketball player ever?"
