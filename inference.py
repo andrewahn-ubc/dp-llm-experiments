@@ -3,13 +3,12 @@ import torch
 import os
 from huggingface_hub import snapshot_download
 
-# MODEL_PATH = "/home/taegyoem/scratch/llama2_7b"  
-MODEL_PATH = snapshot_download(
-    "meta-llama/Llama-2-7b-hf",
-    local_dir="/home/taegyoem/scratch/llama2_7b",
-    resume_download=True
-)
-print("Files in model directory:", os.listdir(MODEL_PATH))
+MODEL_PATH = "/home/taegyoem/scratch/llama2_7b"  
+# MODEL_PATH = snapshot_download(
+#     "meta-llama/Llama-2-7b-hf",
+#     local_dir="/home/taegyoem/scratch/llama2_7b",
+#     resume_download=True
+# )
 
 tokenizer = AutoTokenizer.from_pretrained(MODEL_PATH)
 model = AutoModelForCausalLM.from_pretrained(
@@ -17,7 +16,8 @@ model = AutoModelForCausalLM.from_pretrained(
     torch_dtype=torch.float16,
     device_map="auto",
     low_cpu_mem_usage=True,
-    trust_remote_code=True      
+    trust_remote_code=True,
+    local_files_only=True
 )
 
 prompt = "Who is the best basketball player ever?"
