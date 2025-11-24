@@ -11,7 +11,8 @@ model = AutoModelForCausalLM.from_pretrained(
     torch_dtype=torch.float16,
     device_map="auto",
     low_cpu_mem_usage=True,
-    trust_remote_code=True       
+    trust_remote_code=True,
+    offload_folder=os.path.join(MODEL_PATH, "offload")       
 )
 
 prompt = "Who is the best basketball player ever?"
