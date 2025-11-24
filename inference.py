@@ -1,8 +1,14 @@
 from transformers import AutoTokenizer, AutoModelForCausalLM
 import torch
 import os
+from huggingface_hub import snapshot_download
 
-MODEL_PATH = "/home/taegyoem/scratch/llama2_7b"  
+# MODEL_PATH = "/home/taegyoem/scratch/llama2_7b"  
+MODEL_PATH = snapshot_download(
+    "meta-llama/Llama-2-7b-hf",
+    local_dir="/home/taegyoem/scratch/llama2_7b",
+    resume_download=True
+)
 print("Files in model directory:", os.listdir(MODEL_PATH))
 
 tokenizer = AutoTokenizer.from_pretrained(MODEL_PATH)
@@ -11,8 +17,7 @@ model = AutoModelForCausalLM.from_pretrained(
     torch_dtype=torch.float16,
     device_map="auto",
     low_cpu_mem_usage=True,
-    trust_remote_code=True,
-    offload_folder=os.path.join(MODEL_PATH, "offload")       
+    trust_remote_code=True      
 )
 
 prompt = "Who is the best basketball player ever?"
