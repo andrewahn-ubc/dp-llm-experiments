@@ -9,7 +9,7 @@
 # Load Python
 module load StdEnv/2023 python/3.12.4
 
-# Activate your virtual environment (recommended)
+# Activate virtual environment 
 source ~/envs/llama/bin/activate
 
 # Run inference
