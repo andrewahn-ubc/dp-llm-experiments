@@ -56,17 +56,18 @@ def run_one_word(prompt: str) -> str:
     with torch.no_grad():
         output = model.generate(
             **inputs,
-            max_new_tokens=1,      
+            max_new_tokens=5,      
             temperature=0.0,       
             do_sample=False
         )
 
     decoded = tokenizer.decode(output[0], skip_special_tokens=True)
-    answer = decoded[len(prompt):].strip()
+    answer = decoded[len(prompt):]
+    # answer = decoded[len(prompt):].strip()
 
     # clean answer to one word; strip punctuation
-    answer = answer.split()[0] if answer else ""
-    answer = answer.strip(".,!?;:()[]{}\"'")
+    # answer = answer.split()[0] if answer else ""
+    # answer = answer.strip(".,!?;:()[]{}\"'")
 
     return answer
 
@@ -108,7 +109,7 @@ for key in data:
         f.write(f"  Answer:   {output_curr['original_answer']}\n")
         f.write(f"  Perturbed:  {output_curr['perturbed_prompt']}\n")
         f.write(f"  Answer:   {output_curr['perturbed_answer']}\n")
-        f.write(f"  Boundary crossed? {output_curr['boundary_crossed']}\n\n")
+        # f.write(f"  Boundary crossed? {output_curr['boundary_crossed']}\n\n")
 
 # with open(OUTPUT_FILE, "w") as f:
 #     f.write("LLaMA-2-7B Boundary Crossing Evaluation\n\n")
