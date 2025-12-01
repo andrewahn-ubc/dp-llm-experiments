@@ -3,7 +3,7 @@
 #SBATCH --gres=gpu:1
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=24G
-#SBATCH --time=00:15:00
+#SBATCH --time=00:30:00
 #SBATCH --output=llama_infer_%j.out
 
 # Load Python
