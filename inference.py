@@ -79,7 +79,8 @@ num_boundary_cross = 0
 num_total = len(data)
 
 
-for i, entry in enumerate(data):
+for key in data:
+    entry = data[key]
     original_prompt = entry["original"]
     perturbed_prompt = entry["perturbed"]
 
@@ -90,27 +91,37 @@ for i, entry in enumerate(data):
     if crossed:
         num_boundary_cross += 1
 
-    results.append({
-        "index": i,
+    output_curr = {
+        "index": key,
         "original_prompt": original_prompt,
         "original_answer": original_ans,
         "perturbed_prompt": perturbed_prompt,
         "perturbed_answer": perturbed_ans,
         "boundary_crossed": crossed
-    })
+    }
 
-with open(OUTPUT_FILE, "w") as f:
-    f.write("LLaMA-2-7B Boundary Crossing Evaluation\n\n")
-    f.write(f"Total prompts: {num_total}\n")
-    f.write(f"Successful boundary crossings: {num_boundary_cross}\n")
-    f.write(f"Success rate: {num_boundary_cross / num_total:.2%}\n\n")
-    f.write("Detailed Results\n\n")
+    results.append(output_curr)
 
-    for r in results:
-        f.write(f"Index {r['index']}:\n")
-        f.write(f"  Original:   {r['original_prompt']}\n")
-        f.write(f"  Answer:   {r['original_answer']}\n")
-        f.write(f"  Perturbed:  {r['perturbed_prompt']}\n")
-        f.write(f"  Answer:   {r['perturbed_answer']}\n")
-        f.write(f"  Boundary crossed? {r['boundary_crossed']}\n\n")
+    with open(OUTPUT_FILE, "a") as f:
+        f.write(f"Index {output_curr['index']}:\n")
+        f.write(f"  Original:   {output_curr['original_prompt']}\n")
+        f.write(f"  Answer:   {output_curr['original_answer']}\n")
+        f.write(f"  Perturbed:  {output_curr['perturbed_prompt']}\n")
+        f.write(f"  Answer:   {output_curr['perturbed_answer']}\n")
+        f.write(f"  Boundary crossed? {output_curr['boundary_crossed']}\n\n")
+
+# with open(OUTPUT_FILE, "w") as f:
+#     f.write("LLaMA-2-7B Boundary Crossing Evaluation\n\n")
+#     f.write(f"Total prompts: {num_total}\n")
+#     f.write(f"Successful boundary crossings: {num_boundary_cross}\n")
+#     f.write(f"Success rate: {num_boundary_cross / num_total:.2%}\n\n")
+#     f.write("Detailed Results\n\n")
+
+#     for r in results:
+#         f.write(f"Index {r['index']}:\n")
+#         f.write(f"  Original:   {r['original_prompt']}\n")
+#         f.write(f"  Answer:   {r['original_answer']}\n")
+#         f.write(f"  Perturbed:  {r['perturbed_prompt']}\n")
+#         f.write(f"  Answer:   {r['perturbed_answer']}\n")
+#         f.write(f"  Boundary crossed? {r['boundary_crossed']}\n\n")
 
