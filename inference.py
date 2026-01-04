@@ -56,7 +56,7 @@ def run_one_word(prompt: str) -> str:
     with torch.no_grad():
         output = model.generate(
             **inputs,
-            max_new_tokens=5,      
+            max_new_tokens=20,      
             temperature=0.0,       
             do_sample=False
         )

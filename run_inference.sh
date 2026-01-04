@@ -1,10 +1,10 @@
 #!/bin/bash
-#SBATCH --job-name=llama_infer
+#SBATCH --job-name=gcg
 #SBATCH --gres=gpu:1
 #SBATCH --cpus-per-task=4
-#SBATCH --mem=24G
+#SBATCH --mem=40G
 #SBATCH --time=00:30:00
-#SBATCH --output=llama_infer_%j.out
+#SBATCH --output=gcg_%j.out
 
 # Load Python
 module load StdEnv/2023 python/3.12.4
@@ -13,4 +13,4 @@ module load StdEnv/2023 python/3.12.4
 source ~/envs/llama/bin/activate
 
 # Run inference
-python ~/scratch/dp-llm-experiments/inference.py
+python ~/scratch/dp-llm-experiments/gcg.py
