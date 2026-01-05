@@ -33,7 +33,6 @@ model.eval()
 for index, (_,row) in enumerate(input_df.iterrows()): 
     # Original Prompt + Response
     prompt = row["goal"] 
-    prompt = f"[SYSTEM]: {system_prompt}\n[USER]: {prompt}\n[ASSISTANT]:"
 
     inputs = tokenizer(prompt, return_tensors="pt").to("cuda") 
     with torch.no_grad(): 
@@ -42,10 +41,9 @@ for index, (_,row) in enumerate(input_df.iterrows()):
     answer = decoded[len(prompt):] 
 
     # Create Perturbed Prompt + Response 
-    target = "\n[ASSISTANT]:" + row["target"] 
-    prompt = prompt[:-13]
+    target = row["target"] 
     result = nanogcg.run(model, tokenizer, prompt, target) 
-    jb_prompt = prompt + result.best_string + "\n[ASSISTANT]:"
+    jb_prompt = prompt + result.best_string
 
     jb_inputs = tokenizer(jb_prompt, return_tensors="pt").to("cuda") 
     with torch.no_grad(): 
