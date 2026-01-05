@@ -42,9 +42,10 @@ for index, (_,row) in enumerate(input_df.iterrows()):
     answer = decoded[len(prompt):] 
 
     # Create Perturbed Prompt + Response 
-    target = row["target"] 
+    target = "\n[ASSISTANT]:" + row["target"] 
+    prompt = prompt[:-13]
     result = nanogcg.run(model, tokenizer, prompt, target) 
-    jb_prompt = prompt + result.best_string 
+    jb_prompt = prompt + result.best_string + "\n[ASSISTANT]:"
 
     jb_inputs = tokenizer(jb_prompt, return_tensors="pt").to("cuda") 
     with torch.no_grad(): 
