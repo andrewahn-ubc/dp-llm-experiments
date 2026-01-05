@@ -23,6 +23,8 @@ model.eval()
 
 # Get Original Response (batched)
 prompts = input_df["goal"].tolist()
+system_prompt = "You are a very concise assistant."
+prompts = [f"[SYSTEM]: {system_prompt}\n[USER]: {user_prompt}\n[ASSISTANT]:" for user_prompt in prompts]
 batch_size = 4
 for i in range(0, len(prompts), batch_size):
     batch_prompts = prompts[i:i+batch_size]
@@ -61,6 +63,7 @@ for index, row in input_df.iterrows():
 
 # Get Jailbreak Outputs (batched)
 jb_prompts = [results[i]["Perturbed Prompt"] for i in range(len(results))]
+jb_prompts = [f"[SYSTEM]: {system_prompt}\n[USER]: {jb_user_prompt}\n[ASSISTANT]:" for jb_user_prompt in jb_prompts]
 for i in range(0, len(jb_prompts), batch_size):
     batch_jb_prompts = jb_prompts[i:i+batch_size]
     jb_inputs = tokenizer(batch_jb_prompts, return_tensors="pt", padding=True, truncation=True)
