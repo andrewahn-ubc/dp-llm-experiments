@@ -8,7 +8,7 @@ MODEL_PATH = "/home/taegyoem/scratch/llama2_7b_chat_hf"
 CSV_INPUT = "data/harmful_behaviors.csv"
 CSV_OUTPUT = "data/gcg_output.csv"
 full_input_df = pd.read_csv(CSV_INPUT) # contains original prompts and targets
-input_df = full_input_df.head(20) # let's only use the first 20 prompts for now
+input_df = full_input_df.head(1) # let's only use the first 20 prompts for now
 results = []
 
 # Load model
@@ -24,7 +24,7 @@ model.eval()
 
 # Get Original Response (batched)
 prompts = input_df["goal"].tolist()
-batch_size = 4
+batch_size = 1
 for i in range(0, len(prompts), batch_size):
     batch_prompts = prompts[i:i+batch_size]
     inputs = tokenizer(batch_prompts, return_tensors="pt", padding=True, truncation=True)
