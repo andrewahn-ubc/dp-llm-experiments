@@ -61,7 +61,7 @@ def run_one_word(prompt: str) -> str:
             do_sample=False
         )
 
-    decoded = tokenizer.decode(output[0], skip_special_tokens=True)
+    decoded = tokenizer.decode(output[0])
     answer = decoded[len(prompt):]
     # answer = decoded[len(prompt):].strip()
 
