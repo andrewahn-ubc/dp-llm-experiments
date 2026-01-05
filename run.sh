@@ -5,7 +5,7 @@
 #SBATCH --mem=40G
 #SBATCH --time=03:00:00
 #SBATCH --array=0-49             # 50 tasks
-#SBATCH --output=gcg_%A_%a.out   # %A = array job ID, %a = task ID
+#SBATCH --output=output/gcg_%A_%a.out   # %A = array job ID, %a = task ID
 
 # Load Python
 module load StdEnv/2023 python/3.12.4
