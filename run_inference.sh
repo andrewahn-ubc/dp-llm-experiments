@@ -3,7 +3,7 @@
 #SBATCH --gres=gpu:1
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=40G
-#SBATCH --time=00:30:00
+#SBATCH --time=00:60:00
 #SBATCH --output=gcg_%j.out
 
 # Load Python
