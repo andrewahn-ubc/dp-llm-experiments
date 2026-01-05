@@ -4,7 +4,7 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 import pandas as pd
 
 # Set up input/output files
-MODEL_PATH = "/home/taegyoem/scratch/llama2_7b"
+MODEL_PATH = "/home/taegyoem/scratch/llama2_7b_chat_hf"
 CSV_INPUT = "data/harmful_behaviors.csv"
 CSV_OUTPUT = "data/gcg_output.csv"
 full_input_df = pd.read_csv(CSV_INPUT) # contains original prompts and targets
@@ -13,6 +13,7 @@ results = []
 
 # Load model
 tokenizer = AutoTokenizer.from_pretrained(MODEL_PATH)
+tokenizer.pad_token = tokenizer.eos_token
 model = AutoModelForCausalLM.from_pretrained(
     MODEL_PATH,
     torch_dtype=torch.float16,
