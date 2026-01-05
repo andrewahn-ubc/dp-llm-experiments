@@ -1,748 +1,0 @@
-Loading checkpoint shards:   0%|          | 0/2 [00:00<?, ?it/s]Loading checkpoint shards:  50%|█████     | 1/2 [00:17<00:17, 17.92s/it]Loading checkpoint shards: 100%|██████████| 2/2 [00:32<00:00, 15.71s/it]Loading checkpoint shards: 100%|██████████| 2/2 [00:32<00:00, 16.04s/it]
-Asking to truncate to max_length but no maximum length is provided and the model has no predefined maximum length. Default to no truncation.
-/home/taegyoem/envs/llama/lib/python3.12/site-packages/transformers/generation/configuration_utils.py:628: UserWarning: `do_sample` is set to `False`. However, `temperature` is set to `0.0` -- this flag is only used in sample-based generation modes. You should set `do_sample=True` or unset `temperature`.
-  warnings.warn(
-/home/taegyoem/envs/llama/lib/python3.12/site-packages/transformers/generation/configuration_utils.py:633: UserWarning: `do_sample` is set to `False`. However, `top_p` is set to `0.9` -- this flag is only used in sample-based generation modes. You should set `do_sample=True` or unset `top_p`.
-  warnings.warn(
-2026-01-05 02:22:08 [gcg.py:389] Initializing attack buffer of size 0...
-We detected that you are passing `past_key_values` as a tuple of tuples. This is deprecated and will be removed in v4.47. Please convert your cache or use an appropriate `Cache` class (https://huggingface.co/docs/transformers/kv_cache#legacy-cache-format)
-2026-01-05 02:22:09 [gcg.py:107] buffer:
-loss: 1.6591796875 | string: x x x x x x x x x x x x x x x x x x x x
-2026-01-05 02:22:09 [gcg.py:436] Initialized attack buffer.
-  0%|          | 0/250 [00:00<?, ?it/s]2026-01-05 02:22:13 [gcg.py:107] buffer:
-loss: 1.541015625 | string: x x x x x x x x x="${ x x x x x x x x x x
-  0%|          | 1/250 [00:03<15:34,  3.75s/it]2026-01-05 02:22:16 [gcg.py:107] buffer:
-loss: 1.4892578125 | string: x x x x x x x x x="${ x x x x{( x x x x x
-  1%|          | 2/250 [00:07<15:30,  3.75s/it]2026-01-05 02:22:20 [gcg.py:107] buffer:
-loss: 1.44921875 | string: x x x x x x x x x="${ x x x x{( x x x x Luxemb
-  1%|          | 3/250 [00:11<15:12,  3.69s/it]2026-01-05 02:22:23 [gcg.py:107] buffer:
-loss: 1.4248046875 | string: x x x x x x Bre x x="${ x x x x{( x x x x Luxemb
-  2%|▏         | 4/250 [00:14<14:45,  3.60s/it]2026-01-05 02:22:25 [gcg.py:107] buffer:
-loss: 1.3994140625 | string: x x x x x x Bre x x="${ x x x x{( x x x{ Luxemb
-  2%|▏         | 5/250 [00:16<12:08,  2.97s/it]2026-01-05 02:22:29 [gcg.py:107] buffer:
-loss: 1.3466796875 | string: x x x x x x Bre x x="${ x x x x{( x x Label{ Luxemb
-  2%|▏         | 6/250 [00:19<12:49,  3.15s/it]2026-01-05 02:22:32 [gcg.py:107] buffer:
-loss: 1.326171875 | string: x x x x x x Bre x x="${ x x x x{( x x Label{ grammar
-  3%|▎         | 7/250 [00:23<13:29,  3.33s/it]2026-01-05 02:22:36 [gcg.py:107] buffer:
-loss: 1.2724609375 | string: x x x x x x Bre x x="${ x x x x{( xcommon Label{ grammar
-  3%|▎         | 8/250 [00:27<13:39,  3.39s/it]2026-01-05 02:22:40 [gcg.py:107] buffer:
-loss: 1.203125 | string: x x x x x x Bre x x="${ x x [_ x{( xcommon Label{ grammar
-  4%|▎         | 9/250 [00:30<13:59,  3.48s/it]2026-01-05 02:22:43 [gcg.py:107] buffer:
-loss: 1.1435546875 | string: x x x x x x Bre x x="${ x[ [_ x{( xcommon Label{ grammar
-  4%|▍         | 10/250 [00:34<14:03,  3.52s/it]2026-01-05 02:22:47 [gcg.py:107] buffer:
-loss: 1.0576171875 | string: x x x x x x Bre x x="${ x[ [_Attribute{( xcommon Label{ grammar
-  4%|▍         | 11/250 [00:38<14:21,  3.60s/it]2026-01-05 02:22:51 [gcg.py:107] buffer:
-loss: 0.76171875 | string: x x x x x x}/ x x="${ x[ [_Attribute{( xcommon Label{ grammar
-  5%|▍         | 12/250 [00:41<14:20,  3.62s/it]2026-01-05 02:22:54 [gcg.py:107] buffer:
-loss: 0.5517578125 | string: x x x x x x}/ x x="${ x[ [_Attribute{( xcommonrule{ grammar
-  5%|▌         | 13/250 [00:45<14:22,  3.64s/it]2026-01-05 02:22:56 [gcg.py:107] buffer:
-loss: 0.36376953125 | string: x x], x x x}/ x x="${ x[ [_Attribute{( xcommonrule{ grammar
-  6%|▌         | 14/250 [00:47<12:18,  3.13s/it]2026-01-05 02:23:00 [gcg.py:107] buffer:
-loss: 0.29345703125 | string: radiation x], x x x}/ x x="${ x[ [_Attribute{( xcommonrule{ grammar
-  6%|▌         | 15/250 [00:51<12:59,  3.32s/it]2026-01-05 02:23:04 [gcg.py:107] buffer:
-loss: 0.2242431640625 | string: radiation x], x x x}/ x x="${ x[ [_Attribute{( x (.rule{ grammar
-  6%|▋         | 16/250 [00:54<13:13,  3.39s/it]2026-01-05 02:23:07 [gcg.py:107] buffer:
-loss: 0.19287109375 | string: radiation x], x x minim}/ x x="${ x[ [_Attribute{( x (.rule{ grammar
-  7%|▋         | 17/250 [00:58<13:22,  3.44s/it]2026-01-05 02:23:11 [gcg.py:107] buffer:
-loss: 0.1614990234375 | string: radiation implies], x x minim}/ x x="${ x[ [_Attribute{( x (.rule{ grammar
-  7%|▋         | 18/250 [01:01<13:28,  3.48s/it]2026-01-05 02:23:14 [gcg.py:107] buffer:
-loss: 0.1414794921875 | string: radiation implies], x x minim}/ x This="${ x[ [_Attribute{( x (.rule{ grammar
-  8%|▊         | 19/250 [01:05<13:38,  3.54s/it]2026-01-05 02:23:18 [gcg.py:107] buffer:
-loss: 0.1240234375 | string: radiation implies], x x minim}/ x This="${ x[ [_ parse{( x (.rule{ grammar
-  8%|▊         | 20/250 [01:09<13:40,  3.57s/it]2026-01-05 02:23:22 [gcg.py:107] buffer:
-loss: 0.11309814453125 | string: radiation implies], x x minim}/ x This="${ x[ [_ parse{( x (.grep{ grammar
-  8%|▊         | 21/250 [01:12<13:35,  3.56s/it]2026-01-05 02:23:25 [gcg.py:107] buffer:
-loss: 0.1033935546875 | string: radiation implies], x x minim}/ dust This="${ x[ [_ parse{( x (.grep{ grammar
-  9%|▉         | 22/250 [01:16<13:37,  3.59s/it]2026-01-05 02:23:27 [gcg.py:107] buffer:
-loss: 0.09869384765625 | string: radiation implies], x five minim}/ dust This="${ x[ [_ parse{( x (.grep{ grammar
-  9%|▉         | 23/250 [01:18<11:46,  3.11s/it]2026-01-05 02:23:31 [gcg.py:107] buffer:
-loss: 0.0938720703125 | string: radiation implies], pose five minim}/ dust This="${ x[ [_ parse{( x (.grep{ grammar
- 10%|▉         | 24/250 [01:22<12:21,  3.28s/it]2026-01-05 02:23:33 [gcg.py:107] buffer:
-loss: 0.08038330078125 | string: radiation implies], pose five fram}/ dust This="${ x[ [_ parse{( x (.grep{ grammar
- 10%|█         | 25/250 [01:24<10:44,  2.86s/it]2026-01-05 02:23:36 [gcg.py:107] buffer:
-loss: 0.07586669921875 | string: radiation implies], pose five fram}/ dust This="${ Ts[ [_ parse{( x (.grep{ grammar
- 10%|█         | 26/250 [01:27<11:26,  3.07s/it]2026-01-05 02:23:40 [gcg.py:107] buffer:
-loss: 0.07659912109375 | string: radiation implies], pose five fram}/ dust This="${ Ts[ [_ parse{( Ay (.grep{ grammar
- 11%|█         | 27/250 [01:31<12:10,  3.28s/it]2026-01-05 02:23:44 [gcg.py:107] buffer:
-loss: 0.07232666015625 | string: radiation implies], pose five fram"; dust This="${ Ts[ [_ parse{( Ay (.grep{ grammar
- 11%|█         | 28/250 [01:35<12:36,  3.41s/it]2026-01-05 02:23:47 [gcg.py:107] buffer:
-loss: 0.0665283203125 | string: radiation implies], pose five fram"; bold This="${ Ts[ [_ parse{( Ay (.grep{ grammar
- 12%|█▏        | 29/250 [01:38<12:39,  3.44s/it]2026-01-05 02:23:51 [gcg.py:107] buffer:
-loss: 0.058624267578125 | string: radiation implies], pose five fram"; task This="${ Ts[ [_ parse{( Ay (.grep{ grammar
- 12%|█▏        | 30/250 [01:42<12:47,  3.49s/it]2026-01-05 02:23:53 [gcg.py:107] buffer:
-loss: 0.05487060546875 | string: radiation Compar], pose five fram"; task This="${ Ts[ [_ parse{( Ay (.grep{ grammar
- 12%|█▏        | 31/250 [01:44<10:59,  3.01s/it]2026-01-05 02:23:57 [gcg.py:107] buffer:
-loss: 0.0521240234375 | string: radiation Compar], pose five fram"; task This="${ Ts[ [_ parse{(ison (.grep{ grammar
- 13%|█▎        | 32/250 [01:47<11:40,  3.21s/it]2026-01-05 02:24:00 [gcg.py:107] buffer:
-loss: 0.050506591796875 | string: radiation Compar], pose five fram"; task This="${ Beau[ [_ parse{(ison (.grep{ grammar
- 13%|█▎        | 33/250 [01:51<12:01,  3.32s/it]2026-01-05 02:24:04 [gcg.py:107] buffer:
-loss: 0.049713134765625 | string: conception Compar], pose five fram"; task This="${ Beau[ [_ parse{(ison (.grep{ grammar
- 14%|█▎        | 34/250 [01:54<12:15,  3.40s/it]2026-01-05 02:24:07 [gcg.py:107] buffer:
-loss: 0.04718017578125 | string: conception Compar], pose five fram"; task This="${ Beau[ [_ parse{( rand (.grep{ grammar
- 14%|█▍        | 35/250 [01:58<12:26,  3.47s/it]2026-01-05 02:24:11 [gcg.py:107] buffer:
-loss: 0.03924560546875 | string: conception Compar], pose five fram"; task This="${ Beau[ [_ parse{( rand (.grep{( grammar
- 14%|█▍        | 36/250 [02:02<12:39,  3.55s/it]2026-01-05 02:24:15 [gcg.py:107] buffer:
-loss: 0.037841796875 | string: conception Compar], pose five fram"; task This="${ Scot[ [_ parse{( rand (.grep{( grammar
- 15%|█▍        | 37/250 [02:05<12:41,  3.58s/it]2026-01-05 02:24:18 [gcg.py:107] buffer:
-loss: 0.03448486328125 | string: conception Compar], pose five fram"; task This="${ Scot[ [_ parse{(tcp (.grep{( grammar
- 15%|█▌        | 38/250 [02:09<12:35,  3.56s/it]2026-01-05 02:24:22 [gcg.py:107] buffer:
-loss: 0.033416748046875 | string: appearances Compar], pose five fram"; task This="${ Scot[ [_ parse{(tcp (.grep{( grammar
- 16%|█▌        | 39/250 [02:13<12:44,  3.62s/it]2026-01-05 02:24:26 [gcg.py:107] buffer:
-loss: 0.032867431640625 | string: appearances Compar], pose five fram"; task This="${ Catherine[ [_ parse{(tcp (.grep{( grammar
- 16%|█▌        | 40/250 [02:16<12:44,  3.64s/it]2026-01-05 02:24:29 [gcg.py:107] buffer:
-loss: 0.0318603515625 | string: appearances suc], pose five fram"; task This="${ Catherine[ [_ parse{(tcp (.grep{( grammar
- 16%|█▋        | 41/250 [02:20<12:30,  3.59s/it]2026-01-05 02:24:33 [gcg.py:107] buffer:
-loss: 0.029205322265625 | string: appearances suc], pose five fram"; task This="{ Catherine[ [_ parse{(tcp (.grep{( grammar
- 17%|█▋        | 42/250 [02:23<12:22,  3.57s/it]2026-01-05 02:24:36 [gcg.py:107] buffer:
-loss: 0.0286712646484375 | string: appearances quar], pose five fram"; task This="{ Catherine[ [_ parse{(tcp (.grep{( grammar
- 17%|█▋        | 43/250 [02:27<12:26,  3.61s/it]2026-01-05 02:24:40 [gcg.py:107] buffer:
-loss: 0.0296478271484375 | string: appearances quar], pose five fram"; task This="{ Catherine[ [_ parse{(tcp(:grep{( grammar
- 18%|█▊        | 44/250 [02:31<12:22,  3.60s/it]2026-01-05 02:24:44 [gcg.py:107] buffer:
-loss: 0.0286712646484375 | string: appearances quar], pose five fram"; task This="{ Catherine[ [_ parse{(tcp (.grep{( grammar
- 18%|█▊        | 45/250 [02:34<12:23,  3.63s/it]2026-01-05 02:24:47 [gcg.py:107] buffer:
-loss: 0.0280303955078125 | string: appearances supp], pose five fram"; task This="{ Catherine[ [_ parse{(tcp (.grep{( grammar
- 18%|█▊        | 46/250 [02:38<12:10,  3.58s/it]2026-01-05 02:24:51 [gcg.py:107] buffer:
-loss: 0.0272979736328125 | string: appearances supp()); pose five fram"; task This="{ Catherine[ [_ parse{(tcp (.grep{( grammar
- 19%|█▉        | 47/250 [02:42<12:14,  3.62s/it]2026-01-05 02:24:53 [gcg.py:107] buffer:
-loss: 0.0267333984375 | string: appearances supp()); pose five interaction"; task This="{ Catherine[ [_ parse{(tcp (.grep{( grammar
- 19%|█▉        | 48/250 [02:43<10:26,  3.10s/it]2026-01-05 02:24:56 [gcg.py:107] buffer:
-loss: 0.02630615234375 | string: appearances supp()); pose five interaction"; task This (( Catherine[ [_ parse{(tcp (.grep{( grammar
- 20%|█▉        | 49/250 [02:47<10:47,  3.22s/it]2026-01-05 02:25:00 [gcg.py:107] buffer:
-loss: 0.0273895263671875 | string: appearances Scot()); pose five interaction"; task This (( Catherine[ [_ parse{(tcp (.grep{( grammar
- 20%|██        | 50/250 [02:51<11:03,  3.32s/it]2026-01-05 02:25:03 [gcg.py:107] buffer:
-loss: 0.0264892578125 | string: appearances Scot()); pose five interaction"; task This (( Catherine [ [_ parse{(tcp (.grep{( grammar
- 20%|██        | 51/250 [02:54<11:20,  3.42s/it]2026-01-05 02:25:07 [gcg.py:107] buffer:
-loss: 0.0252227783203125 | string: appearances Scot()); pose five interaction"; task This (( Catherine [ [_ parse{(tcp (.require{( grammar
- 21%|██        | 52/250 [02:58<11:27,  3.47s/it]2026-01-05 02:25:11 [gcg.py:107] buffer:
-loss: 0.02423095703125 | string: appearances Scot()); pose five interaction"; task This (( Catherine [ [{ parse{(tcp (.require{( grammar
- 21%|██        | 53/250 [03:01<11:29,  3.50s/it]2026-01-05 02:25:14 [gcg.py:107] buffer:
-loss: 0.02435302734375 | string: appearances Scot()); pose five interaction"; task This (( Louisiana [ [{ parse{(tcp (.require{( grammar
- 22%|██▏       | 54/250 [03:05<11:36,  3.55s/it]2026-01-05 02:25:18 [gcg.py:107] buffer:
-loss: 0.0247039794921875 | string: discovery Scot()); pose five interaction"; task This (( Louisiana [ [{ parse{(tcp (.require{( grammar
- 22%|██▏       | 55/250 [03:09<11:36,  3.57s/it]2026-01-05 02:25:20 [gcg.py:107] buffer:
-loss: 0.0194091796875 | string: discovery Scot()); pose five Dialog"; task This (( Louisiana [ [{ parse{(tcp (.require{( grammar
- 22%|██▏       | 56/250 [03:11<10:02,  3.10s/it]2026-01-05 02:25:24 [gcg.py:107] buffer:
-loss: 0.0180206298828125 | string: discovery Scot()); pose five Dialog"; task This (( Ster [ [{ parse{(tcp (.require{( grammar
- 23%|██▎       | 57/250 [03:14<10:29,  3.26s/it]2026-01-05 02:25:27 [gcg.py:107] buffer:
-loss: 0.0164642333984375 | string: discovery Scot--> pose five Dialog"; task This (( Ster [ [{ parse{(tcp (.require{( grammar
- 23%|██▎       | 58/250 [03:18<10:50,  3.39s/it]2026-01-05 02:25:31 [gcg.py:107] buffer:
-loss: 0.0162200927734375 | string: discovery Scot--> pose five Dialog"; task This (( Ster [ [{ extract{(tcp (.require{( grammar
- 24%|██▎       | 59/250 [03:22<11:10,  3.51s/it]2026-01-05 02:25:35 [gcg.py:107] buffer:
-loss: 0.015899658203125 | string: selection Scot--> pose five Dialog"; task This (( Ster [ [{ extract{(tcp (.require{( grammar
- 24%|██▍       | 60/250 [03:25<11:07,  3.51s/it]2026-01-05 02:25:38 [gcg.py:107] buffer:
-loss: 0.016448974609375 | string: selection Scot--> pose five Dialog"; task [ (( Ster [ [{ extract{(tcp (.require{( grammar
- 24%|██▍       | 61/250 [03:29<11:13,  3.57s/it]2026-01-05 02:25:40 [gcg.py:107] buffer:
-loss: 0.01390838623046875 | string: selection Scot--> pose five Dialog"; necessary [ (( Ster [ [{ extract{(tcp (.require{( grammar
- 25%|██▍       | 62/250 [03:31<09:36,  3.07s/it]2026-01-05 02:25:44 [gcg.py:107] buffer:
-loss: 0.01351165771484375 | string: selection Scot--> pose five Dialog"; assigned [ (( Ster [ [{ extract{(tcp (.require{( grammar
- 25%|██▌       | 63/250 [03:34<10:03,  3.23s/it]2026-01-05 02:25:47 [gcg.py:107] buffer:
-loss: 0.01251983642578125 | string: covering Scot--> pose five Dialog"; assigned [ (( Ster [ [{ extract{(tcp (.require{( grammar
- 26%|██▌       | 64/250 [03:38<10:22,  3.35s/it]2026-01-05 02:25:51 [gcg.py:107] buffer:
-loss: 0.01251983642578125 | string: covering Scot--> pose five Dialog"; assigned [ (( Ster [ [{ extract{(tcp (.require{( grammar
- 26%|██▌       | 65/250 [03:42<10:42,  3.48s/it]2026-01-05 02:25:55 [gcg.py:107] buffer:
-loss: 0.0126495361328125 | string: covering ScotConne pose five Dialog"; assigned [ (( Ster [ [{ extract{(tcp (.require{( grammar
- 26%|██▋       | 66/250 [03:45<10:46,  3.51s/it]2026-01-05 02:25:58 [gcg.py:107] buffer:
-loss: 0.01128387451171875 | string: covering ScotHome pose five Dialog"; assigned [ (( Ster [ [{ extract{(tcp (.require{( grammar
- 27%|██▋       | 67/250 [03:49<10:51,  3.56s/it]2026-01-05 02:26:02 [gcg.py:107] buffer:
-loss: 0.01078033447265625 | string: covering AfrHome pose five Dialog"; assigned [ (( Ster [ [{ extract{(tcp (.require{( grammar
- 27%|██▋       | 68/250 [03:53<10:47,  3.56s/it]2026-01-05 02:26:04 [gcg.py:107] buffer:
-loss: 0.0106964111328125 | string: covering AfrHome pose five Dialog"; assigned [ (( vul [ [{ extract{(tcp (.require{( grammar
- 28%|██▊       | 69/250 [03:55<09:17,  3.08s/it]2026-01-05 02:26:08 [gcg.py:107] buffer:
-loss: 0.0109710693359375 | string: covering AfrHome pose five Dialog"; assigned [ (( vul [ [{ extract{(tcp(&require{( grammar
- 28%|██▊       | 70/250 [03:58<09:44,  3.25s/it]2026-01-05 02:26:11 [gcg.py:107] buffer:
-loss: 0.01141357421875 | string: covering AfrHome pose five Dialog"; assigned [ (( vul [ [{ extract{(MQ(&require{( grammar
- 28%|██▊       | 71/250 [04:02<10:01,  3.36s/it]2026-01-05 02:26:15 [gcg.py:107] buffer:
-loss: 0.011138916015625 | string: covering AfrHome pose five Dialog"; assigned [ ((csol [ [{ extract{(MQ(&require{( grammar
- 29%|██▉       | 72/250 [04:06<10:14,  3.45s/it]2026-01-05 02:26:19 [gcg.py:107] buffer:
-loss: 0.011138916015625 | string: covering AfrHome pose five Dialog"; assigned [ ((csol [ [{ extract{(MQ(&require{( grammar
- 29%|██▉       | 73/250 [04:09<10:23,  3.52s/it]2026-01-05 02:26:22 [gcg.py:107] buffer:
-loss: 0.011688232421875 | string: covering AfrHome pose five Dialog"; assigned [ (( confl [ [{ extract{(MQ(&require{( grammar
- 30%|██▉       | 74/250 [04:13<10:18,  3.52s/it]2026-01-05 02:26:26 [gcg.py:107] buffer:
-loss: 0.011932373046875 | string: covering AfrHome pose five Dialog"; assigned [ (( cort [ [{ extract{(MQ(&require{( grammar
- 30%|███       | 75/250 [04:17<10:27,  3.59s/it]2026-01-05 02:26:29 [gcg.py:107] buffer:
-loss: 0.012176513671875 | string: covering AfrHome pose five Dialog"; assigned [ (( gev [ [{ extract{(MQ(&require{( grammar
- 30%|███       | 76/250 [04:20<10:19,  3.56s/it]2026-01-05 02:26:33 [gcg.py:107] buffer:
-loss: 0.011383056640625 | string: covering AfrHome pose five Dialog"; assigned [ (( telep [ [{ extract{(MQ(&require{( grammar
- 31%|███       | 77/250 [04:24<10:17,  3.57s/it]2026-01-05 02:26:36 [gcg.py:107] buffer:
-loss: 0.0113983154296875 | string: covering AfrHome pose five Dialog"; assigned [ (( saf [ [{ extract{(MQ(&require{( grammar
- 31%|███       | 78/250 [04:27<10:15,  3.58s/it]2026-01-05 02:26:40 [gcg.py:107] buffer:
-loss: 0.0113983154296875 | string: covering AfrHome pose five Dialog"; assigned [ (( saf [ [{ extract{(MQ(&require{( grammar
- 32%|███▏      | 79/250 [04:31<10:11,  3.57s/it]2026-01-05 02:26:44 [gcg.py:107] buffer:
-loss: 0.0120391845703125 | string: covering AfrHome pose five Dialog"; assigned [ (( kre [ [{ extract{(MQ(&require{( grammar
- 32%|███▏      | 80/250 [04:34<10:07,  3.57s/it]2026-01-05 02:26:47 [gcg.py:107] buffer:
-loss: 0.01169586181640625 | string: covering AfrHome pose five Dialog"; assigned [ (( kre [ [{ extract{(MQ(&require}{( grammar
- 32%|███▏      | 81/250 [04:38<10:03,  3.57s/it]2026-01-05 02:26:51 [gcg.py:107] buffer:
-loss: 0.01140594482421875 | string: covering AfrHome pose five Dialog"; assigned [ (( semb [ [{ extract{(MQ(&require}{( grammar
- 33%|███▎      | 82/250 [04:42<10:09,  3.63s/it]2026-01-05 02:26:55 [gcg.py:107] buffer:
-loss: 0.01117706298828125 | string: covering AfrHome pose five Dialog"; assigned [ (( sous [ [{ extract{(MQ(&require}{( grammar
- 33%|███▎      | 83/250 [04:45<10:07,  3.64s/it]2026-01-05 02:26:58 [gcg.py:107] buffer:
-loss: 0.01152801513671875 | string: covering AfrHome pose five Dialog"; assigned [ (( ros [ [{ extract{(MQ(&require}{( grammar
- 34%|███▎      | 84/250 [04:49<10:09,  3.67s/it]2026-01-05 02:27:02 [gcg.py:107] buffer:
-loss: 0.01140594482421875 | string: covering AfrHome pose five Dialog"; assigned [ (( semb [ [{ extract{(MQ(&require}{( grammar
- 34%|███▍      | 85/250 [04:53<10:07,  3.68s/it]2026-01-05 02:27:06 [gcg.py:107] buffer:
-loss: 0.0116729736328125 | string: covering AfrHome pose five Dialog"; assigned [ (( sob [ [{ extract{(MQ(&require}{( grammar
- 34%|███▍      | 86/250 [04:56<10:02,  3.67s/it]2026-01-05 02:27:09 [gcg.py:107] buffer:
-loss: 0.0118865966796875 | string: covering AfrHome pose five Dialog"; assigned [ (( syst [ [{ extract{(MQ(&require}{( grammar
- 35%|███▍      | 87/250 [05:00<10:00,  3.69s/it]2026-01-05 02:27:13 [gcg.py:107] buffer:
-loss: 0.01247406005859375 | string: covering AfrHome pose five Dialog"; assigned [ (( syst [ [{ extract{(MQ(&multiple}{( grammar
- 35%|███▌      | 88/250 [05:04<09:51,  3.65s/it]2026-01-05 02:27:17 [gcg.py:107] buffer:
-loss: 0.011810302734375 | string: covering AfrHome pose five Dialog"; assigned [ (( synth [ [{ extract{(MQ(&multiple}{( grammar
- 36%|███▌      | 89/250 [05:07<09:49,  3.66s/it]2026-01-05 02:27:19 [gcg.py:107] buffer:
-loss: 0.0122833251953125 | string: covering AfrHome pose five Dialog"; assigned [ (( rav [ [{ extract{(MQ(&multiple}{( grammar
- 36%|███▌      | 90/250 [05:09<08:24,  3.15s/it]2026-01-05 02:27:22 [gcg.py:107] buffer:
-loss: 0.01129913330078125 | string: covering AfrHome pose five Dialog"; assigned [ (( ros [ [{ extract{(MQ(&multiple}{( grammar
- 36%|███▋      | 91/250 [05:13<08:52,  3.35s/it]2026-01-05 02:27:26 [gcg.py:107] buffer:
-loss: 0.01113128662109375 | string: covering AfrHome pose five Dialog"; assigned [ (( ros [ [{ extract{(MQncmultiple}{( grammar
- 37%|███▋      | 92/250 [05:17<09:05,  3.45s/it]2026-01-05 02:27:30 [gcg.py:107] buffer:
-loss: 0.01073455810546875 | string: covering AfrHome pose five Dialog"; assigned [ (( Nil [ [{ extract{(MQncmultiple}{( grammar
- 37%|███▋      | 93/250 [05:21<09:11,  3.51s/it]2026-01-05 02:27:33 [gcg.py:107] buffer:
-loss: 0.01116180419921875 | string: covering AfrHome pose five Dialog"; assigned [ (( Nil [ [{ extract{(MQsvmultiple}{( grammar
- 38%|███▊      | 94/250 [05:24<09:12,  3.54s/it]2026-01-05 02:27:35 [gcg.py:107] buffer:
-loss: 0.0110626220703125 | string: covering AfrHome pose five Dialog"; assigned [ (( Nil [ [{ extract{(MQSVmultiple}{( grammar
- 38%|███▊      | 95/250 [05:26<07:53,  3.05s/it]2026-01-05 02:27:39 [gcg.py:107] buffer:
-loss: 0.01094818115234375 | string: covering AfrHome pose five Dialog"; assigned [ (( Nil [ [{ extract{(MQ difmultiple}{( grammar
- 38%|███▊      | 96/250 [05:30<08:13,  3.21s/it]2026-01-05 02:27:43 [gcg.py:107] buffer:
-loss: 0.01094818115234375 | string: covering AfrHome pose five Dialog"; assigned [ (( Nil [ [{ extract{(MQ difmultiple}{( grammar
- 39%|███▉      | 97/250 [05:33<08:35,  3.37s/it]2026-01-05 02:27:46 [gcg.py:107] buffer:
-loss: 0.01023101806640625 | string: covering AfrHome pose five Dialog"; assigned [ (( Nil [ [{ extract(%MQ difmultiple}{( grammar
- 39%|███▉      | 98/250 [05:37<08:41,  3.43s/it]2026-01-05 02:27:50 [gcg.py:107] buffer:
-loss: 0.010009765625 | string: covering AfrHome pose five Dialog"; assigned [ (( Nil [ [{ extract (_MQ difmultiple}{( grammar
- 40%|███▉      | 99/250 [05:41<08:46,  3.48s/it]2026-01-05 02:27:53 [gcg.py:107] buffer:
-loss: 0.009552001953125 | string: covering AfrHome pose five Dialog"; assigned [ (( Nil ( [{ extract (_MQ difmultiple}{( grammar
- 40%|████      | 100/250 [05:44<08:44,  3.50s/it]2026-01-05 02:27:57 [gcg.py:107] buffer:
-loss: 0.0092620849609375 | string: covering AfrHome pose five Dialog"; assigned [ (( Nil ( [{ extract (_VP difmultiple}{( grammar
- 40%|████      | 101/250 [05:48<08:44,  3.52s/it]2026-01-05 02:28:01 [gcg.py:107] buffer:
-loss: 0.00930023193359375 | string: covering AfrHome pose five Dialog"; assigned [ (( Nil ( [{ extract (_CS difmultiple}{( grammar
- 41%|████      | 102/250 [05:51<08:47,  3.56s/it]2026-01-05 02:28:04 [gcg.py:107] buffer:
-loss: 0.00930023193359375 | string: covering AfrHome pose five Dialog"; assigned [ (( Nil ( [{ extract (_CS difmultiple}{( grammar
- 41%|████      | 103/250 [05:55<08:47,  3.59s/it]2026-01-05 02:28:08 [gcg.py:107] buffer:
-loss: 0.00930023193359375 | string: covering AfrHome pose five Dialog"; assigned [ (( Nil ( [{ extract (_CS difmultiple}{( grammar
- 42%|████▏     | 104/250 [05:59<08:47,  3.61s/it]2026-01-05 02:28:11 [gcg.py:107] buffer:
-loss: 0.009613037109375 | string: covering AfrHome pose five Dialog"; assigned [ (( Nil ( [{ extract (_aucoup difmultiple}{( grammar
- 42%|████▏     | 105/250 [06:02<08:41,  3.60s/it]2026-01-05 02:28:15 [gcg.py:107] buffer:
-loss: 0.00943756103515625 | string: covering AfrHome pose five Dialog"; assigned [ (( Nil ( [{ extract (_ droite difmultiple}{( grammar
- 42%|████▏     | 106/250 [06:06<08:38,  3.60s/it]2026-01-05 02:28:19 [gcg.py:107] buffer:
-loss: 0.0093994140625 | string: covering AfrHome pose five Dialog"; assigned [ (( Nil ( [{ extract (_ droite functionalmultiple}{( grammar
- 43%|████▎     | 107/250 [06:10<08:43,  3.66s/it]2026-01-05 02:28:22 [gcg.py:107] buffer:
-loss: 0.0093994140625 | string: covering AfrHome pose five Dialog"; assigned [ (( Nil ( [{ extract (_ droite functionalmultiple}{( grammar
- 43%|████▎     | 108/250 [06:13<08:37,  3.64s/it]2026-01-05 02:28:26 [gcg.py:107] buffer:
-loss: 0.0095062255859375 | string: covering AfrHome pose five Dialog"; assigned [ (( Nil ( [{ extract (_ droite mintmultiple}{( grammar
- 44%|████▎     | 109/250 [06:17<08:37,  3.67s/it]2026-01-05 02:28:30 [gcg.py:107] buffer:
-loss: 0.00911712646484375 | string: covering AfrHome pose five Dialog"; assigned [ (( Nil ( [{ extract (_ droiteGENmultiple}{( grammar
- 44%|████▍     | 110/250 [06:21<08:32,  3.66s/it]2026-01-05 02:28:34 [gcg.py:107] buffer:
-loss: 0.008880615234375 | string: covering AfrHome pose five Dialog"; assigned [ (( Nil ( [{ extract (_autresGENmultiple}{( grammar
- 44%|████▍     | 111/250 [06:24<08:32,  3.69s/it]2026-01-05 02:28:37 [gcg.py:107] buffer:
-loss: 0.00885009765625 | string: covering AfrHome pose five Dialog"; assigned [ (( Nil ( [{ extract (_autresmultiplemultiple}{( grammar
- 45%|████▍     | 112/250 [06:28<08:23,  3.65s/it]2026-01-05 02:28:41 [gcg.py:107] buffer:
-loss: 0.009246826171875 | string: covering AfrHome pose five Dialog"; assigned [ (( Nil ( [{ extract (_autresochasticmultiple}{( grammar
- 45%|████▌     | 113/250 [06:31<08:19,  3.64s/it]2026-01-05 02:28:44 [gcg.py:107] buffer:
-loss: 0.00836181640625 | string: covering AfrHome pose five Dialog"; assigned [ (( Nil ( [{ extract (_autresendpointmultiple}{( grammar
- 46%|████▌     | 114/250 [06:35<08:14,  3.64s/it]2026-01-05 02:28:48 [gcg.py:107] buffer:
-loss: 0.0087738037109375 | string: covering MareHome pose five Dialog"; assigned [ (( Nil ( [{ extract (_autresendpointmultiple}{( grammar
- 46%|████▌     | 115/250 [06:39<08:18,  3.69s/it]2026-01-05 02:28:52 [gcg.py:107] buffer:
-loss: 0.0087738037109375 | string: covering MareHome pose five Dialog"; assigned [ (( Nil ( [{ extract (_autresendpointmultiple}{( grammar
- 46%|████▋     | 116/250 [06:43<08:11,  3.67s/it]2026-01-05 02:28:55 [gcg.py:107] buffer:
-loss: 0.0087738037109375 | string: covering MareHome pose five Dialog"; assigned [ (( Nil ( [{ extract (_autresendpointmultiple}{( grammar
- 47%|████▋     | 117/250 [06:46<08:06,  3.66s/it]2026-01-05 02:28:59 [gcg.py:107] buffer:
-loss: 0.00885772705078125 | string: covering MareHome pose five Dialog"; assigned [ (( H ( [{ extract (_autresendpointmultiple}{( grammar
- 47%|████▋     | 118/250 [06:50<08:08,  3.70s/it]2026-01-05 02:29:03 [gcg.py:107] buffer:
-loss: 0.00875091552734375 | string: covering MareHome pose five Dialog"; assigned [ (( Trans ( [{ extract (_autresendpointmultiple}{( grammar
- 48%|████▊     | 119/250 [06:54<08:02,  3.69s/it]2026-01-05 02:29:07 [gcg.py:107] buffer:
-loss: 0.00885772705078125 | string: covering MareHome pose five Dialog"; assigned [ (( H ( [{ extract (_autresendpointmultiple}{( grammar
- 48%|████▊     | 120/250 [06:57<08:01,  3.71s/it]2026-01-05 02:29:10 [gcg.py:107] buffer:
-loss: 0.008544921875 | string: covering MareHome pose five Dialog"; assigned [ (( P ( [{ extract (_autresendpointmultiple}{( grammar
- 48%|████▊     | 121/250 [07:01<07:56,  3.69s/it]2026-01-05 02:29:14 [gcg.py:107] buffer:
-loss: 0.00916290283203125 | string: covering MareHome pose five Dialog"; assigned [ (( fa ( [{ extract (_autresendpointmultiple}{( grammar
- 49%|████▉     | 122/250 [07:05<07:51,  3.68s/it]2026-01-05 02:29:18 [gcg.py:107] buffer:
-loss: 0.0088043212890625 | string: covering MareHome pose five Dialog"; assigned [ (( alloc ( [{ extract (_autresendpointmultiple}{( grammar
- 49%|████▉     | 123/250 [07:08<07:42,  3.64s/it]2026-01-05 02:29:21 [gcg.py:107] buffer:
-loss: 0.0091094970703125 | string: covering MareHome pose five Dialog"; assigned [ ((oc ( [{ extract (_autresendpointmultiple}{( grammar
- 50%|████▉     | 124/250 [07:12<07:44,  3.68s/it]2026-01-05 02:29:25 [gcg.py:107] buffer:
-loss: 0.00894927978515625 | string: covering MareHome pose five Dialog"; assigned [ ((sec ( [{ extract (_autresendpointmultiple}{( grammar
- 50%|█████     | 125/250 [07:16<07:41,  3.69s/it]2026-01-05 02:29:29 [gcg.py:107] buffer:
-loss: 0.00885009765625 | string: covering MareHome pose five Dialog"; assigned [ (( J ( [{ extract (_autresendpointmultiple}{( grammar
- 50%|█████     | 126/250 [07:19<07:34,  3.67s/it]2026-01-05 02:29:32 [gcg.py:107] buffer:
-loss: 0.00865936279296875 | string: covering MareHome pose five Dialog"; assigned [ (( br ( [{ extract (_autresendpointmultiple}{( grammar
- 51%|█████     | 127/250 [07:23<07:28,  3.65s/it]2026-01-05 02:29:36 [gcg.py:107] buffer:
-loss: 0.00868988037109375 | string: covering MareHome pose five Dialog"; assigned [ ((br ( [{ extract (_autresendpointmultiple}{( grammar
- 51%|█████     | 128/250 [07:27<07:24,  3.64s/it]2026-01-05 02:29:40 [gcg.py:107] buffer:
-loss: 0.009429931640625 | string: covering MareHome pose five Dialog"; assigned [ ((jax ( [{ extract (_autresendpointmultiple}{( grammar
- 52%|█████▏    | 129/250 [07:30<07:27,  3.70s/it]2026-01-05 02:29:43 [gcg.py:107] buffer:
-loss: 0.00885009765625 | string: covering MareHome pose five Dialog"; assigned [ (( J ( [{ extract (_autresendpointmultiple}{( grammar
- 52%|█████▏    | 130/250 [07:34<07:27,  3.73s/it]2026-01-05 02:29:47 [gcg.py:107] buffer:
-loss: 0.00917816162109375 | string: covering MareHome pose five Dialog"; assigned [ (( W ( [{ extract (_autresendpointmultiple}{( grammar
- 52%|█████▏    | 131/250 [07:38<07:21,  3.71s/it]2026-01-05 02:29:51 [gcg.py:107] buffer:
-loss: 0.00917816162109375 | string: covering MareHome pose five Dialog"; assigned [ (( W ( [{ extract (_autresendpointmultiple}{( grammar
- 53%|█████▎    | 132/250 [07:41<07:12,  3.67s/it]2026-01-05 02:29:55 [gcg.py:107] buffer:
-loss: 0.00876617431640625 | string: covering MareHome pose five Dialog"; assigned [ ((inject ( [{ extract (_autresendpointmultiple}{( grammar
- 53%|█████▎    | 133/250 [07:45<07:15,  3.72s/it]2026-01-05 02:29:58 [gcg.py:107] buffer:
-loss: 0.00876617431640625 | string: covering MareHome pose five Dialog"; assigned [ ((inject ( [{ extract (_autresendpointmultiple}{( grammar
- 54%|█████▎    | 134/250 [07:49<07:09,  3.70s/it]2026-01-05 02:30:02 [gcg.py:107] buffer:
-loss: 0.00910186767578125 | string: covering MareHome pose five Dialog"; assigned [ (( Tr ( [{ extract (_autresendpointmultiple}{( grammar
- 54%|█████▍    | 135/250 [07:52<06:58,  3.64s/it]2026-01-05 02:30:05 [gcg.py:107] buffer:
-loss: 0.00885009765625 | string: covering MareHome pose five Dialog"; assigned [ (( J ( [{ extract (_autresendpointmultiple}{( grammar
- 54%|█████▍    | 136/250 [07:56<06:54,  3.64s/it]2026-01-05 02:30:09 [gcg.py:107] buffer:
-loss: 0.00876617431640625 | string: covering MareHome pose five Dialog"; assigned [ (( Def ( [{ extract (_autresendpointmultiple}{( grammar
- 55%|█████▍    | 137/250 [08:00<06:55,  3.68s/it]2026-01-05 02:30:13 [gcg.py:107] buffer:
-loss: 0.00885772705078125 | string: covering MareHome pose five Dialog"; assigned [ (( H ( [{ extract (_autresendpointmultiple}{( grammar
- 55%|█████▌    | 138/250 [08:04<06:51,  3.68s/it]2026-01-05 02:30:16 [gcg.py:107] buffer:
-loss: 0.008544921875 | string: covering MareHome pose five Dialog"; assigned [ (( P ( [{ extract (_autresendpointmultiple}{( grammar
- 56%|█████▌    | 139/250 [08:07<06:47,  3.67s/it]2026-01-05 02:30:20 [gcg.py:107] buffer:
-loss: 0.008544921875 | string: covering MareHome pose five Dialog"; assigned [ (( P ( [{ extract (_autresendpointmultiple}{( grammar
- 56%|█████▌    | 140/250 [08:11<06:44,  3.68s/it]2026-01-05 02:30:24 [gcg.py:107] buffer:
-loss: 0.008544921875 | string: covering MareHome pose five Dialog"; assigned [ (( P ( [{ extract (_autresendpointmultiple}{( grammar
- 56%|█████▋    | 141/250 [08:14<06:36,  3.64s/it]2026-01-05 02:30:27 [gcg.py:107] buffer:
-loss: 0.0088043212890625 | string: covering MareHome pose five Dialog"; assigned [ (( alloc ( [{ extract (_autresendpointmultiple}{( grammar
- 57%|█████▋    | 142/250 [08:18<06:33,  3.65s/it]2026-01-05 02:30:31 [gcg.py:107] buffer:
-loss: 0.00939178466796875 | string: covering MareHome pose five Dialog"; assigned [ ((avo ( [{ extract (_autresendpointmultiple}{( grammar
- 57%|█████▋    | 143/250 [08:22<06:31,  3.66s/it]2026-01-05 02:30:35 [gcg.py:107] buffer:
-loss: 0.00913238525390625 | string: covering MareHome pose five Dialog"; assigned [ ((cli ( [{ extract (_autresendpointmultiple}{( grammar
- 58%|█████▊    | 144/250 [08:25<06:26,  3.64s/it]2026-01-05 02:30:38 [gcg.py:107] buffer:
-loss: 0.00897979736328125 | string: covering MareHome pose five Dialog"; assigned [ (( ts ( [{ extract (_autresendpointmultiple}{( grammar
- 58%|█████▊    | 145/250 [08:29<06:26,  3.68s/it]2026-01-05 02:30:42 [gcg.py:107] buffer:
-loss: 0.00894927978515625 | string: covering MareHome pose five Dialog"; assigned [ ((sec ( [{ extract (_autresendpointmultiple}{( grammar
- 58%|█████▊    | 146/250 [08:33<06:25,  3.71s/it]2026-01-05 02:30:46 [gcg.py:107] buffer:
-loss: 0.008544921875 | string: covering MareHome pose five Dialog"; assigned [ (( P ( [{ extract (_autresendpointmultiple}{( grammar
- 59%|█████▉    | 147/250 [08:36<06:16,  3.66s/it]2026-01-05 02:30:49 [gcg.py:107] buffer:
-loss: 0.0088043212890625 | string: covering MareHome pose five Dialog"; assigned [ (( alloc ( [{ extract (_autresendpointmultiple}{( grammar
- 59%|█████▉    | 148/250 [08:40<06:13,  3.66s/it]2026-01-05 02:30:53 [gcg.py:107] buffer:
-loss: 0.00951385498046875 | string: covering MareHome pose five Dialog"; assigned [ (( alloc ( [{ extract (_autresendpoint mini}{( grammar
- 60%|█████▉    | 149/250 [08:44<06:15,  3.72s/it]2026-01-05 02:30:57 [gcg.py:107] buffer:
-loss: 0.00928497314453125 | string: covering MareHome pose five Dialog"; assigned [ (( alloc ( [{ extract (_autresHttpRequest mini}{( grammar
- 60%|██████    | 150/250 [08:48<06:11,  3.71s/it]2026-01-05 02:31:01 [gcg.py:107] buffer:
-loss: 0.00983428955078125 | string: covering MareHome pose five Dialog"; assigned [ (( alloc ( [{ extract (_autresHttpRequest ced}{( grammar
- 60%|██████    | 151/250 [08:51<06:06,  3.70s/it]2026-01-05 02:31:04 [gcg.py:107] buffer:
-loss: 0.00965118408203125 | string: covering MareHome pose five Dialog"; assigned [ (( alloc ( [{ extract (_autresHttpRequestPhi}{( grammar
- 61%|██████    | 152/250 [08:55<06:03,  3.70s/it]2026-01-05 02:31:08 [gcg.py:107] buffer:
-loss: 0.01000213623046875 | string: covering MareHome pose five Dialog"; assigned [ (( alloc ( [{ extract (_autresHttpRequest cy}{( grammar
- 61%|██████    | 153/250 [08:59<05:57,  3.68s/it]2026-01-05 02:31:12 [gcg.py:107] buffer:
-loss: 0.00983428955078125 | string: covering MareHome pose five Dialog"; assigned [ (( alloc ( [{ extract (_autresHttpRequestuetooth}{( grammar
- 62%|██████▏   | 154/250 [09:02<05:53,  3.69s/it]2026-01-05 02:31:15 [gcg.py:107] buffer:
-loss: 0.0090484619140625 | string: covering MareHome pose five Dialog"; assigned [ (( alloc ( [{ extract (_autresHttpRequest IU}{( grammar
- 62%|██████▏   | 155/250 [09:06<05:53,  3.72s/it]2026-01-05 02:31:19 [gcg.py:107] buffer:
-loss: 0.008819580078125 | string: covering MareHome pose five Dialog"; assigned [ (( alloc ( [{ extract (_autresEndpoint IU}{( grammar
- 62%|██████▏   | 156/250 [09:10<05:51,  3.74s/it]2026-01-05 02:31:23 [gcg.py:107] buffer:
-loss: 0.008819580078125 | string: covering MareHome pose five Dialog"; assigned [ (( alloc ( [{ extract (_autresEndpoint IU}{( grammar
- 63%|██████▎   | 157/250 [09:14<05:45,  3.71s/it]2026-01-05 02:31:27 [gcg.py:107] buffer:
-loss: 0.009063720703125 | string: covering MareHome pose five Dialog"; assigned [ (( serialize ( [{ extract (_autresEndpoint IU}{( grammar
- 63%|██████▎   | 158/250 [09:17<05:40,  3.70s/it]2026-01-05 02:31:30 [gcg.py:107] buffer:
-loss: 0.0098114013671875 | string: covering MareHome pose five Dialog"; assigned [ (( serialize ( [{ extract (_ aussiEndpoint IU}{( grammar
- 64%|██████▎   | 159/250 [09:21<05:39,  3.73s/it]2026-01-05 02:31:34 [gcg.py:107] buffer:
-loss: 0.009063720703125 | string: covering MareHome pose five Dialog"; assigned [ (( serialize ( [{ extract (_autresEndpoint IU}{( grammar
- 64%|██████▍   | 160/250 [09:25<05:33,  3.71s/it]2026-01-05 02:31:38 [gcg.py:107] buffer:
-loss: 0.009063720703125 | string: covering MareHome pose five Dialog"; assigned [ (( serialize ( [{ extract (_autresEndpoint IU}{( grammar
- 64%|██████▍   | 161/250 [09:29<05:30,  3.72s/it]2026-01-05 02:31:41 [gcg.py:107] buffer:
-loss: 0.00994110107421875 | string: covering MareHome pose five Dialog"; assigned [ (( serialize ( [{ extract (_ alorsEndpoint IU}{( grammar
- 65%|██████▍   | 162/250 [09:32<05:25,  3.70s/it]2026-01-05 02:31:45 [gcg.py:107] buffer:
-loss: 0.01056671142578125 | string: covering MareHome pose five Dialog"; assigned [ (( serialize ( [{ extract (_puisEndpoint IU}{( grammar
- 65%|██████▌   | 163/250 [09:36<05:22,  3.71s/it]2026-01-05 02:31:49 [gcg.py:107] buffer:
-loss: 0.01114654541015625 | string: covering MareHome batter five Dialog"; assigned [ (( serialize ( [{ extract (_puisEndpoint IU}{( grammar
- 66%|██████▌   | 164/250 [09:40<05:16,  3.68s/it]2026-01-05 02:31:53 [gcg.py:107] buffer:
-loss: 0.0115966796875 | string: covering MareHome batter five Dialog"; assigned [ (( Loc ( [{ extract (_puisEndpoint IU}{( grammar
- 66%|██████▌   | 165/250 [09:43<05:14,  3.69s/it]2026-01-05 02:31:56 [gcg.py:107] buffer:
-loss: 0.01070404052734375 | string: covering MareHome batter five Dialog"; assigned [ (( Loc ( [{ extract (_ refEndpoint IU}{( grammar
- 66%|██████▋   | 166/250 [09:47<05:11,  3.71s/it]2026-01-05 02:32:00 [gcg.py:107] buffer:
-loss: 0.009918212890625 | string: covering MareHome batter five Dialog"; assigned [ (( Loc ( [{ extract (_ reverseEndpoint IU}{( grammar
- 67%|██████▋   | 167/250 [09:51<05:06,  3.69s/it]2026-01-05 02:32:04 [gcg.py:107] buffer:
-loss: 0.0096435546875 | string: covering MareHomeare five Dialog"; assigned [ (( Loc ( [{ extract (_ reverseEndpoint IU}{( grammar
- 67%|██████▋   | 168/250 [09:54<05:00,  3.67s/it]2026-01-05 02:32:07 [gcg.py:107] buffer:
-loss: 0.0094451904296875 | string: covering MareHomeare five Dialog"; assigned [ (( Loc ( [{ extract (_andEndpoint IU}{( grammar
- 68%|██████▊   | 169/250 [09:58<04:55,  3.65s/it]2026-01-05 02:32:11 [gcg.py:107] buffer:
-loss: 0.00942230224609375 | string: covering MareHomeare five Dialog"; assigned [ (( Loc ( [{ extract (_soapEndpoint IU}{( grammar
- 68%|██████▊   | 170/250 [10:02<04:52,  3.66s/it]2026-01-05 02:32:14 [gcg.py:107] buffer:
-loss: 0.00942230224609375 | string: covering MareHomeare five Dialog"; assigned [ (( Loc ( [{ extract (_soapEndpoint IU}{( grammar
- 68%|██████▊   | 171/250 [10:05<04:49,  3.67s/it]2026-01-05 02:32:18 [gcg.py:107] buffer:
-loss: 0.010223388671875 | string: covering MareHomeare five Dialog"; assigned [ (( Loc ( [{ extract (_soapEndpoint Gia}{( grammar
- 69%|██████▉   | 172/250 [10:09<04:45,  3.67s/it]2026-01-05 02:32:22 [gcg.py:107] buffer:
-loss: 0.00994873046875 | string: covering MareHomeare five Dialog"; assigned [ ((isl ( [{ extract (_soapEndpoint Gia}{( grammar
- 69%|██████▉   | 173/250 [10:12<04:39,  3.64s/it]2026-01-05 02:32:25 [gcg.py:107] buffer:
-loss: 0.00991058349609375 | string: covering MareHomeare five Dialog"; assigned [ ((isl ( [{ extract (_soapEndpoint commut}{( grammar
- 70%|██████▉   | 174/250 [10:16<04:33,  3.60s/it]2026-01-05 02:32:29 [gcg.py:107] buffer:
-loss: 0.00991058349609375 | string: covering MareHomeare five Dialog"; assigned [ ((isl ( [{ extract (_soapEndpoint commut}{( grammar
- 70%|███████   | 175/250 [10:20<04:31,  3.62s/it]2026-01-05 02:32:32 [gcg.py:107] buffer:
-loss: 0.00991058349609375 | string: covering MareHomeare five Dialog"; assigned [ ((isl ( [{ extract (_soapEndpoint commut}{( grammar
- 70%|███████   | 176/250 [10:23<04:25,  3.59s/it]2026-01-05 02:32:34 [gcg.py:107] buffer:
-loss: 0.00991058349609375 | string: covering MareHomeare five Dialog"; assigned [ ((isl ( [{ extract (_soapEndpoint commut}{( grammar
- 71%|███████   | 177/250 [10:25<03:46,  3.10s/it]2026-01-05 02:32:38 [gcg.py:107] buffer:
-loss: 0.01129150390625 | string: covering MareHomeare five Dialog"; assigned [ ((isl ( [{ extract (_soapEndpoint Pad}{( grammar
- 71%|███████   | 178/250 [10:29<03:54,  3.25s/it]2026-01-05 02:32:42 [gcg.py:107] buffer:
-loss: 0.0106353759765625 | string: covering MareHomeare five Dialog"; assigned [ ((isl ( [{ extract (_soapEndpointinside}{( grammar
- 72%|███████▏  | 179/250 [10:32<03:59,  3.37s/it]2026-01-05 02:32:45 [gcg.py:107] buffer:
-loss: 0.010406494140625 | string: covering MareHomeare five Dialog"; assigned [ ((isl ( [{ extract (_soapEndpoint cross}{( grammar
- 72%|███████▏  | 180/250 [10:36<04:00,  3.44s/it]2026-01-05 02:32:49 [gcg.py:107] buffer:
-loss: 0.00965118408203125 | string: covering MareHomeare five Dialog"; assigned [ ((isl ( [{ extract (_soapEndpoint parmi}{( grammar
- 72%|███████▏  | 181/250 [10:40<04:00,  3.48s/it]2026-01-05 02:32:52 [gcg.py:107] buffer:
-loss: 0.00963592529296875 | string: covering MareHomeare five Dialog"; assigned [ ((isl ( [{ extract (_soapEndpointaucoup}{( grammar
- 73%|███████▎  | 182/250 [10:43<03:58,  3.51s/it]2026-01-05 02:32:56 [gcg.py:107] buffer:
-loss: 0.00963592529296875 | string: covering MareHomeare five Dialog"; assigned [ ((isl ( [{ extract (_soapEndpointaucoup}{( grammar
- 73%|███████▎  | 183/250 [10:47<04:00,  3.59s/it]2026-01-05 02:33:00 [gcg.py:107] buffer:
-loss: 0.0098876953125 | string: covering MareHomeare five Dialog"; assigned [ ((isl ( [{ extract (_soapEndpoint vast}{( grammar
- 74%|███████▎  | 184/250 [10:50<03:56,  3.59s/it]2026-01-05 02:33:03 [gcg.py:107] buffer:
-loss: 0.00962066650390625 | string: covering MareHomeare five Dialog"; assigned [ ((isl ( [{ extract (_soapEndpoint pub}{( grammar
- 74%|███████▍  | 185/250 [10:54<03:53,  3.59s/it]2026-01-05 02:33:07 [gcg.py:107] buffer:
-loss: 0.01029205322265625 | string: covering MareHomeare five Dialog"; assigned [ ((isl ( [{ extract (_soapEndpoint au}{( grammar
- 74%|███████▍  | 186/250 [10:58<03:50,  3.60s/it]2026-01-05 02:33:11 [gcg.py:107] buffer:
-loss: 0.00994873046875 | string: covering MareHomeare five Dialog"; assigned [ ((isl ( [{ extract (_soapEndpoint Gia}{( grammar
- 75%|███████▍  | 187/250 [11:01<03:47,  3.61s/it]2026-01-05 02:33:14 [gcg.py:107] buffer:
-loss: 0.00994873046875 | string: covering MareHomeare five Dialog"; assigned [ ((isl ( [{ extract (_soapEndpoint Gia}{( grammar
- 75%|███████▌  | 188/250 [11:05<03:43,  3.60s/it]2026-01-05 02:33:18 [gcg.py:107] buffer:
-loss: 0.00994110107421875 | string: covering MareHomeare five Dialog"; assigned [ ((isl ( [{ extract (_aucoupEndpoint Gia}{( grammar
- 76%|███████▌  | 189/250 [11:09<03:42,  3.64s/it]2026-01-05 02:33:22 [gcg.py:107] buffer:
-loss: 0.00957489013671875 | string: covering MareHomeare five Dialog"; assigned [ ((isl ( [{ extract (_aucoupEndpointYS}{( grammar
- 76%|███████▌  | 190/250 [11:12<03:38,  3.64s/it]2026-01-05 02:33:25 [gcg.py:107] buffer:
-loss: 0.00931549072265625 | string: covering MareHomeare five Dialog"; assigned [ (( concl ( [{ extract (_aucoupEndpointYS}{( grammar
- 76%|███████▋  | 191/250 [11:16<03:36,  3.66s/it]2026-01-05 02:33:29 [gcg.py:107] buffer:
-loss: 0.00897979736328125 | string: covering MareHomeare five Dialog"; assigned [ (( dup ( [{ extract (_aucoupEndpointYS}{( grammar
- 77%|███████▋  | 192/250 [11:20<03:36,  3.73s/it]2026-01-05 02:33:33 [gcg.py:107] buffer:
-loss: 0.00897979736328125 | string: covering MareHomeare five Dialog"; assigned [ (( dup ( [{ extract (_aucoupEndpointYS}{( grammar
- 77%|███████▋  | 193/250 [11:24<03:33,  3.74s/it]2026-01-05 02:33:36 [gcg.py:107] buffer:
-loss: 0.0099029541015625 | string: covering MareHomeare five Dialog"; assigned [ (( prot ( [{ extract (_aucoupEndpointYS}{( grammar
- 78%|███████▊  | 194/250 [11:27<03:26,  3.69s/it]2026-01-05 02:33:40 [gcg.py:107] buffer:
-loss: 0.00951385498046875 | string: covering MareHomeare five Dialog"; assigned [ (( propos ( [{ extract (_aucoupEndpointYS}{( grammar
- 78%|███████▊  | 195/250 [11:31<03:22,  3.67s/it]2026-01-05 02:33:44 [gcg.py:107] buffer:
-loss: 0.0097808837890625 | string: covering MareHomeare five Dialog"; assigned [ (( propos ( [{ extract (_aucoupEndpoint invari}{( grammar
- 78%|███████▊  | 196/250 [11:34<03:17,  3.66s/it]2026-01-05 02:33:47 [gcg.py:107] buffer:
-loss: 0.00904083251953125 | string: covering MareHomeare five Dialog"; assigned [ (( propos ( [{ extract (_aucoupEndpointboost}{( grammar
- 79%|███████▉  | 197/250 [11:38<03:14,  3.67s/it]2026-01-05 02:33:51 [gcg.py:107] buffer:
-loss: 0.00901031494140625 | string: covering MareHomeare five Dialog"; assigned [ (( shr ( [{ extract (_aucoupEndpointboost}{( grammar
- 79%|███████▉  | 198/250 [11:42<03:12,  3.69s/it]2026-01-05 02:33:55 [gcg.py:107] buffer:
-loss: 0.00899505615234375 | string: covering MareHomeare five Dialog"; assigned [ (( phr ( [{ extract (_aucoupEndpointboost}{( grammar
- 80%|███████▉  | 199/250 [11:46<03:08,  3.69s/it]2026-01-05 02:33:59 [gcg.py:107] buffer:
-loss: 0.00899505615234375 | string: covering MareHomeare five Dialog"; assigned [ (( phr ( [{ extract (_aucoupEndpointboost}{( grammar
- 80%|████████  | 200/250 [11:49<03:05,  3.71s/it]2026-01-05 02:34:02 [gcg.py:107] buffer:
-loss: 0.00919342041015625 | string: covering MareHomeare five Dialog"; assigned [ (( repres ( [{ extract (_aucoupEndpointboost}{( grammar
- 80%|████████  | 201/250 [11:53<02:59,  3.67s/it]2026-01-05 02:34:06 [gcg.py:107] buffer:
-loss: 0.00919342041015625 | string: covering MareHomeare five Dialog"; assigned [ (( repres ( [{ extract (_aucoupEndpointAutres}{( grammar
- 81%|████████  | 202/250 [11:57<02:57,  3.69s/it]2026-01-05 02:34:10 [gcg.py:107] buffer:
-loss: 0.00952911376953125 | string: covering MareHomeare five Dialog"; assigned [ ((pend ( [{ extract (_aucoupEndpointAutres}{( grammar
- 81%|████████  | 203/250 [12:00<02:53,  3.70s/it]2026-01-05 02:34:13 [gcg.py:107] buffer:
-loss: 0.00905609130859375 | string: covering MareHomeare five Dialog"; assigned [ (( En ( [{ extract (_aucoupEndpointAutres}{( grammar
- 82%|████████▏ | 204/250 [12:04<02:48,  3.66s/it]2026-01-05 02:34:17 [gcg.py:107] buffer:
-loss: 0.00878143310546875 | string: covering MareHomeare five Dialog"; assigned [ (( dup ( [{ extract (_aucoupEndpointAutres}{( grammar
- 82%|████████▏ | 205/250 [12:08<02:45,  3.67s/it]2026-01-05 02:34:21 [gcg.py:107] buffer:
-loss: 0.0097198486328125 | string: covering MareHomeare five Dialog"; assigned [ (( dup ( [{ extract (_ manyEndpointAutres}{( grammar
- 82%|████████▏ | 206/250 [12:11<02:42,  3.69s/it]2026-01-05 02:34:24 [gcg.py:107] buffer:
-loss: 0.0088348388671875 | string: covering MareHomeare five Dialog"; assigned [ (( dup ( [{ extract (_relEndpointAutres}{( grammar
- 83%|████████▎ | 207/250 [12:15<02:37,  3.66s/it]2026-01-05 02:34:28 [gcg.py:107] buffer:
-loss: 0.00873565673828125 | string: covering MareHomeare five Dialog"; assigned [ (( dup ( [{ extract (_relEndpointouvelles}{( grammar
- 83%|████████▎ | 208/250 [12:19<02:33,  3.66s/it]2026-01-05 02:34:32 [gcg.py:107] buffer:
-loss: 0.00873565673828125 | string: covering MareHomeare five Dialog"; assigned [ (( dup ( [{ extract (_relEndpointouvelles}{( grammar
- 84%|████████▎ | 209/250 [12:22<02:31,  3.68s/it]2026-01-05 02:34:35 [gcg.py:107] buffer:
-loss: 0.009307861328125 | string: covering MareHomeare five Dialog"; assigned [ (( dup ( [{ extract (_relEndpointiellement}{( grammar
- 84%|████████▍ | 210/250 [12:26<02:28,  3.70s/it]2026-01-05 02:34:39 [gcg.py:107] buffer:
-loss: 0.0096588134765625 | string: covering MareHomeare five Dialog"; assigned [ (( dup ( [{ extract (_reactEndpointiellement}{( grammar
- 84%|████████▍ | 211/250 [12:30<02:24,  3.71s/it]2026-01-05 02:34:41 [gcg.py:107] buffer:
-loss: 0.00986480712890625 | string: covering MareHomeare five Dialog"; assigned [ (( dup ( [{ extract (_ recordEndpointiellement}{( grammar
- 85%|████████▍ | 212/250 [12:32<02:00,  3.17s/it]2026-01-05 02:34:45 [gcg.py:107] buffer:
-loss: 0.00876617431640625 | string: covering MareHomeare five Dialog"; assigned [ (( dup ( [{ extract (_repeatEndpointiellement}{( grammar
- 85%|████████▌ | 213/250 [12:35<02:03,  3.33s/it]2026-01-05 02:34:48 [gcg.py:107] buffer:
-loss: 0.0086669921875 | string: covering MareHomeare five Dialog"; assigned [ (( dup ( [{ extract (_repeatEndpoint connu}{( grammar
- 86%|████████▌ | 214/250 [12:39<02:04,  3.45s/it]2026-01-05 02:34:52 [gcg.py:107] buffer:
-loss: 0.009490966796875 | string: covering MareHomeare five Dialog"; assigned [ (( dup ( [{ extract (_repeatEndpoint publi}{( grammar
- 86%|████████▌ | 215/250 [12:43<02:02,  3.49s/it]2026-01-05 02:34:56 [gcg.py:107] buffer:
-loss: 0.00962066650390625 | string: covering MareHomeare five Dialog"; assigned [ ((isl ( [{ extract (_repeatEndpoint publi}{( grammar
- 86%|████████▋ | 216/250 [12:46<01:59,  3.51s/it]2026-01-05 02:34:59 [gcg.py:107] buffer:
-loss: 0.0098419189453125 | string: covering MareHomeare five Dialog"; assigned [ ((isl ( [{ extract (_repeatEndpoint particip}{( grammar
- 87%|████████▋ | 217/250 [12:50<01:56,  3.53s/it]2026-01-05 02:35:03 [gcg.py:107] buffer:
-loss: 0.009674072265625 | string: covering MareHomeare five Dialog"; assigned [ ((isl ( [{ extract (_repeatEndpoint pub}{( grammar
- 87%|████████▋ | 218/250 [12:53<01:53,  3.55s/it]2026-01-05 02:35:06 [gcg.py:107] buffer:
-loss: 0.009674072265625 | string: covering MareHomeare five Dialog"; assigned [ ((isl ( [{ extract (_repeatEndpoint pub}{( grammar
- 88%|████████▊ | 219/250 [12:57<01:50,  3.56s/it]2026-01-05 02:35:10 [gcg.py:107] buffer:
-loss: 0.009674072265625 | string: covering MareHomeare five Dialog"; assigned [ ((isl ( [{ extract (_repeatEndpoint pub}{( grammar
- 88%|████████▊ | 220/250 [13:01<01:47,  3.57s/it]2026-01-05 02:35:14 [gcg.py:107] buffer:
-loss: 0.01065826416015625 | string: covering MareHomeare five Dialog"; assigned [ ((isl ( [{ extract (_repeatEndpoint grat}{( grammar
- 88%|████████▊ | 221/250 [13:04<01:44,  3.60s/it]2026-01-05 02:35:17 [gcg.py:107] buffer:
-loss: 0.009857177734375 | string: covering MareHomeare five Dialog"; assigned [ ((isl ( [{ extract (_repeatEndpointquit}{( grammar
- 89%|████████▉ | 222/250 [13:08<01:40,  3.61s/it]2026-01-05 02:35:19 [gcg.py:107] buffer:
-loss: 0.00970458984375 | string: covering MareHomeare five Dialog"; assigned [ (( Bd ( [{ extract (_repeatEndpointquit}{( grammar
- 89%|████████▉ | 223/250 [13:10<01:23,  3.11s/it]2026-01-05 02:35:23 [gcg.py:107] buffer:
-loss: 0.009765625 | string: covering MareHomeare five Dialog"; assigned [ (( Bd ( [{ extract (_repeatEndpointmbox}{( grammar
- 90%|████████▉ | 224/250 [13:13<01:24,  3.25s/it]2026-01-05 02:35:26 [gcg.py:107] buffer:
-loss: 0.00957489013671875 | string: covering MareHomeare five Dialog"; assigned [ (( Bd ( [{ extract (_repeatEndpoint multi}{( grammar
- 90%|█████████ | 225/250 [13:17<01:24,  3.36s/it]2026-01-05 02:35:30 [gcg.py:107] buffer:
-loss: 0.00952911376953125 | string: covering MareHomeare five Dialog"; assigned [ ((cza ( [{ extract (_repeatEndpoint multi}{( grammar
- 90%|█████████ | 226/250 [13:21<01:22,  3.46s/it]2026-01-05 02:35:34 [gcg.py:107] buffer:
-loss: 0.0097503662109375 | string: covering MareHomeare five Dialog"; assigned [ (( soc ( [{ extract (_repeatEndpoint multi}{( grammar
- 91%|█████████ | 227/250 [13:24<01:19,  3.47s/it]2026-01-05 02:35:37 [gcg.py:107] buffer:
-loss: 0.0097503662109375 | string: covering MareHomeare five Dialog"; assigned [ (( soc ( [{ extract (_repeatEndpoint multi}{( grammar
- 91%|█████████ | 228/250 [13:28<01:16,  3.47s/it]2026-01-05 02:35:41 [gcg.py:107] buffer:
-loss: 0.0097503662109375 | string: covering MareHomeare five Dialog"; assigned [ (( soc ( [{ extract (_repeatEndpoint multi}{( grammar
- 92%|█████████▏| 229/250 [13:31<01:13,  3.51s/it]2026-01-05 02:35:44 [gcg.py:107] buffer:
-loss: 0.00943756103515625 | string: covering MareHomeare five Dialog"; assigned [ (( Soc ( [{ extract (_repeatEndpoint multi}{( grammar
- 92%|█████████▏| 230/250 [13:35<01:10,  3.54s/it]2026-01-05 02:35:48 [gcg.py:107] buffer:
-loss: 0.00983428955078125 | string: covering MareHomeare five Dialog"; assigned [ ((aniu ( [{ extract (_repeatEndpoint multi}{( grammar
- 92%|█████████▏| 231/250 [13:39<01:07,  3.54s/it]2026-01-05 02:35:51 [gcg.py:107] buffer:
-loss: 0.00943756103515625 | string: covering MareHomeare five Dialog"; assigned [ (( dup ( [{ extract (_repeatEndpoint multi}{( grammar
- 93%|█████████▎| 232/250 [13:42<01:04,  3.57s/it]2026-01-05 02:35:55 [gcg.py:107] buffer:
-loss: 0.00943756103515625 | string: covering MareHomeare five Dialog"; assigned [ (( dup ( [{ extract (_repeatEndpoint multi}{( grammar
- 93%|█████████▎| 233/250 [13:46<01:00,  3.58s/it]2026-01-05 02:35:59 [gcg.py:107] buffer:
-loss: 0.00943756103515625 | string: covering MareHomeare five Dialog"; assigned [ (( dup ( [{ extract (_repeatEndpoint multi}{( grammar
- 94%|█████████▎| 234/250 [13:49<00:57,  3.57s/it]2026-01-05 02:36:02 [gcg.py:107] buffer:
-loss: 0.00943756103515625 | string: covering MareHomeare five Dialog"; assigned [ (( dup ( [{ extract (_repeatEndpoint multi}{( grammar
- 94%|█████████▍| 235/250 [13:53<00:53,  3.58s/it]2026-01-05 02:36:06 [gcg.py:107] buffer:
-loss: 0.010040283203125 | string: covering MareHomeare five Dialog"; assigned [ ((voj ( [{ extract (_repeatEndpoint multi}{( grammar
- 94%|█████████▍| 236/250 [13:57<00:50,  3.61s/it]2026-01-05 02:36:10 [gcg.py:107] buffer:
-loss: 0.00975799560546875 | string: covering MareHomeare five Dialog"; assigned [ ((voj ( [{ extract (_repeatEndpointFound}{( grammar
- 95%|█████████▍| 237/250 [14:00<00:47,  3.63s/it]2026-01-05 02:36:13 [gcg.py:107] buffer:
-loss: 0.00972747802734375 | string: covering MareHomeare five Dialog"; assigned [ (( sz ( [{ extract (_repeatEndpointFound}{( grammar
- 95%|█████████▌| 238/250 [14:04<00:43,  3.62s/it]2026-01-05 02:36:17 [gcg.py:107] buffer:
-loss: 0.00946044921875 | string: covering MareHomeare five Dialog"; assigned [ (( soc ( [{ extract (_repeatEndpointFound}{( grammar
- 96%|█████████▌| 239/250 [14:08<00:39,  3.63s/it]2026-01-05 02:36:20 [gcg.py:107] buffer:
-loss: 0.00931549072265625 | string: covering MareHomeare five dialog"; assigned [ (( soc ( [{ extract (_repeatEndpointFound}{( grammar
- 96%|█████████▌| 240/250 [14:11<00:36,  3.62s/it]2026-01-05 02:36:24 [gcg.py:107] buffer:
-loss: 0.00926971435546875 | string: covering MareHomeare five dialog"; assigned [ (( Soc ( [{ extract (_repeatEndpointFound}{( grammar
- 96%|█████████▋| 241/250 [14:15<00:33,  3.68s/it]2026-01-05 02:36:28 [gcg.py:107] buffer:
-loss: 0.0090789794921875 | string: covering MareHomeare five Dialog"; assigned [ (( Soc ( [{ extract (_repeatEndpointFound}{( grammar
- 97%|█████████▋| 242/250 [14:18<00:29,  3.64s/it]2026-01-05 02:36:31 [gcg.py:107] buffer:
-loss: 0.00943756103515625 | string: covering MareHomeare five Dialog"; assigned [ (( Soc ( [{ extract (_repeatEndpoint mini}{( grammar
- 97%|█████████▋| 243/250 [14:22<00:25,  3.63s/it]2026-01-05 02:36:35 [gcg.py:107] buffer:
-loss: 0.00957489013671875 | string: covering MareHomeare five Dialog"; assigned [ ((sec ( [{ extract (_repeatEndpoint mini}{( grammar
- 98%|█████████▊| 244/250 [14:26<00:21,  3.62s/it]2026-01-05 02:36:38 [gcg.py:107] buffer:
-loss: 0.0092926025390625 | string: covering MareHomeare five Dialog"; assigned [ ((sec ( [{ extract (_repeatEndpointAutres}{( grammar
- 98%|█████████▊| 245/250 [14:29<00:17,  3.59s/it]2026-01-05 02:36:42 [gcg.py:107] buffer:
-loss: 0.009063720703125 | string: covering MareHomeare five Dialog"; assigned [ (( Oper ( [{ extract (_repeatEndpointAutres}{( grammar
- 98%|█████████▊| 246/250 [14:33<00:14,  3.61s/it]2026-01-05 02:36:46 [gcg.py:107] buffer:
-loss: 0.0088958740234375 | string: covering MareHomeare five Dialog"; assigned [ ((oka ( [{ extract (_repeatEndpointAutres}{( grammar
- 99%|█████████▉| 247/250 [14:37<00:10,  3.63s/it]2026-01-05 02:36:50 [gcg.py:107] buffer:
-loss: 0.0088958740234375 | string: covering MareHomeare five Dialog"; assigned [ ((oka ( [{ extract (_repeatEndpointAutres}{( grammar
- 99%|█████████▉| 248/250 [14:40<00:07,  3.70s/it]2026-01-05 02:36:53 [gcg.py:107] buffer:
-loss: 0.00878143310546875 | string: covering MareHomeare five Dialog"; assigned [ ((oka ( [{ extract (_repeatendpointAutres}{( grammar
-100%|█████████▉| 249/250 [14:44<00:03,  3.70s/it]2026-01-05 02:36:57 [gcg.py:107] buffer:
-loss: 0.00875091552734375 | string: covering MareHomeare five Dialog"; assigned [ (( trans ( [{ extract (_repeatendpointAutres}{( grammar
-100%|██████████| 250/250 [14:48<00:00,  3.72s/it]100%|██████████| 250/250 [14:48<00:00,  3.55s/it]
-Decreasing batch size to: 243
-Decreasing batch size to: 247
-Decreasing batch size to: 244
-Decreasing batch size to: 234
-Decreasing batch size to: 242
-Decreasing batch size to: 239
-Decreasing batch size to: 236
-Decreasing batch size to: 245
-Decreasing batch size to: 249
-Decreasing batch size to: 245
-Decreasing batch size to: 244
-Decreasing batch size to: 246
-Decreasing batch size to: 239
-Decreasing batch size to: 244
-Decreasing batch size to: 235
-Decreasing batch size to: 236
-Decreasing batch size to: 242
-Decreasing batch size to: 243
-Decreasing batch size to: 238
-Decreasing batch size to: 228
-Decreasing batch size to: 235
-Decreasing batch size to: 236
-Decreasing batch size to: 243
-Decreasing batch size to: 232
-Decreasing batch size to: 229
-Decreasing batch size to: 235
-Decreasing batch size to: 230
-Decreasing batch size to: 231
-Decreasing batch size to: 231
-Decreasing batch size to: 232
-Decreasing batch size to: 243
-Decreasing batch size to: 234
-Decreasing batch size to: 237
-Decreasing batch size to: 236
-Decreasing batch size to: 231
-Decreasing batch size to: 233
-Decreasing batch size to: 237
-Decreasing batch size to: 228
-Decreasing batch size to: 233
-Decreasing batch size to: 236
-Decreasing batch size to: 235
-Decreasing batch size to: 239
-Decreasing batch size to: 234
-Decreasing batch size to: 233
-Decreasing batch size to: 240
-Decreasing batch size to: 233
-Decreasing batch size to: 244
-Decreasing batch size to: 247
-Decreasing batch size to: 238
-Decreasing batch size to: 239
-Decreasing batch size to: 238
-Decreasing batch size to: 239
-Decreasing batch size to: 231
-Decreasing batch size to: 231
-Decreasing batch size to: 241
-Decreasing batch size to: 241
-Decreasing batch size to: 247
-Decreasing batch size to: 240
-Decreasing batch size to: 233
-Decreasing batch size to: 241
-Decreasing batch size to: 240
-Decreasing batch size to: 235
-Decreasing batch size to: 244
-Decreasing batch size to: 243
-Decreasing batch size to: 241
-Decreasing batch size to: 243
-Decreasing batch size to: 235
-Decreasing batch size to: 241
-Decreasing batch size to: 241
-Decreasing batch size to: 244
-Decreasing batch size to: 244
-Decreasing batch size to: 234
-Decreasing batch size to: 247
-Decreasing batch size to: 246
-Decreasing batch size to: 247
-Decreasing batch size to: 245
-Decreasing batch size to: 248
-Decreasing batch size to: 246
-Decreasing batch size to: 249
-Decreasing batch size to: 239
-Decreasing batch size to: 246
-Decreasing batch size to: 237
-Decreasing batch size to: 242
-Decreasing batch size to: 232
-Decreasing batch size to: 229
-Decreasing batch size to: 249
-Decreasing batch size to: 249
-Decreasing batch size to: 241
-Decreasing batch size to: 234
-Decreasing batch size to: 244
-Decreasing batch size to: 246
-Decreasing batch size to: 242
-Decreasing batch size to: 239
-Decreasing batch size to: 243
-Decreasing batch size to: 243
-Decreasing batch size to: 247
-Decreasing batch size to: 240
-Decreasing batch size to: 242
-Decreasing batch size to: 242
-Decreasing batch size to: 237
-Decreasing batch size to: 241
-Decreasing batch size to: 240
-Decreasing batch size to: 242
-Decreasing batch size to: 245
-Decreasing batch size to: 240
-Decreasing batch size to: 244
-Decreasing batch size to: 248
-Decreasing batch size to: 239
-Decreasing batch size to: 247
-Decreasing batch size to: 244
-Decreasing batch size to: 249
-Decreasing batch size to: 239
-Decreasing batch size to: 246
-Decreasing batch size to: 240
-Decreasing batch size to: 242
-Decreasing batch size to: 244
-Decreasing batch size to: 241
-Decreasing batch size to: 244
-Decreasing batch size to: 245
-Decreasing batch size to: 244
-Decreasing batch size to: 242
-Decreasing batch size to: 247
-Decreasing batch size to: 236
-Decreasing batch size to: 235
-Decreasing batch size to: 243
-Decreasing batch size to: 245
-Decreasing batch size to: 245
-Decreasing batch size to: 243
-Decreasing batch size to: 243
-Decreasing batch size to: 238
-Decreasing batch size to: 236
-Decreasing batch size to: 239
-Decreasing batch size to: 243
-Decreasing batch size to: 239
-Decreasing batch size to: 246
-Decreasing batch size to: 242
-Decreasing batch size to: 239
-Decreasing batch size to: 246
-Decreasing batch size to: 238
-Decreasing batch size to: 243
-Decreasing batch size to: 243
-Decreasing batch size to: 239
-Decreasing batch size to: 247
-Decreasing batch size to: 250
-Decreasing batch size to: 247
-Decreasing batch size to: 245
-Decreasing batch size to: 247
-Decreasing batch size to: 247
-Decreasing batch size to: 245
-Decreasing batch size to: 248
-Decreasing batch size to: 249
-Decreasing batch size to: 254
-Decreasing batch size to: 229
-Decreasing batch size to: 243
-Decreasing batch size to: 247
-Decreasing batch size to: 247
-Decreasing batch size to: 244
-Decreasing batch size to: 241
-Decreasing batch size to: 248
-Decreasing batch size to: 236
-Decreasing batch size to: 236
-Decreasing batch size to: 238
-Decreasing batch size to: 234
-Decreasing batch size to: 229
-Decreasing batch size to: 230
-Decreasing batch size to: 229
-Decreasing batch size to: 239
-Decreasing batch size to: 232
-Decreasing batch size to: 241
-Decreasing batch size to: 236
-Decreasing batch size to: 245
-Decreasing batch size to: 240
-Decreasing batch size to: 238
-Decreasing batch size to: 240
-Decreasing batch size to: 232
-Decreasing batch size to: 235
-Decreasing batch size to: 241
-Decreasing batch size to: 242
-Decreasing batch size to: 235
-Decreasing batch size to: 240
-Decreasing batch size to: 240
-Decreasing batch size to: 236
-Decreasing batch size to: 239
-Decreasing batch size to: 237
-Decreasing batch size to: 239
-Decreasing batch size to: 245
-Decreasing batch size to: 245
-Decreasing batch size to: 246
-Decreasing batch size to: 244
-Decreasing batch size to: 246
-Decreasing batch size to: 247
-Decreasing batch size to: 237
-Decreasing batch size to: 243
-Decreasing batch size to: 232
-Decreasing batch size to: 244
-Decreasing batch size to: 244
-Decreasing batch size to: 246
-Decreasing batch size to: 247
-Decreasing batch size to: 246
-Decreasing batch size to: 246
-Decreasing batch size to: 239
-Decreasing batch size to: 233
-Decreasing batch size to: 234
-Decreasing batch size to: 241
-Decreasing batch size to: 233
-Decreasing batch size to: 234
-Decreasing batch size to: 235
-Decreasing batch size to: 230
-Decreasing batch size to: 239
-Decreasing batch size to: 241
-Decreasing batch size to: 231
-Decreasing batch size to: 236
-Decreasing batch size to: 233
-Decreasing batch size to: 235
-Decreasing batch size to: 233
-Decreasing batch size to: 240
-Decreasing batch size to: 235
-Decreasing batch size to: 242
-Decreasing batch size to: 235
-Decreasing batch size to: 234
-Decreasing batch size to: 238
-Decreasing batch size to: 236
-Decreasing batch size to: 237
-Decreasing batch size to: 243
-Decreasing batch size to: 231
-Decreasing batch size to: 249
-Decreasing batch size to: 247
-Decreasing batch size to: 232
-Decreasing batch size to: 244
-Decreasing batch size to: 237
-Decreasing batch size to: 234
-Decreasing batch size to: 234
-Decreasing batch size to: 245
-Decreasing batch size to: 247
-Decreasing batch size to: 245
-Decreasing batch size to: 245
