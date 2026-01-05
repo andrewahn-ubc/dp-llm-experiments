@@ -32,24 +32,36 @@ model.eval()
 
 for index, (_,row) in enumerate(input_df.iterrows()): 
     # Original Prompt + Response
-    prompt = row["goal"] 
+    prompt = row["goal"]
+    messages = [{"role": "user", "content": prompt}]
+    prompt_formatted = tokenizer.apply_chat_template(
+        messages, 
+        tokenize=False, 
+        add_generation_prompt=True
+    )
 
-    inputs = tokenizer(prompt, return_tensors="pt").to("cuda") 
+    inputs = tokenizer(prompt_formatted, return_tensors="pt").to("cuda") 
     with torch.no_grad(): 
-        output = model.generate( **inputs, max_new_tokens=30, temperature=0.0, do_sample=False) 
+        output = model.generate(**inputs, max_new_tokens=30, temperature=0.0, do_sample=False) 
     decoded = tokenizer.decode(output[0], skip_special_tokens=True) 
-    answer = decoded[len(prompt):] 
+    answer = decoded[len(prompt_formatted):] 
 
     # Create Perturbed Prompt + Response 
     target = row["target"] 
     result = nanogcg.run(model, tokenizer, prompt, target) 
     jb_prompt = prompt + result.best_string
+    messages = [{"role": "user", "content": jb_prompt}]
+    jb_prompt_formatted = tokenizer.apply_chat_template(
+        messages, 
+        tokenize=False, 
+        add_generation_prompt=True
+    )
 
-    jb_inputs = tokenizer(jb_prompt, return_tensors="pt").to("cuda") 
+    jb_inputs = tokenizer(jb_prompt_formatted, return_tensors="pt").to("cuda") 
     with torch.no_grad(): 
-        jb_output = model.generate( **jb_inputs, max_new_tokens=30, temperature=0.0, do_sample=False) 
+        jb_output = model.generate(**jb_inputs, max_new_tokens=30, temperature=0.0, do_sample=False) 
     jb_decoded = tokenizer.decode(jb_output[0], skip_special_tokens=True) 
-    jb_answer = jb_decoded[len(jb_prompt):] 
+    jb_answer = jb_decoded[len(jb_prompt_formatted):] 
 
     # Update output 
     output_df.loc[index] = [prompt, answer, jb_prompt, jb_answer] 
