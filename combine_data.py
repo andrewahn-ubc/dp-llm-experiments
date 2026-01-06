@@ -10,7 +10,7 @@ for f in files:
 df = pd.concat(dfs, ignore_index=True)
 
 df.to_csv(
-    "gcg_output_total_fixed.csv",
+    "./data/gcg_output_total.csv",
     index=False,
     quoting=1  # csv.QUOTE_ALL
 )
