@@ -13,4 +13,4 @@ module load StdEnv/2023 python/3.12.4
 source $SCRATCH/venvs/llama/bin/activate
 
 # Combine files
-python ~/scratch/dp-llm-experiments/combine_files.py
+python ~/scratch/dp-llm-experiments/combine_data.py
