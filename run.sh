@@ -11,7 +11,8 @@
 module load StdEnv/2023 python/3.12.4
 
 # Activate virtual environment 
-source ~/envs/llama/bin/activate
+# source ~/envs/llama/bin/activate
+source $SCRATCH/venvs/llama/bin/activate
 
 # Run gcg
 python ~/scratch/dp-llm-experiments/gcg.py
