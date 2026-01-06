@@ -1,8 +1,8 @@
 #!/bin/bash
 #SBATCH --job-name=gcg
 #SBATCH --gres=gpu:1
-#SBATCH --cpus-per-task=4
-#SBATCH --mem=40G
+#SBATCH --cpus-per-task=1
+#SBATCH --mem=4G
 #SBATCH --time=00:05:00
 #SBATCH --output=output/combine%a.out
 
