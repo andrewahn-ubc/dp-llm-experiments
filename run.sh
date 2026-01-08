@@ -14,5 +14,7 @@ module load StdEnv/2023 python/3.12.4
 # source ~/envs/llama/bin/activate
 source $SCRATCH/venvs/llama/bin/activate
 
+pip install nanogcg
+
 # Run gcg
 python ~/scratch/dp-llm-experiments/gcg.py
