@@ -8,13 +8,11 @@
 #SBATCH --output=output/gcg_%A_%a.out   # %A = array job ID, %a = task ID
 
 # Load Python
-module load StdEnv/2023 python/3.12.4
+module load StdEnv/2023 python/3.11
 
 # Activate virtual environment 
 # source ~/envs/llama/bin/activate
-source $SCRATCH/venvs/llama/bin/activate
-
-pip install nanogcg
+source $SCRATCH/venv/nanogcg/bin/activate
 
 # Run gcg
 python ~/scratch/dp-llm-experiments/gcg.py
