@@ -17,7 +17,7 @@ TRAIN_DATA_PATH = "./data/gcg_output_train.csv"
 TEST_DATA_PATH = "./data/gcg_output_test.csv"
 
 LAMBDA = 1.0
-EPSILON = 0.1
+EPSILON = 1.0
 MAX_GEN_TOKENS = 30
 
 # Load Main LLM with LoRA
@@ -100,11 +100,11 @@ def lm_loss(prompt, target):
 def training_step(batch):
     h, r, h_p, r_p = batch
 
-    # LM losses
-    loss_clean = lm_loss(h, r)
-    loss_pert = lm_loss(h_p, r_p)
+    # LM loss
+    lm_loss = lm_loss(h, r)
 
     # Safety scores
+    # TODO: run h and h_p through the main LLM and then pass THAT into the safety score function (then update safety_score to take in tokens)
     C_clean = safety_score(h, r)
     C_pert = safety_score(h_p, r_p)
 
@@ -114,7 +114,8 @@ def training_step(batch):
         min=0
     )
 
-    total_loss = loss_clean + loss_pert + LAMBDA * stability.mean()
+    # total_loss = loss_clean + loss_pert + LAMBDA * stability.mean()
+    total_loss = lm_loss + LAMBDA * stability.mean()
     return total_loss
 
 # Training Loop
