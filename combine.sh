@@ -10,7 +10,7 @@
 module load StdEnv/2023 python/3.11
 
 # Activate virtual environment 
-source $SCRATCH/venvs/nanogcg/bin/activate
+source $SCRATCH/venv/nanogcg/bin/activate
 
 # Combine files
 python ~/scratch/dp-llm-experiments/combine_data.py
