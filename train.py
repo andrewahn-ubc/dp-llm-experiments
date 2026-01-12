@@ -19,6 +19,7 @@ TEST_DATA_PATH = "./data/gcg_output_test.csv"
 LAMBDA = 1.0
 EPSILON = 1.0
 MAX_GEN_TOKENS = 30
+epsilon_term = torch.exp(torch.tensor(EPSILON)).to(DEVICE)
 
 # Load Main LLM with LoRA
 tokenizer = AutoTokenizer.from_pretrained(LLM_NAME)
@@ -56,18 +57,11 @@ for p in guard_model.parameters():
 guard_model.eval()
 
 # Safety Scoring Function (differentiable wrt generated tokens)
-def safety_score(prompt, response):
-    # Returns P(unsafe | prompt, response)
-    text = f"[INST] {prompt} [/INST]\n{response}"
-    inputs = guard_tokenizer(
-        text,
-        return_tensors="pt",
-        truncation=True,
-        max_length=512
-    ).to(DEVICE)
-
-    outputs = guard_model(**inputs)
-    logits = outputs.logits[:, -1]
+# Input: (batched) soft embeddings
+# Output: scalar safety scores, ie. P(unsafe | prompt, response)
+def safety_score(soft_embeddings):
+    outputs = guard_model(input_embeds=soft_embeddings)
+    logits = outputs.logits[:, -1, :]
 
     unsafe_token_id = guard_tokenizer.convert_tokens_to_ids("unsafe")
     safe_token_id = guard_tokenizer.convert_tokens_to_ids("safe")
@@ -78,17 +72,42 @@ def safety_score(prompt, response):
     return torch.sigmoid(unsafe_logit - safe_logit)
 
 # Generate Responses
-def generate_response(prompt):
-    inputs = tokenizer(prompt, return_tensors="pt").to(DEVICE)
-    outputs = model.generate(
-        **inputs,
-        max_new_tokens=MAX_GEN_TOKENS,
-        do_sample=False,
-        pad_token_id=tokenizer.eos_token_id
-    )
-    return tokenizer.decode(outputs[0], skip_special_tokens=True)
+# Input: batched prompts
+# Output: soft embeddings of shape (batch_size, prompt_len + num_steps, hidden_dim)
+def soft_autoregressive_generate(model, tokenizer, prompts, num_steps=30, temperature=1.0, device="cuda"):
+    # Tokenize prompt
+    inputs = tokenizer(prompts, return_tensors="pt", padding=True).to(device)
+    input_ids = inputs["input_ids"]                      # (batch_size, seq_len)
+
+    # Get embedding matrix
+    embed_layer = model.get_input_embeddings()
+    vocab_embeds = embed_layer.weight                    # (vocab_size, hidden_dim)
+
+    # Initial embeddings (prompt embeddings)
+    soft_embeds = embed_layer(input_ids)                 # (batch_size, prompt_len, hidden_dim)
+
+    for _ in range(num_steps):
+        # Forward pass using embeddings
+        outputs = model(inputs_embeds=soft_embeds)
+
+        # Logits for next token
+        logits = outputs.logits[:, -1, :]                # (batch_size, vocab_size)
+
+        # Convert to probability distribution
+        probs = F.softmax(logits / temperature, dim=-1) # (batch_size, vocab_size)
+
+        # Expected embedding (soft token)
+        next_embed = probs @ vocab_embeds                # (batch_size, hidden_dim)
+        next_embed = next_embed.unsqueeze(1)             # (batch_size, 1, hidden_dim)
+
+        # Append soft token
+        soft_embeds = torch.cat([soft_embeds, next_embed], dim=1)
+
+    return soft_embeds
+
 
 # Likelihood Loss
+# TODO: modify this funtion to support batching
 def lm_loss(prompt, target):
     inputs = tokenizer(prompt, return_tensors="pt").to(DEVICE)
     labels = tokenizer(target, return_tensors="pt").input_ids.to(DEVICE)
@@ -101,45 +120,48 @@ def training_step(batch):
     h, r, h_p, r_p = batch
 
     # LM loss
-    lm_loss = lm_loss(h, r)
+    lm_loss_term = lm_loss(h, r)
 
     # Safety scores
-    # TODO: run h and h_p through the main LLM and then pass THAT into the safety score function (then update safety_score to take in tokens)
-    C_clean = safety_score(h, r)
-    C_pert = safety_score(h_p, r_p)
+    soft_embeddings_clean = soft_autoregressive_generate(model, tokenizer, h)
+    soft_embeddings_pert = soft_autoregressive_generate(model, tokenizer, h_p)
+    C_clean = safety_score(soft_embeddings_clean)
+    C_pert = safety_score(soft_embeddings_pert)
 
     # Stability hinge
     stability = torch.clamp(
-        C_clean - torch.exp(torch.tensor(EPSILON)) * C_pert,
+        C_clean - epsilon_term * C_pert,
         min=0
     )
 
     # total_loss = loss_clean + loss_pert + LAMBDA * stability.mean()
-    total_loss = lm_loss + LAMBDA * stability.mean()
+    total_loss = lm_loss_term + LAMBDA * stability.mean()
     return total_loss
 
 # Training Loop
 optimizer = torch.optim.AdamW(model.parameters(), lr=2e-5)
 
+# TODO: split into train/val/test: Train: 350 (70%), Validation: 75 (15%), Test: 75 (15%)
 df = pd.read_csv(TRAIN_DATA_PATH)
 
-for epoch in range(3):
-    for _, row in df.iterrows():
-        batch = (
-            row["h"],
-            row["r"],
-            row["h_prime"],
-            row["r_prime"],
-        )
+batch_size = 8
 
+for epoch in range(3):
+    for i in range(0, len(df), batch_size):
+        chunk = df.iloc[i:i+batch_size]
+        batch = (
+            list(chunk["h"]),
+            list(chunk["r"]),
+            list(chunk["h_prime"]),
+            list(chunk["r_prime"]),
+        )
+        model.train()
         loss = training_step(batch)
         loss.backward()
-
         optimizer.step()
         optimizer.zero_grad()
 
     print(f"Epoch {epoch} complete")
-
 
 
 

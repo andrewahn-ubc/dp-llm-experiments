@@ -7,10 +7,10 @@
 #SBATCH --output=output/combine%a.out
 
 # Load Python
-module load StdEnv/2023 python/3.12.4
+module load StdEnv/2023 python/3.11
 
 # Activate virtual environment 
-source $SCRATCH/venvs/llama/bin/activate
+source $SCRATCH/venvs/nanogcg/bin/activate
 
 # Combine files
 python ~/scratch/dp-llm-experiments/combine_data.py
