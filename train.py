@@ -12,11 +12,12 @@ DTYPE = torch.float16
 
 LLM_NAME = "/home/taegyoem/scratch/llama2_7b_chat_hf" 
 GUARD_NAME = "/home/taegyoem/scratch/llama_guard_7b"
+FINETUNED_LLM_PATH = "/home/taegyoem/scratch/finetuned_llm"
 TRAINING_DATA = "./data/train.csv"
 
 LAMBDA = 1.0
-EPSILON = 1.0
-MAX_GEN_TOKENS = 30
+EPSILON = 1.0       # TODO: try different values of epsilon and plot their performance on a validation set 
+MAX_GEN_TOKENS = 5
 epsilon_term = torch.exp(torch.tensor(EPSILON)).to(DEVICE)
 
 # Load Main LLM with LoRA
@@ -39,6 +40,8 @@ lora_config = LoraConfig(
 )
 
 model = get_peft_model(base_model, lora_config)
+model.gradient_checkpointing_enable()
+model.enable_input_require_grads()
 model.train()
 
 # Load Guard LLM
@@ -69,12 +72,44 @@ def safety_score(soft_embeddings):
 
     return torch.sigmoid(unsafe_logit - safe_logit)
 
+def precompute_guard_context():
+    header_text = """[INST] Task: Check if the following PARTIAL Agent response is starting to generate unsafe content according to our safety policy. Even if the sentence is incomplete, classify as 'unsafe' if the intent is clearly harmful.
+
+<BEGIN CONVERSATION>
+User: """
+    footer_text = " ...\n<END CONVERSATION> [/INST]"
+
+    header_ids = guard_tokenizer.encode(header_text, return_tensors="pt").to(DEVICE)
+    footer_ids = guard_tokenizer.encode(footer_text, add_special_tokens=False, return_tensors="pt").to(DEVICE)
+
+    with torch.no_grad():
+        header_embeds = guard_model.get_input_embeddings()(header_ids)
+        footer_embeds = guard_model.get_input_embeddings()(footer_ids)
+
+    return header_embeds, footer_embeds
+
+GUARD_HEADER_EMBEDS, GUARD_FOOTER_EMBEDS = precompute_guard_context()
+
+def safety_score(h, soft_response_embeds):
+    full_embeddings = torch.cat([GUARD_HEADER_EMBEDS, soft_response_embeds, GUARD_FOOTER_EMBEDS], dim=1)
+
+    outputs = guard_model(inputs_embeds=full_embeddings)
+    logits = outputs.logits[:, -1, :] # Final token logit
+
+    # Extract safe/unsafe probabilities
+    unsafe_id = guard_tokenizer.encode("unsafe", add_special_tokens=False)[0]
+    safe_id = guard_tokenizer.encode("safe", add_special_tokens=False)[0]
+    
+    return torch.sigmoid(logits[:, unsafe_id] - logits[:, safe_id])
+
 # Generate Responses
 # Input: batched prompts
 # Output: soft embeddings of shape (batch_size, prompt_len + num_steps, hidden_dim)
-def soft_autoregressive_generate(model, tokenizer, prompts, num_steps=30, temperature=1.0, device="cuda"):
+def soft_autoregressive_generate(model, tokenizer, prompts, num_steps, temperature=1.0, device="cuda"):
     # Tokenize prompt
-    inputs = tokenizer(prompts, return_tensors="pt", padding=True).to(device)
+    prompts = [f"[INST] User: {prompt} [/INST] Agent: " for prompt in prompts]
+    inputs = tokenizer(prompts, return_tensors="pt", padding=True)
+    inputs = {k: v.to(DEVICE) for k, v in inputs.items()}
     input_ids = inputs["input_ids"]                      # (batch_size, seq_len)
 
     # Get embedding matrix
@@ -95,8 +130,7 @@ def soft_autoregressive_generate(model, tokenizer, prompts, num_steps=30, temper
         probs = F.softmax(logits / temperature, dim=-1) # (batch_size, vocab_size)
 
         # Expected embedding (soft token)
-        next_embed = probs @ vocab_embeds                # (batch_size, hidden_dim)
-        next_embed = next_embed.unsqueeze(1)             # (batch_size, 1, hidden_dim)
+        next_embed = (probs @ vocab_embeds).unsqueeze(1).requires_grad_()  # (batch_size, 1, hidden_dim)
 
         # Append soft token
         soft_embeds = torch.cat([soft_embeds, next_embed], dim=1)
@@ -106,30 +140,32 @@ def soft_autoregressive_generate(model, tokenizer, prompts, num_steps=30, temper
 
 # Likelihood Loss
 def lm_loss(prompts, targets):
-    texts = [p + t for p, t in zip(prompts, targets)]
+    input_ids = []
+    labels = []
 
-    enc = tokenizer(
-        texts,
-        return_tensors="pt",
-        padding=True,
-        truncation=True
+    for p, t in zip(prompts, targets):
+        p_ids = tokenizer(p, add_special_tokens=True).input_ids
+        t_ids = tokenizer(t, add_special_tokens=False).input_ids
+
+        ids = p_ids + t_ids
+        lbls = [-100] * len(p_ids) + t_ids
+
+        input_ids.append(ids)
+        labels.append(lbls)
+
+    # Pad
+    enc = tokenizer.pad(
+        {"input_ids": input_ids, "labels": labels},
+        return_tensors="pt"
     ).to(DEVICE)
-
-    labels = enc.input_ids.clone()
-
-    # Mask prompt tokens
-    for i, p in enumerate(prompts):
-        prompt_len = len(tokenizer(p).input_ids)
-        labels[i, :prompt_len] = -100  # ignore prompt tokens
 
     outputs = model(
         input_ids=enc.input_ids,
         attention_mask=enc.attention_mask,
-        labels=labels
+        labels=enc.labels
     )
 
     return outputs.loss
-
 
 # Full Training Step
 def training_step(batch):
@@ -139,8 +175,8 @@ def training_step(batch):
     lm_loss_term = lm_loss(h, r)
 
     # Safety scores
-    soft_embeddings_clean = soft_autoregressive_generate(model, tokenizer, h)
-    soft_embeddings_pert = soft_autoregressive_generate(model, tokenizer, h_p)
+    soft_embeddings_clean = soft_autoregressive_generate(model=model, tokenizer=tokenizer, prompts=h, num_steps=MAX_GEN_TOKENS)
+    soft_embeddings_pert = soft_autoregressive_generate(model=model, tokenizer=tokenizer, prompts=h_p, num_steps=MAX_GEN_TOKENS)
     C_clean = safety_score(soft_embeddings_clean)
     C_pert = safety_score(soft_embeddings_pert)
 
@@ -157,10 +193,9 @@ def training_step(batch):
 # Training Loop
 optimizer = torch.optim.AdamW(model.parameters(), lr=2e-5)
 
-# TODO: split into train/val/test: Train: 410, Test: 100
 df = pd.read_csv(TRAINING_DATA)
 
-batch_size = 8
+batch_size = 1
 
 for epoch in range(3):
     for i in range(0, len(df), batch_size):
@@ -176,10 +211,12 @@ for epoch in range(3):
         loss.backward()
         optimizer.step()
         optimizer.zero_grad()
+        torch.cuda.empty_cache()
 
         print(f"Batch {i/batch_size} of epoch {epoch} complete")
 
     print(f"Epoch {epoch} complete")
 
-
+model.save_pretrained(FINETUNED_LLM_PATH)
+tokenizer.save_pretrained(FINETUNED_LLM_PATH)
 
