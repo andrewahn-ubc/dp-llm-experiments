@@ -12,7 +12,7 @@ DTYPE = torch.float16
 
 LLM_NAME = "/home/taegyoem/scratch/llama2_7b_chat_hf" 
 GUARD_NAME = "/home/taegyoem/scratch/llama_guard_7b"
-DATA_PATH = "./data/gcg_output_total.csv"
+TRAINING_DATA = "./data/train.csv"
 
 LAMBDA = 1.0
 EPSILON = 1.0
@@ -158,7 +158,7 @@ def training_step(batch):
 optimizer = torch.optim.AdamW(model.parameters(), lr=2e-5)
 
 # TODO: split into train/val/test: Train: 410, Test: 100
-df = pd.read_csv(DATA_PATH)
+df = pd.read_csv(TRAINING_DATA)
 
 batch_size = 8
 
@@ -176,7 +176,7 @@ for epoch in range(3):
         loss.backward()
         optimizer.step()
         optimizer.zero_grad()
-        
+
         print(f"Batch {i/batch_size} of epoch {epoch} complete")
 
     print(f"Epoch {epoch} complete")
