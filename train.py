@@ -12,9 +12,7 @@ DTYPE = torch.float16
 
 LLM_NAME = "/home/taegyoem/scratch/llama2_7b_chat_hf" 
 GUARD_NAME = "/home/taegyoem/scratch/llama_guard_7b"
-TOTAL_DATA_PATH = "./data/gcg_output_total.csv"
-TRAIN_DATA_PATH = "./data/gcg_output_train.csv"
-TEST_DATA_PATH = "./data/gcg_output_test.csv"
+DATA_PATH = "./data/gcg_output_total.csv"
 
 LAMBDA = 1.0
 EPSILON = 1.0
@@ -107,13 +105,31 @@ def soft_autoregressive_generate(model, tokenizer, prompts, num_steps=30, temper
 
 
 # Likelihood Loss
-# TODO: modify this funtion to support batching
-def lm_loss(prompt, target):
-    inputs = tokenizer(prompt, return_tensors="pt").to(DEVICE)
-    labels = tokenizer(target, return_tensors="pt").input_ids.to(DEVICE)
+def lm_loss(prompts, targets):
+    texts = [p + t for p, t in zip(prompts, targets)]
 
-    outputs = model(**inputs, labels=labels)
+    enc = tokenizer(
+        texts,
+        return_tensors="pt",
+        padding=True,
+        truncation=True
+    ).to(DEVICE)
+
+    labels = enc.input_ids.clone()
+
+    # Mask prompt tokens
+    for i, p in enumerate(prompts):
+        prompt_len = len(tokenizer(p).input_ids)
+        labels[i, :prompt_len] = -100  # ignore prompt tokens
+
+    outputs = model(
+        input_ids=enc.input_ids,
+        attention_mask=enc.attention_mask,
+        labels=labels
+    )
+
     return outputs.loss
+
 
 # Full Training Step
 def training_step(batch):
@@ -141,8 +157,8 @@ def training_step(batch):
 # Training Loop
 optimizer = torch.optim.AdamW(model.parameters(), lr=2e-5)
 
-# TODO: split into train/val/test: Train: 350 (70%), Validation: 75 (15%), Test: 75 (15%)
-df = pd.read_csv(TRAIN_DATA_PATH)
+# TODO: split into train/val/test: Train: 410, Test: 100
+df = pd.read_csv(DATA_PATH)
 
 batch_size = 8
 
@@ -150,16 +166,18 @@ for epoch in range(3):
     for i in range(0, len(df), batch_size):
         chunk = df.iloc[i:i+batch_size]
         batch = (
-            list(chunk["h"]),
-            list(chunk["r"]),
-            list(chunk["h_prime"]),
-            list(chunk["r_prime"]),
+            list(chunk["Original Prompt"]),
+            list(chunk["Original Response"]),
+            list(chunk["Perturbed Prompt"]),
+            list(chunk["Perturbed Response"]),
         )
         model.train()
         loss = training_step(batch)
         loss.backward()
         optimizer.step()
         optimizer.zero_grad()
+        
+        print(f"Batch {i/batch_size} of epoch {epoch} complete")
 
     print(f"Epoch {epoch} complete")
 
