@@ -38,7 +38,7 @@ for index, (_,row) in enumerate(input_df.iterrows()):
         tokenize=False, 
         add_generation_prompt=True
     )
-    # prompt_formatted = f"<s>[INST] {prompt} [/INST]" 
+    # prompt_formatted = f"[INST] User: {prompt} [/INST] Agent: "
 
     inputs = tokenizer(prompt_formatted, return_tensors="pt").to("cuda") 
     with torch.no_grad(): 
