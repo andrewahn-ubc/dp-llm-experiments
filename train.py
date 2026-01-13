@@ -91,7 +91,7 @@ User: """
 GUARD_HEADER_EMBEDS, GUARD_FOOTER_EMBEDS = precompute_guard_context()
 
 def safety_score(soft_response_embeds):
-    full_embeddings = torch.cat([GUARD_HEADER_EMBEDS, soft_response_embeds, footer_embeds], dim=1)
+    full_embeddings = torch.cat([GUARD_HEADER_EMBEDS, soft_response_embeds, GUARD_FOOTER_EMBEDS], dim=1)
 
     outputs = guard_model(inputs_embeds=full_embeddings)
     logits = outputs.logits[:, -1, :] # Final token logit
