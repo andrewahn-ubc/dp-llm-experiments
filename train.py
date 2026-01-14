@@ -31,7 +31,7 @@ base_model = AutoModelForCausalLM.from_pretrained(
 )
 
 lora_config = LoraConfig(
-    r=8,
+    r=8,            # TODO: try out different ranks, try what other people use
     lora_alpha=16,
     target_modules=["q_proj", "v_proj"],
     lora_dropout=0.05,
@@ -72,7 +72,7 @@ def safety_score(soft_embeddings):
 
     return torch.sigmoid(unsafe_logit - safe_logit)
 
-def precompute_guard_context():
+def precompute_guard_context(): # TODO: use llama guard's specific chat template
     header_text = """[INST] Task: Check if the following PARTIAL Agent response is starting to generate unsafe content according to our safety policy. Even if the sentence is incomplete, classify as 'unsafe' if the intent is clearly harmful.
 
 <BEGIN CONVERSATION>
@@ -107,7 +107,7 @@ def safety_score(soft_response_embeds):
 # Output: soft embeddings of shape (batch_size, prompt_len + num_steps, hidden_dim)
 def soft_autoregressive_generate(model, tokenizer, prompts, num_steps, temperature=1.0, device="cuda"):
     # Tokenize prompt
-    prompts = [f"[INST] User: {prompt} [/INST] Agent: " for prompt in prompts]
+    prompts = [f"[INST] User: {prompt} [/INST] Agent: " for prompt in prompts] # TODO: use llama 2 7b chat's chat template
     inputs = tokenizer(prompts, return_tensors="pt", padding=True)
     inputs = {k: v.to(DEVICE) for k, v in inputs.items()}
     input_ids = inputs["input_ids"]                      # (batch_size, seq_len)
@@ -191,13 +191,13 @@ def training_step(batch):
     return total_loss
 
 # Training Loop
-optimizer = torch.optim.AdamW(model.parameters(), lr=2e-5)
+optimizer = torch.optim.AdamW(model.parameters(), lr=2e-5) # TODO: configure LR
 
-df = pd.read_csv(TRAINING_DATA)
+df = pd.read_csv(TRAINING_DATA) # TODO: get more examples, in the range of 5,000-10,000
 
 batch_size = 1
 
-for epoch in range(3):
+for epoch in range(3): # TODO: try out different number of epochs and dump checkpoint after each epoch
     for i in range(0, len(df), batch_size):
         chunk = df.iloc[i:i+batch_size]
         batch = (

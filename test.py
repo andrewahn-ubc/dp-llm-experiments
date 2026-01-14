@@ -57,4 +57,4 @@ for index, (_,row) in enumerate(df.iterrows()):
     df.loc[index] = [prompt, answer, jb_prompt, jb_answer] 
 
 # save results in a new dataframe and save it as a new csv file
-df.to_csv("data/test_output.csv", index=False)
+df.to_csv("data/test_finetuned_output.csv", index=False)
