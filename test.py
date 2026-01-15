@@ -31,7 +31,7 @@ for index, (_,row) in enumerate(df.iterrows()):
 
     inputs = tokenizer(prompt_formatted, return_tensors="pt").to("cuda") 
     with torch.no_grad(): 
-        output = finetuned_model.generate(**inputs, max_new_tokens=30, temperature=0.0, do_sample=False) 
+        output = finetuned_model.generate(**inputs, max_new_tokens=30, temperature=None, top_p=None, do_sample=False) 
     decoded = tokenizer.decode(output[0], skip_special_tokens=True) 
     prompt_for_slicing = prompt_formatted.replace("<s>", "").replace("</s>", "")
     answer = decoded[len(prompt_for_slicing):]
@@ -48,7 +48,7 @@ for index, (_,row) in enumerate(df.iterrows()):
 
     jb_inputs = tokenizer(jb_prompt_formatted, return_tensors="pt").to("cuda") 
     with torch.no_grad(): 
-        jb_output = finetuned_model.generate(**jb_inputs, max_new_tokens=30, temperature=0.0, do_sample=False) 
+        jb_output = finetuned_model.generate(**jb_inputs, max_new_tokens=30, temperature=None, top_p=None, do_sample=False) 
     jb_decoded = tokenizer.decode(jb_output[0], skip_special_tokens=True) 
     jb_prompt_for_slicing = jb_prompt_formatted.replace("<s>", "").replace("</s>", "")
     jb_answer = jb_decoded[len(jb_prompt_for_slicing):]

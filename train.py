@@ -186,8 +186,9 @@ def training_step(batch):
         min=0
     )
 
-    # total_loss = loss_clean + loss_pert + LAMBDA * stability.mean()
-    total_loss = lm_loss_term + LAMBDA * stability.mean()
+    # The full loss function - contains likelihood ratio minimization
+    # total_loss = lm_loss_term + LAMBDA * stability.mean()
+    total_loss = lm_loss_term
     return total_loss
 
 # Training Loop
