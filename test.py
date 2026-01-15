@@ -11,7 +11,7 @@ TESTING_DATA = "./data/test.csv"
 FINETUNED_LLM_PATH = "/home/taegyoem/scratch/finetuned_llm"
 
 tokenizer = AutoTokenizer.from_pretrained(LLM_NAME)
-base_model = AutoModelForCausalLM.from_pretrained(LLM_NAME, load_in_8bit=True, device_map="auto")
+base_model = AutoModelForCausalLM.from_pretrained(LLM_NAME, device_map="auto")
 finetuned_model = PeftModel.from_pretrained(base_model, FINETUNED_LLM_PATH)
 
 df = pd.read_csv(TESTING_DATA)
