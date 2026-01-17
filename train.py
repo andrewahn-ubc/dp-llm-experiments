@@ -6,6 +6,9 @@ from transformers import (
 )
 from peft import LoraConfig, get_peft_model
 import pandas as pd
+import time
+
+start_time = time.time()
 
 DEVICE = "cuda"
 DTYPE = torch.float16
@@ -76,7 +79,7 @@ def precompute_guard_context(): # TODO: use llama guard's specific chat template
     header_text = """[INST] Task: Check if the following PARTIAL Agent response is starting to generate unsafe content according to our safety policy. Even if the sentence is incomplete, classify as 'unsafe' if the intent is clearly harmful.
 
 <BEGIN CONVERSATION>
-User: """
+"""
     footer_text = " ...\n<END CONVERSATION> [/INST]"
 
     header_ids = guard_tokenizer.encode(header_text, return_tensors="pt").to(DEVICE)
@@ -117,11 +120,11 @@ def soft_autoregressive_generate(model, tokenizer, prompts, num_steps, temperatu
     vocab_embeds = embed_layer.weight                    # (vocab_size, hidden_dim)
 
     # Initial embeddings (prompt embeddings)
-    soft_embeds = embed_layer(input_ids)                 # (batch_size, prompt_len, hidden_dim)
+    soft_embeds_of_conversation = embed_layer(input_ids)                 # (batch_size, prompt_len, hidden_dim)
 
     for _ in range(num_steps):
         # Forward pass using embeddings
-        outputs = model(inputs_embeds=soft_embeds)
+        outputs = model(inputs_embeds=soft_embeds_of_conversation)
 
         # Logits for next token
         logits = outputs.logits[:, -1, :]                # (batch_size, vocab_size)
@@ -133,9 +136,9 @@ def soft_autoregressive_generate(model, tokenizer, prompts, num_steps, temperatu
         next_embed = (probs @ vocab_embeds).unsqueeze(1).requires_grad_()  # (batch_size, 1, hidden_dim)
 
         # Append soft token
-        soft_embeds = torch.cat([soft_embeds, next_embed], dim=1)
+        soft_embeds_of_conversation = torch.cat([soft_embeds_of_conversation, next_embed], dim=1)
 
-    return soft_embeds
+    return soft_embeds_of_conversation
 
 
 # Likelihood Loss
@@ -175,10 +178,10 @@ def training_step(batch):
     lm_loss_term = lm_loss(h, r)
 
     # Safety scores
-    soft_embeddings_clean = soft_autoregressive_generate(model=model, tokenizer=tokenizer, prompts=h, num_steps=MAX_GEN_TOKENS)
-    soft_embeddings_pert = soft_autoregressive_generate(model=model, tokenizer=tokenizer, prompts=h_p, num_steps=MAX_GEN_TOKENS)
-    C_clean = safety_score(soft_embeddings_clean)
-    C_pert = safety_score(soft_embeddings_pert)
+    soft_embeddings_clean_of_conversation = soft_autoregressive_generate(model=model, tokenizer=tokenizer, prompts=h, num_steps=MAX_GEN_TOKENS)
+    soft_embeddings_pert_of_conversation = soft_autoregressive_generate(model=model, tokenizer=tokenizer, prompts=h_p, num_steps=MAX_GEN_TOKENS)
+    C_clean = safety_score(soft_embeddings_clean_of_conversation)
+    C_pert = safety_score(soft_embeddings_pert_of_conversation)
 
     # Stability hinge
     stability = torch.clamp(
@@ -220,4 +223,8 @@ for epoch in range(3): # TODO: try out different number of epochs and dump check
 
 model.save_pretrained(FINETUNED_LLM_PATH)
 tokenizer.save_pretrained(FINETUNED_LLM_PATH)
+
+end_time = time.time()
+runtime_in_s = end_time - start_time
+print(f"Time taken: " + {runtime_in_s / (60*60)} + " hours, " + {runtime_in_s / 60} + " minutes, and " + {runtime_in_s} + " seconds")
 
