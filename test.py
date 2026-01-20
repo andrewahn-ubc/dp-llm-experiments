@@ -22,7 +22,7 @@ finetuned_model = PeftModel.from_pretrained(base_model, FINETUNED_LLM_PATH)
 
 # Load guard LLM
 guard_tokenizer = AutoTokenizer.from_pretrained(GUARD_LLM_PATH)
-guard_model = AutoModelForCausalLM.from_pretrained(GUARD_NAME, torch_dtype=DTYPE, device_map="auto")
+guard_model = AutoModelForCausalLM.from_pretrained(GUARD_LLM_PATH, torch_dtype=DTYPE, device_map="auto")
 for p in guard_model.parameters():
     p.requires_grad = False
 guard_model.eval()
