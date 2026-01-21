@@ -9,6 +9,8 @@ import time
 
 start_time = time.time()
 
+DEVICE = "cuda"
+DTYPE = torch.float16
 LLM_NAME = "/home/taegyoem/scratch/llama2_7b_chat_hf" 
 TESTING_DATA = "./data/test.csv"
 TESTING_DATA_W_FINETUNED_OUTPUT = "./data/test_finetuned_output_no_dp.csv"
