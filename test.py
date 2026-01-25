@@ -100,7 +100,7 @@ batch_size = 64
 
 for i in range(0, len(df), batch_size):
     prompt_batch = guard_inputs[i:i+batch_size]
-    convo_embedding_ids_and_other_things = guard.tokenizer(prompt_batch, return_tensors="pt", padding=True, truncation=True).to(DEVICE)
+    convo_embedding_ids_and_other_things = guard_tokenizer(prompt_batch, return_tensors="pt", padding=True, truncation=True).to(DEVICE)
     with torch.no_grad():
         output = guard_model(**convo_embedding_ids_and_other_things)
         last_logits = output.logits[:, -1, :]
