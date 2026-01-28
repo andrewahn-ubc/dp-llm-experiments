@@ -96,6 +96,7 @@ Agent: {row['Perturbed Response']}...
 """
     for _, row in df.iterrows()
 ] # TODO: use llama guard's specific chat template
+df["Unsafe"] = []
 
 batch_size = 8
 
