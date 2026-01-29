@@ -98,7 +98,7 @@ Agent: {row['Perturbed Response']}...
 ] # TODO: use llama guard's specific chat template
 df["Unsafe"] = [0]*len(df) # default to 0, aka "Safe"
 
-batch_size = 8
+batch_size = 1
 
 for i in range(0, len(df), batch_size):
     prompt_batch = guard_inputs[i:i+batch_size]
