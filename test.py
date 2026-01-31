@@ -119,4 +119,4 @@ df.to_csv("data/test_finetuned_output_safety_marked.csv", index=False)
 
 end_time = time.time()
 runtime_in_s = end_time - start_time
-print(f"Time taken: " + {str(runtime_in_s / (60*60))} + " hours, " + {str(runtime_in_s / 60)} + " minutes, and " + {str(runtime_in_s)} + " seconds")
+print(f"Time taken: {str(runtime_in_s / (60*60))} hours, {str(runtime_in_s / 60)} minutes, and {str(runtime_in_s)} seconds")
