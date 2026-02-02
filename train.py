@@ -93,7 +93,7 @@ def precompute_guard_context(): # TODO: use llama guard's specific chat template
 
 GUARD_HEADER_EMBEDS, GUARD_FOOTER_EMBEDS = precompute_guard_context()
 
-def safety_score(soft_response_embeds):
+def safety_score(soft_response_embeds, keep_grad=True):
     full_embeddings = torch.cat([GUARD_HEADER_EMBEDS, soft_response_embeds, GUARD_FOOTER_EMBEDS], dim=1)
 
     outputs = guard_model(inputs_embeds=full_embeddings)
@@ -108,35 +108,37 @@ def safety_score(soft_response_embeds):
 # Generate Responses
 # Input: batched prompts
 # Output: soft embeddings of shape (batch_size, prompt_len + num_steps, hidden_dim)
-def soft_autoregressive_generate(model, tokenizer, prompts, num_steps, temperature=1.0, device="cuda"):
-    # Tokenize prompt
-    prompts = [f"[INST] User: {prompt} [/INST] Agent: " for prompt in prompts] # TODO: use llama 2 7b chat's chat template
-    inputs = tokenizer(prompts, return_tensors="pt", padding=True)
-    inputs = {k: v.to(DEVICE) for k, v in inputs.items()}
-    input_ids = inputs["input_ids"]                      # (batch_size, seq_len)
+def soft_autoregressive_generate(model, tokenizer, prompts, num_steps, temperature=1.0, device="cuda", keep_grad=True):
+    context = torch.enable_grad() if keep_grad else torch.no_grad()
+    with context:
+        # Tokenize prompt
+        prompts = [f"[INST] User: {prompt} [/INST] Agent: " for prompt in prompts] # TODO: use llama 2 7b chat's chat template
+        inputs = tokenizer(prompts, return_tensors="pt", padding=True)
+        inputs = {k: v.to(DEVICE) for k, v in inputs.items()}
+        input_ids = inputs["input_ids"]                      # (batch_size, seq_len)
 
-    # Get embedding matrix
-    embed_layer = model.get_input_embeddings()
-    vocab_embeds = embed_layer.weight                    # (vocab_size, hidden_dim)
+        # Get embedding matrix
+        embed_layer = model.get_input_embeddings()
+        vocab_embeds = embed_layer.weight                    # (vocab_size, hidden_dim)
 
-    # Initial embeddings (prompt embeddings)
-    soft_embeds_of_conversation = embed_layer(input_ids)                 # (batch_size, prompt_len, hidden_dim)
+        # Initial embeddings (prompt embeddings)
+        soft_embeds_of_conversation = embed_layer(input_ids)                 # (batch_size, prompt_len, hidden_dim)
 
-    for _ in range(num_steps):
-        # Forward pass using embeddings
-        outputs = model(inputs_embeds=soft_embeds_of_conversation)
+        for _ in range(num_steps):
+            # Forward pass using embeddings
+            outputs = model(inputs_embeds=soft_embeds_of_conversation)
 
-        # Logits for next token
-        logits = outputs.logits[:, -1, :]                # (batch_size, vocab_size)
+            # Logits for next token
+            logits = outputs.logits[:, -1, :]                # (batch_size, vocab_size)
 
-        # Convert to probability distribution
-        probs = F.softmax(logits / temperature, dim=-1) # (batch_size, vocab_size)
+            # Convert to probability distribution
+            probs = F.softmax(logits / temperature, dim=-1) # (batch_size, vocab_size)
 
-        # Expected embedding (soft token)
-        next_embed = (probs @ vocab_embeds).unsqueeze(1).requires_grad_()  # (batch_size, 1, hidden_dim)
+            # Expected embedding (soft token)
+            next_embed = (probs @ vocab_embeds).unsqueeze(1).requires_grad_()  # (batch_size, 1, hidden_dim)
 
-        # Append soft token
-        soft_embeds_of_conversation = torch.cat([soft_embeds_of_conversation, next_embed], dim=1)
+            # Append soft token
+            soft_embeds_of_conversation = torch.cat([soft_embeds_of_conversation, next_embed], dim=1)
 
     return soft_embeds_of_conversation
 
@@ -178,10 +180,10 @@ def training_step(batch):
     lm_loss_term = lm_loss(h, r)
 
     # Safety scores
-    soft_embeddings_clean_of_conversation = soft_autoregressive_generate(model=model, tokenizer=tokenizer, prompts=h, num_steps=MAX_GEN_TOKENS)
-    soft_embeddings_pert_of_conversation = soft_autoregressive_generate(model=model, tokenizer=tokenizer, prompts=h_p, num_steps=MAX_GEN_TOKENS)
-    C_clean = safety_score(soft_embeddings_clean_of_conversation)
-    C_pert = safety_score(soft_embeddings_pert_of_conversation)
+    soft_embeddings_clean_of_conversation = soft_autoregressive_generate(model=model, tokenizer=tokenizer, prompts=h, num_steps=MAX_GEN_TOKENS, keep_grad=False).detach()
+    soft_embeddings_pert_of_conversation = soft_autoregressive_generate(model=model, tokenizer=tokenizer, prompts=h_p, num_steps=MAX_GEN_TOKENS, keep_grad=True)
+    C_clean = safety_score(soft_embeddings_clean_of_conversation, keep_grad=False)
+    C_pert = safety_score(soft_embeddings_pert_of_conversation, keep_grad=True)
 
     # Stability hinge
     stability = torch.clamp(
@@ -191,6 +193,7 @@ def training_step(batch):
 
     # The full loss function - contains likelihood ratio minimization
     total_loss = lm_loss_term + LAMBDA * stability.mean()
+
     return total_loss
 
 # Training Loop
@@ -225,5 +228,4 @@ tokenizer.save_pretrained(FINETUNED_LLM_PATH)
 
 end_time = time.time()
 runtime_in_s = end_time - start_time
-print(f"Time taken: " + {runtime_in_s / (60*60)} + " hours, " + {runtime_in_s / 60} + " minutes, and " + {runtime_in_s} + " seconds")
-
+print(f"Time taken: {str(runtime_in_s / (60*60))} hours, {str(runtime_in_s / 60)} minutes, and {str(runtime_in_s)} seconds")
