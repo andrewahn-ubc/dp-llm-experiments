@@ -20,6 +20,12 @@ tokenizer.pad_token = tokenizer.eos_token
 model.config.pad_token_id = tokenizer.eos_token_id
 model.eval()
 
+model_load_time = time.time()
+runtime_in_s = model_load_time - start_time
+minutes = (runtime_in_s / 60) % 60
+seconds = runtime_in_s % 60
+print(f"Time taken to load model: {str(runtime_in_s / (60*60))} hours, {str(minutes)} minutes, and {str(seconds)} seconds")
+
 train_df = pd.read_csv(FEW_SHOT_EXAMPLES_PATH)
 d_size = len(train_df)
 new_examples_df = pd.DataFrame()
@@ -35,6 +41,7 @@ def extract_json_array(text):
 
 
 for i in range(5):
+    print(f"Starting iterations #{i}!")
     r_indices = random.sample(range(d_size), 5)
     few_shot_examples = train_df["Original Prompt"].iloc[r_indices].tolist()
     few_shot_examples_json = json.dumps(few_shot_examples, ensure_ascii=False)
@@ -64,6 +71,7 @@ for i in range(5):
         gen_tokens = output[0][prompt_len:]
         generated_text = tokenizer.decode(gen_tokens, skip_special_tokens=True)
     generated_text_clean = extract_json_array(generated_text)
+    print(f"Generated: {generated_text_clean}")
 
     try: 
         new_examples = json.loads(generated_text_clean) # returns a python list
@@ -76,7 +84,8 @@ for i in range(5):
 new_examples_df.to_csv("data/bigger_train.csv", index=False)
 
 end_time = time.time()
-runtime_in_s = end_time - start_time
-print(f"Time taken: {str(runtime_in_s / (60*60))} hours, {str(runtime_in_s / 60)} minutes, and {str(runtime_in_s)} seconds")
-
+runtime_in_s = end_time - model_load_time
+minutes = (runtime_in_s / 60) % 60
+seconds = runtime_in_s % 60
+print(f"Time taken to generate responses: {str(runtime_in_s / (60*60))} hours, {str(minutes)} minutes, and {str(seconds)} seconds")
 
