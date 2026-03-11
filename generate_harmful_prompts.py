@@ -33,7 +33,7 @@ def extract_json_array(text):
     return text[start:end + 1]
 
 
-for i in range(50):
+for i in range(5):
     r_indices = random.sample(range(d_size), 5)
     few_shot_examples = train_df["Original Prompt"].iloc[r_indices].tolist()
     few_shot_examples_json = json.dumps(few_shot_examples, ensure_ascii=False)
