@@ -19,7 +19,7 @@ FINETUNED_LLM_PATH = "/home/taegyoem/scratch/finetuned_llm"
 TRAINING_DATA = "./data/train.csv"
 
 LAMBDA = 1.0
-EPSILON = 1.0       # TODO: try different values of epsilon and plot their performance on a validation set 
+EPSILON = 0.0       # TODO: try different values of epsilon and plot their performance on a validation set 
 MAX_GEN_TOKENS = 5
 epsilon_term = torch.exp(torch.tensor(EPSILON)).to(DEVICE)
 
@@ -63,17 +63,17 @@ guard_model.eval()
 # Safety Scoring Function (differentiable wrt generated tokens)
 # Input: (batched) soft embeddings
 # Output: scalar safety scores, ie. P(unsafe | prompt, response)
-def safety_score(soft_embeddings):
-    outputs = guard_model(input_embeds=soft_embeddings)
-    logits = outputs.logits[:, -1, :]
+def safety_score(soft_response_embeds, keep_grad=True):
+    full_embeddings = torch.cat([GUARD_HEADER_EMBEDS, soft_response_embeds, GUARD_FOOTER_EMBEDS], dim=1)
 
-    unsafe_token_id = guard_tokenizer.convert_tokens_to_ids("unsafe")
-    safe_token_id = guard_tokenizer.convert_tokens_to_ids("safe")
+    outputs = guard_model(inputs_embeds=full_embeddings)
+    logits = outputs.logits[:, -1, :] # Final token logit
 
-    unsafe_logit = logits[:, unsafe_token_id]
-    safe_logit = logits[:, safe_token_id]
-
-    return torch.sigmoid(unsafe_logit - safe_logit)
+    # Extract safe/unsafe probabilities
+    unsafe_id = guard_tokenizer.encode("unsafe", add_special_tokens=False)[0]
+    safe_id = guard_tokenizer.encode("safe", add_special_tokens=False)[0]
+    
+    return torch.sigmoid(logits[:, unsafe_id] - logits[:, safe_id])
 
 def precompute_guard_context(): # TODO: use llama guard's specific chat template
     header_text = """[INST] Task: Check if the following PARTIAL Agent response is starting to generate unsafe content according to our safety policy. Even if the sentence is incomplete, classify as 'unsafe' if the intent is clearly harmful.
@@ -92,18 +92,6 @@ def precompute_guard_context(): # TODO: use llama guard's specific chat template
     return header_embeds, footer_embeds
 
 GUARD_HEADER_EMBEDS, GUARD_FOOTER_EMBEDS = precompute_guard_context()
-
-def safety_score(soft_response_embeds, keep_grad=True):
-    full_embeddings = torch.cat([GUARD_HEADER_EMBEDS, soft_response_embeds, GUARD_FOOTER_EMBEDS], dim=1)
-
-    outputs = guard_model(inputs_embeds=full_embeddings)
-    logits = outputs.logits[:, -1, :] # Final token logit
-
-    # Extract safe/unsafe probabilities
-    unsafe_id = guard_tokenizer.encode("unsafe", add_special_tokens=False)[0]
-    safe_id = guard_tokenizer.encode("safe", add_special_tokens=False)[0]
-    
-    return torch.sigmoid(logits[:, unsafe_id] - logits[:, safe_id])
 
 # Generate Responses
 # Input: batched prompts
