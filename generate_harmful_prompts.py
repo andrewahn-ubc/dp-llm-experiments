@@ -3,14 +3,15 @@ import pandas as pd
 import random
 import json
 import torch
+import time
+
+start_time = time.time()
 
 FEW_SHOT_EXAMPLES_PATH = "./data/MaliciousInstruct.csv"
 
 model_name_or_path = "TheBloke/Wizard-Vicuna-30B-Uncensored-GPTQ"
 
 tokenizer = AutoTokenizer.from_pretrained(model_name_or_path, use_fast=True)
-# To use a different branch, change revision
-# For example: revision="main"
 model = AutoModelForCausalLM.from_pretrained(model_name_or_path,
                                              device_map="auto",
                                              trust_remote_code=False,
@@ -50,7 +51,6 @@ for i in range(5):
         Output ONLY a JSON array of strings.
         No extra text.
         """
-    # TODO: polish the instructions above
     prompt_template=f'''A chat between a curious user and an artificial intelligence assistant. The assistant gives helpful, detailed, and polite answers to the user's questions. USER: {prompt} ASSISTANT:
 
     '''
@@ -74,4 +74,9 @@ for i in range(5):
         print(f"Generated text: {generated_text_clean}")
 
 new_examples_df.to_csv("data/bigger_train.csv", index=False)
+
+end_time = time.time()
+runtime_in_s = end_time - start_time
+print(f"Time taken: {str(runtime_in_s / (60*60))} hours, {str(runtime_in_s / 60)} minutes, and {str(runtime_in_s)} seconds")
+
 
