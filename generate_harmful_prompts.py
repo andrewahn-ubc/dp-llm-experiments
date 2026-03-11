@@ -9,7 +9,8 @@ start_time = time.time()
 
 FEW_SHOT_EXAMPLES_PATH = "./data/MaliciousInstruct.csv"
 
-model_name_or_path = "TheBloke/Wizard-Vicuna-30B-Uncensored-GPTQ"
+# model_name_or_path = "TheBloke/Wizard-Vicuna-30B-Uncensored-GPTQ"
+model_name_or_path = "/home/taegyoem/scratch/wizard" 
 
 tokenizer = AutoTokenizer.from_pretrained(model_name_or_path, use_fast=True)
 model = AutoModelForCausalLM.from_pretrained(model_name_or_path,
