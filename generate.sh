@@ -9,7 +9,8 @@
 set -euo pipefail
 
 # Load environment
-module load StdEnv/2023 python/3.11
+module purge
+module load StdEnv/2023 python/3.11 gcc arrow
 
 # Activate virtual environment
 source $SCRATCH/venv/nanogcg/bin/activate
