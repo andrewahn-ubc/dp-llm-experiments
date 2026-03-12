@@ -11,6 +11,8 @@ module load cuda
 
 source $SCRATCH/venv/autodan/bin/activate
 
+export NLTK_DATA=/scratch/taegyoem/nltk_data
+
 cd $SCRATCH/AutoDAN
 
 python autodan_hga_eval.py \
