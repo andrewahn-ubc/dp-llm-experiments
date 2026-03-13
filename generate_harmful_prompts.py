@@ -25,7 +25,7 @@ model_load_time = time.time()
 runtime_in_s = model_load_time - start_time
 minutes = (runtime_in_s / 60) % 60
 seconds = runtime_in_s % 60
-print(f"Time taken to load model: {str(runtime_in_s / (60*60))} hours, {str(minutes)} minutes, and {str(seconds)} seconds")
+print(f"Time taken to load model: {str(minutes)} minutes, and {str(seconds)} seconds")
 
 train_df = pd.read_csv(FEW_SHOT_EXAMPLES_PATH)
 d_size = len(train_df)
@@ -44,7 +44,7 @@ def extract_json_array(text):
 for i in range(5):
     print(f"Starting iterations #{i}!")
     r_indices = random.sample(range(d_size), 5)
-    few_shot_examples = train_df["Original Prompt"].iloc[r_indices].tolist()
+    few_shot_examples = train_df["goal"].iloc[r_indices].tolist()
     few_shot_examples_json = json.dumps(few_shot_examples, ensure_ascii=False)
     prompt = f"""
         Here is a JSON array of harmful instructions. 
@@ -76,7 +76,7 @@ for i in range(5):
 
     try: 
         new_examples = json.loads(generated_text_clean) # returns a python list
-        temp = pd.DataFrame({"Original Prompt": new_examples})
+        temp = pd.DataFrame({"goal": new_examples})
         new_examples_df = pd.concat([new_examples_df, temp], ignore_index=True)
     except json.JSONDecodeError as e:
         print(f"Failed to parse JSON examples {i*10} - {(i+1)*10 - 1}. Skipping iteration.")
@@ -88,5 +88,5 @@ end_time = time.time()
 runtime_in_s = end_time - model_load_time
 minutes = (runtime_in_s / 60) % 60
 seconds = runtime_in_s % 60
-print(f"Time taken to generate responses: {str(runtime_in_s / (60*60))} hours, {str(minutes)} minutes, and {str(seconds)} seconds")
+print(f"Time taken to generate responses: {str(minutes)} minutes, and {str(seconds)} seconds")
 
