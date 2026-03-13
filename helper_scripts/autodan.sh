@@ -16,4 +16,4 @@ export NLTK_DATA=/scratch/taegyoem/nltk_data
 cd $SCRATCH/AutoDAN
 
 python autodan_hga_eval.py \
-  --dataset_path /home/taegyoem/scratch/dp-llm-experiments/data/harmful_behaviors.csv
+  --dataset_path /home/taegyoem/scratch/dp-llm-experiments/data/first_10.csv
