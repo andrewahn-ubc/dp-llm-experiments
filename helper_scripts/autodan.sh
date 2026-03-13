@@ -3,8 +3,8 @@
 #SBATCH --gres=gpu:1
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=40G
-#SBATCH --time=12:00:00
-#SBATCH --output=autodan_%j.out
+#SBATCH --time=3:00:00
+#SBATCH --output=autodan.out
 
 module load python
 module load cuda
