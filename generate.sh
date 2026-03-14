@@ -3,7 +3,7 @@
 #SBATCH --gres=gpu:1
 #SBATCH --cpus-per-task=6
 #SBATCH --mem=40G
-#SBATCH --time=03:00:00
+#SBATCH --time=00:30:00
 #SBATCH --output=output/generate.out
 
 set -euo pipefail
@@ -28,4 +28,13 @@ cp -r $SCRATCH/wizard $SLURM_TMPDIR/
 export LLM_NAME=$SLURM_TMPDIR/wizard
 
 # Run training
-python $SCRATCH/dp-llm-experiments/generate_harmful_prompts.py
+# python $SCRATCH/dp-llm-experiments/generate_harmful_prompts.py
+
+python - <<'PY'
+import torch
+print("torch:", torch.__version__)
+print("cuda available:", torch.cuda.is_available())
+if torch.cuda.is_available():
+    print("gpu:", torch.cuda.get_device_name(0))
+PY
+
