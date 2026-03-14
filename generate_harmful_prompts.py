@@ -44,7 +44,7 @@ def extract_json_array(text):
 for i in range(5):
     print(f"Starting iterations #{i}!")
     r_indices = random.sample(range(d_size), 5)
-    few_shot_examples = train_df["goal"].iloc[r_indices].tolist()
+    few_shot_examples = train_df["behaviours"].iloc[r_indices].tolist()
     few_shot_examples_json = json.dumps(few_shot_examples, ensure_ascii=False)
     prompt = f"""
         Here is a JSON array of harmful instructions. 
