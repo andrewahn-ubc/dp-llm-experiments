@@ -13,7 +13,7 @@ module purge
 module load StdEnv/2023 python/3.11 gcc arrow
 
 # Activate virtual environment
-source $SCRATCH/venv/wizard-gptq/bin/activate
+source $SCRATCH/venv/wizard/bin/activate
 
 # Use node-local storage for Hugging Face
 export TRANSFORMERS_CACHE=$SLURM_TMPDIR/hf_cache
