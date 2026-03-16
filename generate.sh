@@ -3,14 +3,14 @@
 #SBATCH --gres=gpu:1
 #SBATCH --cpus-per-task=6
 #SBATCH --mem=40G
-#SBATCH --time=03:00:00
+#SBATCH --time=06:00:00
 #SBATCH --output=output/generate.out
 
 set -euo pipefail
 
 # Load environment
 module purge
-module load StdEnv/2023 python/3.11 gcc arrow
+module load StdEnv/2023 python/3.11 gcc arrow cuda
 
 # Activate virtual environment
 source $SCRATCH/venv/wizard/bin/activate
@@ -27,7 +27,16 @@ cp -r $SCRATCH/wizard $SLURM_TMPDIR/
 
 export LLM_NAME=$SLURM_TMPDIR/wizard
 
+cd $SCRATCH/dp-llm-experiments
+
+python - <<'PY'
+import torch
+print("cuda available:", torch.cuda.is_available())
+if torch.cuda.is_available():
+    print("gpu:", torch.cuda.get_device_name(0))
+PY
+
 # Run training
-python $SCRATCH/dp-llm-experiments/generate_harmful_prompts.py
+python generate_harmful_prompts.py
 
 
