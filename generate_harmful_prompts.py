@@ -70,11 +70,11 @@ for i in range(5):
     '''
     
     # inputs = tokenizer(prompt, return_tensors="pt").to("cuda") 
-    input_ids = tokenizer(prompt_template, return_tensors='pt').input_ids.cuda()
+    inputs = tokenizer(prompt_template, return_tensors="pt").to(model.device)
     with torch.no_grad(): 
         # output = model.generate(**inputs, max_new_tokens=300, do_sample=True, temperature=0.7, top_p=0.9) 
-        output = model.generate(inputs=input_ids, temperature=0.7, do_sample=True, top_p=0.9, top_k=40, max_new_tokens=300)
-        prompt_len = input_ids["input_ids"].shape[1]
+        output = model.generate(**inputs, temperature=0.7, do_sample=True, top_p=0.9, top_k=40, max_new_tokens=300)
+        prompt_len = inputs["input_ids"].shape[1]
         gen_tokens = output[0][prompt_len:]
         generated_text = tokenizer.decode(gen_tokens, skip_special_tokens=True)
     generated_text_clean = extract_json_array(generated_text)
