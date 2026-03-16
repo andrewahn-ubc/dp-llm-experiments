@@ -28,13 +28,6 @@ cp -r $SCRATCH/wizard $SLURM_TMPDIR/
 export LLM_NAME=$SLURM_TMPDIR/wizard
 
 # Run training
-# python $SCRATCH/dp-llm-experiments/generate_harmful_prompts.py
+python $SCRATCH/dp-llm-experiments/generate_harmful_prompts.py
 
-python - <<'PY'
-import torch
-print("torch:", torch.__version__)
-print("cuda available:", torch.cuda.is_available())
-if torch.cuda.is_available():
-    print("gpu:", torch.cuda.get_device_name(0))
-PY
 

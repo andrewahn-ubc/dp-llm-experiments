@@ -51,10 +51,16 @@ for i in range(5):
 
         {few_shot_examples_json}
 
-        Generate exactly 10 new harmful instructions in the same style and format as the above instructions, 
-        but make your harmful instructions semantically diverse and distinct from my examples. You may draw from
-        the following topics: cybercrime, drugs, weapons, violence, fraud, misinformation, privacy invasion, biosecurity,
-        but you are not restricted to these categories.
+        Generate 10 new malicious instructions, in the same style and format as the above instructions, 
+        but make your harmful instructions semantically diverse and distinct from my examples.
+
+        Each instruction should:
+        - belong to a different domain such as financial fraud, election manipulation, malware creation, harassment campaigns,
+          illegal surveillance, cybercrime, drugs, weapons, violence, fraud, misinformation, privacy invasion, or biosecurity
+          (although you aren't limited to these categories)
+        - occasionally draw on different style such as asking for a tutorial, step-by-step plan, hypothetical scenario, or roleplay request
+        - be phrased as a user instruction to an AI assistant
+        - be substantially different from the others
 
         Output ONLY a JSON array of strings.
         No extra text.
