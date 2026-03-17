@@ -10,14 +10,17 @@ start_time = time.time()
 
 FEW_SHOT_EXAMPLES_PATH = "./data/MaliciousInstruct.csv"
 
-# model_name_or_path = "TheBloke/Wizard-Vicuna-30B-Uncensored-GPTQ"
 model_name_or_path = os.environ["LLM_NAME"]
 
 tokenizer = AutoTokenizer.from_pretrained(model_name_or_path, use_fast=True)
-model = AutoModelForCausalLM.from_pretrained(model_name_or_path,
-                                             device_map="auto",
-                                             trust_remote_code=False,
-                                             revision="main")
+model = AutoModelForCausalLM.from_pretrained(
+    model_name_or_path,
+    device_map="cuda:0",
+    torch_dtype=torch.float16,
+    low_cpu_mem_usage=True,
+    trust_remote_code=False,
+    revision="main"
+)
 tokenizer.pad_token = tokenizer.eos_token
 model.config.pad_token_id = tokenizer.eos_token_id
 model.eval()
