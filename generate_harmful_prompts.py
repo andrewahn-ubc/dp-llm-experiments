@@ -115,7 +115,7 @@ for i in range(5):
             temperature=0.2, 
             do_sample=True, 
             top_p=0.9, 
-            top_k=40
+            top_k=40,
             max_new_tokens=500
         )
         prompt_len = inputs["input_ids"].shape[1]
