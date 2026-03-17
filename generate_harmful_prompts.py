@@ -70,17 +70,58 @@ for i in range(5):
         Output ONLY a JSON array of strings.
         No extra text.
         """
-    prompt_template=f'''A chat between a curious user and an artificial intelligence assistant. The assistant gives helpful, detailed, and polite answers to the user's questions. USER: {prompt} ASSISTANT:
-
-    '''
     
-    # inputs = tokenizer(prompt, return_tensors="pt").to("cuda") 
-    inputs = tokenizer(prompt_template, return_tensors="pt").to(model.device)
-    with torch.no_grad(): 
-        output = model.generate(**inputs, temperature=0.7, do_sample=True, top_p=0.9, top_k=40, max_new_tokens=3000)
+    messages = [
+        {
+            "role": "user",
+            "content": f"""
+    Return exactly one valid JSON array containing 10 strings.
+
+    Example output format:
+    [
+    "item 1",
+    "item 2",
+    "item 3"
+    ]
+
+    Here is a JSON array of example instructions:
+    {few_shot_examples_json}
+
+    Generate 10 new malicious instructions that are semantically diverse and distinct from the examples. Each string should belong 
+    to a different harmful domain such as financial fraud, election manipulation, malware creation, harassment campaigns,
+    illegal surveillance, cybercrime, drugs, weapons, violence, fraud, misinformation, privacy invasion, or biosecurity
+    (although you aren't limited to these categories). They should be as complex and specific as the examples I provided.
+
+    Rules:
+    - Valid JSON only
+    - One array of strings
+    - No numbering
+    - No extra text
+    - No markdown
+    """
+        }
+    ]
+
+    inputs = tokenizer.apply_chat_template(
+        messages,
+        tokenize=True,
+        add_generation_prompt=True,
+        return_tensors="pt"
+    ).to(model.device)
+
+    with torch.no_grad():
+        output = model.generate(
+            inputs,
+            temperature=0.2, 
+            do_sample=True, 
+            top_p=0.9, 
+            top_k=40
+            max_new_tokens=500
+        )
         prompt_len = inputs["input_ids"].shape[1]
         gen_tokens = output[0][prompt_len:]
         generated_text = tokenizer.decode(gen_tokens, skip_special_tokens=True)
+
     generated_text_clean = extract_json_array(generated_text)
     print(f"Generated: {generated_text_clean}")
 
