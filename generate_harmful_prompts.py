@@ -33,6 +33,7 @@ d_size = len(train_df)
 new_examples_df = pd.DataFrame()
 
 def extract_json_array(text):
+    print(text)
     start = text.find("[")
     end = text.rfind("]")
 
