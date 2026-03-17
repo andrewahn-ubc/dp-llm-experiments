@@ -86,18 +86,20 @@ for i in range(5):
     inputs = tokenizer(prompt_template, return_tensors="pt").to(model.device)
     with torch.no_grad():
         output = model.generate(
-            inputs,
-            temperature=0.2, 
-            do_sample=True, 
-            top_p=0.9, 
+            input_ids=inputs["input_ids"],
+            attention_mask=inputs["attention_mask"],
+            temperature=0.2,
+            do_sample=True,
+            top_p=0.9,
             top_k=40,
             max_new_tokens=500,
             pad_token_id=tokenizer.pad_token_id,
-            eos_token_id=tokenizer.eos_token_id
+            eos_token_id=tokenizer.eos_token_id,
         )
-        prompt_len = inputs["input_ids"].shape[1]
-        gen_tokens = output[0][prompt_len - 1:]
-        generated_text = tokenizer.decode(gen_tokens, skip_special_tokens=True)
+
+    prompt_len = inputs["input_ids"].shape[1]
+    gen_tokens = output[0][prompt_len - 1:]
+    generated_text = tokenizer.decode(gen_tokens, skip_special_tokens=True)
 
     generated_text_clean = extract_json_array(generated_text)
     print(f"Generated: {generated_text_clean}")
