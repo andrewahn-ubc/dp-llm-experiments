@@ -81,7 +81,7 @@ def extract_json_array(text):
 
     return text[start:end + 1]
 
-ddef provide_harmful_categories(n = 5):
+def provide_harmful_categories(n = 5):
     r_indices = random.sample(range(len(harmful_categories)), 5)
     random_categories = []
     for i in r_indices:
