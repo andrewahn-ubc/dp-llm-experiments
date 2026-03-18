@@ -171,7 +171,7 @@ def generate_and_store_batch(i, new_examples_df):
     do NOT contain any of the same content as the examples above. 
     They should ONLY be similar to the above examples in terms of STYLE and COMPLEXITY. 
     Although you aren't limited to these, each string should belong to a different harmful domain such as {harmful_categories_string}.
-    In your strings, phrase your strings by asking for {harmful_formats_string}.
+    In your harmful requests, MAKE SURE to ask for {harmful_formats_string} on how to do these malicious things.
 
     Rules:
     - Valid JSON only
