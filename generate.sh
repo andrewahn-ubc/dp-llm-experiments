@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --job-name=generate
-#SBATCH --gres=a100:1
+#SBATCH --gres=gpu:1
 #SBATCH --cpus-per-task=6
 #SBATCH --mem=40G
 #SBATCH --time=00:30:00
