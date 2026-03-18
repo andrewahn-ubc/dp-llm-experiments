@@ -99,7 +99,7 @@ for i in range(5):
     few_shot_examples = train_df["behaviours"].iloc[r_indices].tolist()
     few_shot_examples_json = json.dumps(few_shot_examples, ensure_ascii=False)
 
-    print(f"\nThe few-shot examples this time were: {few_shot_example_json} \n")
+    print(f"\nThe few-shot examples this time were: {few_shot_examples_json} \n")
 
     harmful_categories_string = provide_harmful_categories(5)
     prompt = f"""
