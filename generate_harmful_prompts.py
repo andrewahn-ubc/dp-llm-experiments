@@ -15,12 +15,13 @@ model_name_or_path = os.environ["LLM_NAME"]
 tokenizer = AutoTokenizer.from_pretrained(model_name_or_path, use_fast=True)
 model = AutoModelForCausalLM.from_pretrained(
     model_name_or_path,
-    device_map="cuda:0",
     torch_dtype=torch.float16,
-    low_cpu_mem_usage=True,
+    low_cpu_mem_usage=False,
     trust_remote_code=False,
-    revision="main"
+    revision="main",
 )
+model = model.to("cuda:0")
+
 tokenizer.pad_token = tokenizer.eos_token
 model.config.pad_token_id = tokenizer.eos_token_id
 model.eval()
