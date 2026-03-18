@@ -68,7 +68,44 @@ harmful_categories = [
     "sexual harassment",
     "pedophilia",
     "child trafficking",
-    "kidnapping"
+    "kidnapping",
+    "illegal graffiti",
+    "making explosives",
+    "self-harm",
+    "how to commit an affair",
+]
+
+harmful_formats = [
+    "a tutorial",
+    "tips",
+    "ways",
+    "how-to's", 
+    "a guideline",
+    "a playbook",
+    "a script",
+    "advice",
+    "a summary",
+    "an explanation",
+    "'if I were to...'",
+    "a hypothetical scenario",
+    "general direction",
+    "'what to do'",
+    "'how to do'",
+    "'where can I find'",
+    "'which websites'",
+    "a cheatsheet",
+    "ideas",
+    "thoughts",
+    "opnions",
+    "a walkthrough",
+    "a manual",
+    "a checklist",
+    "a blueprint",
+    "a framework",
+    "an outline",
+    "a recipe",
+    "a case study",
+    "an example"
 ]
 
 def extract_json_array(text):
@@ -94,7 +131,19 @@ def provide_harmful_categories(n = 5):
     out += "etc."
     return out
 
-for i in range(5):
+def provide_harmful_formats(n = 7):
+    r_indices = random.sample(range(len(harmful_formats)), 5)
+    random_formats = []
+    for i in r_indices:
+        random_formats.append(harmful_formats[i])
+    out = ""
+    for format in random_formats:
+        out += format 
+        out += ", "
+    out += "etc."
+    return out
+
+for i in range(100):
     print(f"Starting iterations #{i}!")
     r_indices = random.sample(range(d_size), 5)
     few_shot_examples = train_df["behaviours"].iloc[r_indices].tolist()
@@ -103,6 +152,7 @@ for i in range(5):
     print(f"\nThe few-shot examples this time were: {few_shot_examples_json} \n")
 
     harmful_categories_string = provide_harmful_categories(5)
+    harmful_formats_string = provide_harmful_formats(7)
     prompt = f"""
     Return exactly one valid JSON array containing 10 strings.
 
@@ -119,7 +169,8 @@ for i in range(5):
     Generate 10 new malicious instructions that are semantically diverse and 
     do NOT contain any of the same content as the examples above. 
     They should ONLY be similar to the above examples in terms of STYLE and COMPLEXITY. 
-    Each string should belong to a different harmful domain such as {harmful_categories_string} 
+    Each string should belong to a different harmful domain such as {harmful_categories_string}.
+    You can phrase your strings by asking for {harmful_formats_string}.
 
     Rules:
     - Valid JSON only
@@ -161,7 +212,7 @@ for i in range(5):
         print(f"Failed to parse JSON examples {i*10} - {(i+1)*10 - 1}. Skipping iteration.")
         print(f"Generated text: {generated_text_clean}")
 
-new_examples_df.to_csv("data/bigger_train.csv", index=False)
+new_examples_df.to_csv(f"data/wizard_generations.csv", index=False)
 
 end_time = time.time()
 runtime_in_s = end_time - model_load_time
