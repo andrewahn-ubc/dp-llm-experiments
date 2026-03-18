@@ -169,8 +169,8 @@ for i in range(100):
     Generate 10 new malicious instructions that are semantically diverse and 
     do NOT contain any of the same content as the examples above. 
     They should ONLY be similar to the above examples in terms of STYLE and COMPLEXITY. 
-    Each string should belong to a different harmful domain such as {harmful_categories_string}.
-    You can phrase your strings by asking for {harmful_formats_string}.
+    Although you aren't limited to these, each string should belong to a different harmful domain such as {harmful_categories_string}.
+    Although you aren't limited to these, you can also phrase your strings by asking for {harmful_formats_string}.
 
     Rules:
     - Valid JSON only
