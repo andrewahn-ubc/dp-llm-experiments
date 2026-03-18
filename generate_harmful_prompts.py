@@ -72,14 +72,15 @@ harmful_categories = [
 ]
 
 def extract_json_array(text):
-    print(text)
-    start = text.find("[")
-    end = text.rfind("]")
+    start_response = text.find("ASSISTANT")
+    assistant_response = text[start_response:]
+    start = assistant_response.find("[")
+    end = assistant_response.rfind("]")
 
     if start == -1 or end == -1 or end < start:
         raise ValueError("No JSON array found")
 
-    return text[start:end + 1]
+    return assistant_response[start:end + 1]
 
 def provide_harmful_categories(n = 5):
     r_indices = random.sample(range(len(harmful_categories)), 5)
