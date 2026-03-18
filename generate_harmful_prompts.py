@@ -143,7 +143,7 @@ def provide_harmful_formats(n = 7):
     out += "etc."
     return out
 
-def generate_and_store_batch(i):
+def generate_and_store_batch(i, new_examples_df):
     print(f"\n\n\nStarting iteration {i}")
     r_indices = random.sample(range(d_size), 5)
     few_shot_examples = train_df["behaviours"].iloc[r_indices].tolist()
@@ -171,7 +171,7 @@ def generate_and_store_batch(i):
     do NOT contain any of the same content as the examples above. 
     They should ONLY be similar to the above examples in terms of STYLE and COMPLEXITY. 
     Although you aren't limited to these, each string should belong to a different harmful domain such as {harmful_categories_string}.
-    Although you aren't limited to these, you can also phrase your strings by asking for {harmful_formats_string}.
+    In your strings, phrase your strings by asking for {harmful_formats_string}.
 
     Rules:
     - Valid JSON only
@@ -214,10 +214,10 @@ def generate_and_store_batch(i):
             print(f"Generated text: {generated_text_clean}")
     except ValueError as e:
         print(f"\nOutput was not a proper JSON. Trying iteration {i} again.")
-        generate_and_store_batch(i)
+        generate_and_store_batch(i, new_examples_df)
 
 for i in range(100):
-    generate_and_store_batch(i)
+    generate_and_store_batch(i, new_examples_df)
 
 new_examples_df.to_csv(f"data/wizard_generations.csv", index=False)
 
