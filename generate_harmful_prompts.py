@@ -30,7 +30,7 @@ model_load_time = time.time()
 runtime_in_s = model_load_time - start_time
 minutes = (runtime_in_s / 60) % 60
 seconds = runtime_in_s % 60
-print(f"\nTime taken to load model: {str(minutes)} minutes, and {str(seconds)} seconds\n")
+print(f"\nTime taken to load model: {str(int(minutes))} minutes, and {str(int(seconds))} seconds\n")
 
 train_df = pd.read_csv(FEW_SHOT_EXAMPLES_PATH)
 d_size = len(train_df)
@@ -143,16 +143,17 @@ def provide_harmful_formats(n = 7):
     out += "etc."
     return out
 
-for i in range(100):
-    print(f"Starting iterations #{i}!")
+def generate_and_store_batch(i):
+    print(f"\n\n\nStarting iteration {i}")
     r_indices = random.sample(range(d_size), 5)
     few_shot_examples = train_df["behaviours"].iloc[r_indices].tolist()
     few_shot_examples_json = json.dumps(few_shot_examples, ensure_ascii=False)
 
-    print(f"\nThe few-shot examples this time were: {few_shot_examples_json} \n")
+    print(f"\nThe few-shot examples this time were: {few_shot_examples_json}")
 
     harmful_categories_string = provide_harmful_categories(5)
     harmful_formats_string = provide_harmful_formats(7)
+    print(f"\nThe format examples this time were: {harmful_formats_string}")
     prompt = f"""
     Return exactly one valid JSON array containing 10 strings.
 
@@ -201,16 +202,22 @@ for i in range(100):
 
     prompt_len = inputs["input_ids"].shape[1]
     generated_text = tokenizer.decode(output[0], skip_special_tokens=True)
-    generated_text_clean = extract_json_array(generated_text)
-    print(f"\nGenerated: {generated_text_clean}\n")
-
     try: 
-        new_examples = json.loads(generated_text_clean) # returns a python list
-        temp = pd.DataFrame({"goal": new_examples})
-        new_examples_df = pd.concat([new_examples_df, temp], ignore_index=True)
-    except json.JSONDecodeError as e:
-        print(f"Failed to parse JSON examples {i*10} - {(i+1)*10 - 1}. Skipping iteration.")
-        print(f"Generated text: {generated_text_clean}")
+        generated_text_clean = extract_json_array(generated_text)
+        print(f"\Harmful Behaviours: {generated_text_clean}\n")
+        try: 
+            new_examples = json.loads(generated_text_clean) # returns a python list
+            temp = pd.DataFrame({"goal": new_examples})
+            new_examples_df = pd.concat([new_examples_df, temp], ignore_index=True)
+        except json.JSONDecodeError as e:
+            print(f"Failed to parse JSON examples {i*10} - {(i+1)*10 - 1}. Skipping iteration.")
+            print(f"Generated text: {generated_text_clean}")
+    except ValueError as e:
+        print(f"\nOutput was not a proper JSON. Trying iteration {i} again.")
+        generate_and_store_batch(i)
+
+for i in range(100):
+    generate_and_store_batch(i)
 
 new_examples_df.to_csv(f"data/wizard_generations.csv", index=False)
 
@@ -218,5 +225,5 @@ end_time = time.time()
 runtime_in_s = end_time - model_load_time
 minutes = (runtime_in_s / 60) % 60
 seconds = runtime_in_s % 60
-print(f"\nTime taken to generate responses: {str(minutes)} minutes, and {str(seconds)} seconds")
+print(f"\nTime taken to generate responses: {str(int(minutes))} minutes, and {str(int(seconds))} seconds")
 
