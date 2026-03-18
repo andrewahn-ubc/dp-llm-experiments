@@ -23,9 +23,10 @@ mkdir -p $TRANSFORMERS_CACHE
 mkdir -p $HF_HOME
 
 # Copy models to local SSD (critical for Narval)
-cp -r $SCRATCH/wizard $SLURM_TMPDIR/
+# cp -r $SCRATCH/wizard $SLURM_TMPDIR/ # going to try loading the model from login node directly
+# export LLM_NAME=$SLURM_TMPDIR/wizard
+export LLM_NAME=$SCRATCH/wizard
 
-export LLM_NAME=$SLURM_TMPDIR/wizard
 
 cd $SCRATCH/dp-llm-experiments
 

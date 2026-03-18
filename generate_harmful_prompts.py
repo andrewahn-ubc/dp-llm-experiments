@@ -99,8 +99,10 @@ for i in range(5):
         )
 
     prompt_len = inputs["input_ids"].shape[1]
-    gen_tokens = output[0][prompt_len - 1:]
+    gen_tokens = output[0]
     generated_text = tokenizer.decode(gen_tokens, skip_special_tokens=True)
+    start = generated_text.find("[")
+    generated_text = generated_text[start:]
 
     generated_text_clean = extract_json_array(generated_text)
     print(f"Generated: {generated_text_clean}")
