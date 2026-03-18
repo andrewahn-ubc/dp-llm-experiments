@@ -205,19 +205,17 @@ def generate_and_store_batch(i, new_examples_df):
     try: 
         generated_text_clean = extract_json_array(generated_text)
         print(f"\Harmful Behaviours: {generated_text_clean}\n")
-        try: 
-            new_examples = json.loads(generated_text_clean) # returns a python list
-            temp = pd.DataFrame({"goal": new_examples})
-            new_examples_df = pd.concat([new_examples_df, temp], ignore_index=True)
-        except json.JSONDecodeError as e:
-            print(f"Failed to parse JSON examples {i*10} - {(i+1)*10 - 1}. Skipping iteration.")
-            print(f"Generated text: {generated_text_clean}")
+        new_examples = json.loads(generated_text_clean) # returns a python list
+        temp = pd.DataFrame({"goal": new_examples})
+        new_examples_df = pd.concat([new_examples_df, temp], ignore_index=True)
+        return new_examples_df
     except ValueError as e:
         print(f"\nOutput was not a proper JSON. Trying iteration {i} again.")
-        generate_and_store_batch(i, new_examples_df)
+        return generate_and_store_batch(i, new_examples_df)
+
 
 for i in range(100):
-    generate_and_store_batch(i, new_examples_df)
+    new_examples_df = generate_and_store_batch(i, new_examples_df)
 
 new_examples_df.to_csv(f"data/wizard_generations.csv", index=False)
 
