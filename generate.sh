@@ -3,7 +3,7 @@
 #SBATCH --gres=gpu:1
 #SBATCH --cpus-per-task=6
 #SBATCH --mem=40G
-#SBATCH --time=01:30:00
+#SBATCH --time=00:30:00
 #SBATCH --output=output/generate%j.out
 
 set -euo pipefail
@@ -23,9 +23,9 @@ mkdir -p $TRANSFORMERS_CACHE
 mkdir -p $HF_HOME
 
 # Copy models to local SSD (critical for Narval)
-# cp -r $SCRATCH/wizard $SLURM_TMPDIR/ # going to try loading the model from login node directly
-# export LLM_NAME=$SLURM_TMPDIR/wizard
-export LLM_NAME=$SCRATCH/wizard
+cp -r $SCRATCH/wizard $SLURM_TMPDIR/ # going to try loading the model from login node directly
+export LLM_NAME=$SLURM_TMPDIR/wizard
+# export LLM_NAME=$SCRATCH/wizard
 
 
 cd $SCRATCH/dp-llm-experiments
