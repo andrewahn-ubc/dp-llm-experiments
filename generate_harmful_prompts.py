@@ -217,7 +217,7 @@ def generate_and_store_batch(i, new_examples_df):
 for i in range(1000):
     new_examples_df = generate_and_store_batch(i, new_examples_df)
 
-new_examples_df.to_csv(f"data/wizard_generations.csv", index=False)
+new_examples_df.to_csv(f"data/wizard_generations_10k.csv", index=False)
 
 end_time = time.time()
 runtime_in_s = end_time - model_load_time
