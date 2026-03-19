@@ -214,7 +214,7 @@ def generate_and_store_batch(i, new_examples_df):
         return generate_and_store_batch(i, new_examples_df)
 
 
-for i in range(300):
+for i in range(1000):
     new_examples_df = generate_and_store_batch(i, new_examples_df)
 
 new_examples_df.to_csv(f"data/wizard_generations.csv", index=False)
