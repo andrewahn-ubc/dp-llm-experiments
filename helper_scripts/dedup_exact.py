@@ -1,7 +1,7 @@
 import pandas as pd
 
-data = "./wizard_generations.csv"
-output = "./wizard_generations_deduped.csv"
+data = "./combined.csv"
+output = "./combined_deduped.csv"
 
 def deduplicate_csv(input_path, output_path):
     df = pd.read_csv(input_path, usecols=["goal"])

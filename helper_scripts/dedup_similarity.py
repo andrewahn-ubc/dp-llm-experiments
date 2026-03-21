@@ -16,7 +16,7 @@ S = E @ E.T
 np.fill_diagonal(S, -1)
 k = min(5, len(df) - 1)
 scores = np.mean(np.partition(S, -k, axis=1)[:, -k:], axis=1)
-drop = np.argsort(scores)[-1460:]
+drop = np.argsort(scores)[-11350:]
 
 df.iloc[np.setdiff1d(np.arange(len(df)), drop)].to_csv(out, index=False)
 df.iloc[drop].assign(redundancy_score=scores[drop]).sort_values("redundancy_score", ascending=False).to_csv(removed, index=False)
