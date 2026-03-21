@@ -33,6 +33,7 @@ seconds = runtime_in_s % 60
 print(f"\nTime taken to load model: {str(int(minutes))} minutes, and {str(int(seconds))} seconds\n")
 
 train_df = pd.read_csv(TRAIN_DATA_PATH)
+train_df["target"] = train_df["target"].astype("object")
 d_size = len(train_df)
 
 def extract_response(text):
@@ -90,7 +91,7 @@ def generate_and_store_target(i, train_df):
             do_sample=True,
             top_p=0.9,
             top_k=40,
-            max_new_tokens=50,
+            max_new_tokens=30,
             pad_token_id=tokenizer.pad_token_id,
             eos_token_id=tokenizer.eos_token_id,
         )
@@ -99,7 +100,7 @@ def generate_and_store_target(i, train_df):
     generated_text = tokenizer.decode(output[0], skip_special_tokens=True)
     clean_response = extract_response(generated_text)
     print(f"Harmful target: {clean_response}\n")
-    train_df["target"].iloc[i] = clean_response
+    train_df.loc[i, "target"] = clean_response
 
     return train_df
 
