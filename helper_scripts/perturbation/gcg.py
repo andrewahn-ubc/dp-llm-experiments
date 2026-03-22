@@ -4,22 +4,20 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 import pandas as pd 
 import os
 import math
+import argparse
+
 
 # Set up input/output files 
 MODEL_PATH = "/home/taegyoem/scratch/llama2_7b_chat_hf" 
 CSV_INPUT = "data/harmful_behaviors.csv" 
 
-# Job Array
-full_input_df = pd.read_csv(CSV_INPUT)  # full dataset
-TASK_ID = int(os.environ["SLURM_ARRAY_TASK_ID"]) # Determine task ID
-NUM_TASKS = 50
-chunk_size = math.ceil(len(full_input_df) / NUM_TASKS)
-# Compute start and end index for this task
-start_idx = TASK_ID * chunk_size 
-end_idx = min(start_idx + chunk_size, len(full_input_df)) 
-# Slice the dataframe for this task
-input_df = full_input_df.iloc[start_idx:end_idx]
-print(f"Task {TASK_ID}: processing rows {start_idx} to {end_idx-1}")
+parser = argparse.ArgumentParser()
+parser.add_argument("--input_file", type=str)
+parser.add_argument("--save_suffix", type=str, default="default")
+args = parser.parse_args()
+data_path = args.input_file
+TASK_ID = args.save_suffix
+
 
 
 output_df = pd.DataFrame(columns = ["Original Prompt", "Original Response", "Perturbed Prompt", "Perturbed Response"]) 
