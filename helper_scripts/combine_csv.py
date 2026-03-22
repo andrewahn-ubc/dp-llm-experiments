@@ -1,7 +1,7 @@
 import sys, pandas as pd
 
-f1, f2 = sys.argv[1], sys.argv[2]
-out = sys.argv[3] if len(sys.argv) > 3 else "combined.csv"
+f1, f2 = "./harmbench_training_trimmed.csv", "harmbench_trimmed.csv"
+out = "harmbench.csv"
 
 df1 = pd.read_csv(f1)
 df2 = pd.read_csv(f2)

@@ -8,7 +8,7 @@ import os
 
 start_time = time.time()
 
-TRAIN_DATA_PATH = "./data/training_data_3k.csv"
+TRAIN_DATA_PATH = "./data/harmbench.csv"
 
 model_name_or_path = os.environ["LLM_NAME"]
 
@@ -39,7 +39,7 @@ d_size = len(train_df)
 def extract_response(text):
     start_response = text.find("ASSISTANT: ")
 
-    return text[start_response:]
+    return text[start_response+16:]
 
 def generate_and_store_target(i, train_df):
     print(f"\n\n\nStarting iteration {i}")
