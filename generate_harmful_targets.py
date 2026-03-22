@@ -33,7 +33,6 @@ seconds = runtime_in_s % 60
 print(f"\nTime taken to load model: {str(int(minutes))} minutes, and {str(int(seconds))} seconds\n")
 
 train_df = pd.read_csv(TRAIN_DATA_PATH)
-train_df["target"] = train_df["target"].astype("object")
 d_size = len(train_df)
 
 def extract_response(text):
