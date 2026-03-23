@@ -5,7 +5,7 @@
 #SBATCH --cpus-per-task=6
 #SBATCH --mem=40G
 #SBATCH --time=09:00:00
-#SBATCH --output=output/autodan/autodan_%A_%a.out
+#SBATCH --output=output/autodan/autodan_training_%A_%a.out
 
 module load python cuda
 
@@ -20,4 +20,4 @@ cd $SCRATCH/AutoDAN
 
 python autodan_hga_eval.py \
     --input_file "$DATA_PATH" \
-    --save_suffix "dataset_$IDX"
+    --save_suffix "training_dataset_$IDX"
