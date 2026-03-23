@@ -9,8 +9,8 @@ import argparse
 
 # Set up input/output files 
 MODEL_PATH = "/home/taegyoem/scratch/llama2_7b_chat_hf" 
-CSV_INPUT = "data/harmful_behaviors.csv" 
 
+# Get input csv path and output file name
 parser = argparse.ArgumentParser()
 parser.add_argument("--input_file", type=str)
 parser.add_argument("--save_suffix", type=str, default="default")
@@ -18,9 +18,9 @@ args = parser.parse_args()
 data_path = args.input_file
 TASK_ID = args.save_suffix
 
-
-
-output_df = pd.DataFrame(columns = ["Original Prompt", "Original Response", "Perturbed Prompt", "Perturbed Response"]) 
+# Create input/output dataframes
+input_df = pd.read_csv(data_path)
+output_df = pd.DataFrame(columns = ["goal", "original response", "perturbed goal", "perturbed response"]) 
 
 # Load model 
 tokenizer = AutoTokenizer.from_pretrained(MODEL_PATH) 
@@ -36,7 +36,6 @@ for index, (_,row) in enumerate(input_df.iterrows()):
         tokenize=False, 
         add_generation_prompt=True
     )
-    # prompt_formatted = f"[INST] User: {prompt} [/INST] Agent: "
 
     inputs = tokenizer(prompt_formatted, return_tensors="pt").to("cuda") 
     with torch.no_grad(): 
@@ -55,8 +54,6 @@ for index, (_,row) in enumerate(input_df.iterrows()):
         tokenize=False, 
         add_generation_prompt=True
     )
-    # jb_prompt_formatted = f"<s>[INST] {jb_prompt} [/INST]"
-
 
     jb_inputs = tokenizer(jb_prompt_formatted, return_tensors="pt").to("cuda") 
     with torch.no_grad(): 
@@ -69,4 +66,4 @@ for index, (_,row) in enumerate(input_df.iterrows()):
     output_df.loc[index] = [prompt, answer, jb_prompt, jb_answer] 
 
 # Convert output dataframe into CSV format 
-output_df.to_csv(f"data/gcg_output_{TASK_ID}.csv", index=False)
+output_df.to_csv(f"/home/taegyoem/scratch/dp-llm-experiments/official_data/gcg_output_{TASK_ID}.csv", index=False)

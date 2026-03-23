@@ -3,8 +3,8 @@
 #SBATCH --gres=gpu:1
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=40G
-#SBATCH --time=08:00:00
-#SBATCH --array=0-49             # 50 tasks
+#SBATCH --time=12:00:00
+#SBATCH --array=0-21             
 #SBATCH --output=output/gcg_%A_%a.out   # %A = array job ID, %a = task ID
 
 # Load Python
@@ -21,5 +21,5 @@ source $SCRATCH/venv/nanogcg/bin/activate
 
 # Run gcg
 python ~/scratch/dp-llm-experiments/helper_scripts/perturbation/gcg.py \
-        --input_file "$DATA_PATH" \
-        --save_suffix "dataset_$IDX"
+    --input_file "$DATA_PATH" \
+    --save_suffix "test_dataset_$IDX"
