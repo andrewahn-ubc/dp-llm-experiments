@@ -1,0 +1,32 @@
+Looking in links: /cvmfs/soft.computecanada.ca/custom/python/wheelhouse/gentoo2023/x86-64-v3, /cvmfs/soft.computecanada.ca/custom/python/wheelhouse/gentoo2023/generic, /cvmfs/soft.computecanada.ca/custom/python/wheelhouse/generic
+Requirement already satisfied: transformers in /lustre07/scratch/taegyoem/venv/nanogcg/lib/python3.11/site-packages (4.47.1)
+Collecting optimum
+  Obtaining dependency information for optimum from https://files.pythonhosted.org/packages/4a/98/c409ed937331839fdadc03cef6ebd19982bf3834711134db8898eeb31585/optimum-2.1.0-py3-none-any.whl.metadata
+  Downloading optimum-2.1.0-py3-none-any.whl.metadata (14 kB)
+Requirement already satisfied: filelock in /lustre07/scratch/taegyoem/venv/nanogcg/lib/python3.11/site-packages (from transformers) (3.20.3)
+Requirement already satisfied: huggingface-hub<1.0,>=0.24.0 in /lustre07/scratch/taegyoem/venv/nanogcg/lib/python3.11/site-packages (from transformers) (0.36.0+computecanada)
+Requirement already satisfied: numpy>=1.17 in /lustre07/scratch/taegyoem/venv/nanogcg/lib/python3.11/site-packages (from transformers) (2.3.3+computecanada)
+Requirement already satisfied: packaging>=20.0 in /lustre07/scratch/taegyoem/venv/nanogcg/lib/python3.11/site-packages (from transformers) (25.0+computecanada)
+Requirement already satisfied: pyyaml>=5.1 in /lustre07/scratch/taegyoem/venv/nanogcg/lib/python3.11/site-packages (from transformers) (6.0.2+computecanada)
+Requirement already satisfied: regex!=2019.12.17 in /lustre07/scratch/taegyoem/venv/nanogcg/lib/python3.11/site-packages (from transformers) (2024.11.6+computecanada)
+Requirement already satisfied: requests in /lustre07/scratch/taegyoem/venv/nanogcg/lib/python3.11/site-packages (from transformers) (2.32.5+computecanada)
+Requirement already satisfied: tokenizers<0.22,>=0.21 in /lustre07/scratch/taegyoem/venv/nanogcg/lib/python3.11/site-packages (from transformers) (0.21.1+computecanada)
+Requirement already satisfied: safetensors>=0.4.1 in /lustre07/scratch/taegyoem/venv/nanogcg/lib/python3.11/site-packages (from transformers) (0.5.3+computecanada)
+Requirement already satisfied: tqdm>=4.27 in /lustre07/scratch/taegyoem/venv/nanogcg/lib/python3.11/site-packages (from transformers) (4.67.1+computecanada)
+Requirement already satisfied: torch>=1.11 in /lustre07/scratch/taegyoem/venv/nanogcg/lib/python3.11/site-packages (from optimum) (2.9.1+computecanada)
+Requirement already satisfied: fsspec>=2023.5.0 in /lustre07/scratch/taegyoem/venv/nanogcg/lib/python3.11/site-packages (from huggingface-hub<1.0,>=0.24.0->transformers) (2026.1.0)
+Requirement already satisfied: hf-xet<2.0.0,>=1.1.3 in /lustre07/scratch/taegyoem/venv/nanogcg/lib/python3.11/site-packages (from huggingface-hub<1.0,>=0.24.0->transformers) (1.2.0+computecanada)
+Requirement already satisfied: typing-extensions>=3.7.4.3 in /lustre07/scratch/taegyoem/venv/nanogcg/lib/python3.11/site-packages (from huggingface-hub<1.0,>=0.24.0->transformers) (4.15.0+computecanada)
+Requirement already satisfied: sympy>=1.13.3 in /lustre07/scratch/taegyoem/venv/nanogcg/lib/python3.11/site-packages (from torch>=1.11->optimum) (1.14.0+computecanada)
+Requirement already satisfied: networkx>=2.5.1 in /lustre07/scratch/taegyoem/venv/nanogcg/lib/python3.11/site-packages (from torch>=1.11->optimum) (3.6.1+computecanada)
+Requirement already satisfied: jinja2 in /lustre07/scratch/taegyoem/venv/nanogcg/lib/python3.11/site-packages (from torch>=1.11->optimum) (3.1.6+computecanada)
+Requirement already satisfied: charset-normalizer<4,>=2 in /lustre07/scratch/taegyoem/venv/nanogcg/lib/python3.11/site-packages (from requests->transformers) (3.4.4+computecanada)
+Requirement already satisfied: idna<4,>=2.5 in /lustre07/scratch/taegyoem/venv/nanogcg/lib/python3.11/site-packages (from requests->transformers) (3.11+computecanada)
+Requirement already satisfied: urllib3<3,>=1.21.1 in /lustre07/scratch/taegyoem/venv/nanogcg/lib/python3.11/site-packages (from requests->transformers) (2.6.3+computecanada)
+Requirement already satisfied: certifi>=2017.4.17 in /lustre07/scratch/taegyoem/venv/nanogcg/lib/python3.11/site-packages (from requests->transformers) (2026.1.4)
+Requirement already satisfied: mpmath<1.4,>=1.1.0 in /lustre07/scratch/taegyoem/venv/nanogcg/lib/python3.11/site-packages (from sympy>=1.13.3->torch>=1.11->optimum) (1.3.0+computecanada)
+Requirement already satisfied: MarkupSafe>=2.0 in /lustre07/scratch/taegyoem/venv/nanogcg/lib/python3.11/site-packages (from jinja2->torch>=1.11->optimum) (3.0.2+computecanada)
+Downloading optimum-2.1.0-py3-none-any.whl (161 kB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 161.2/161.2 kB 872.7 kB/s eta 0:00:00
+Installing collected packages: optimum
+Successfully installed optimum-2.1.0
