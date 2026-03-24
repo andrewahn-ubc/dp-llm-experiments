@@ -5,7 +5,9 @@ import pandas as pd
 import os
 import math
 import argparse
+import time
 
+start_time = time.time()
 
 # Set up input/output files 
 MODEL_PATH = "/home/taegyoem/scratch/llama2_7b_chat_hf" 
@@ -26,6 +28,14 @@ output_df = pd.DataFrame(columns = ["goal", "original response", "perturbed goal
 tokenizer = AutoTokenizer.from_pretrained(MODEL_PATH) 
 model = AutoModelForCausalLM.from_pretrained( MODEL_PATH, torch_dtype=torch.float16, trust_remote_code=True, local_files_only=True ).to("cuda") 
 model.eval() 
+
+model_load_time = time.time()
+runtime_in_s = model_load_time - start_time
+minutes = (runtime_in_s / 60) % 60
+seconds = runtime_in_s % 60
+print(f"\nTime taken to load model: {str(int(minutes))} minutes, and {str(int(seconds))} seconds\n")
+
+time_since_last_prompt = model_load_time
 
 for index, (_,row) in enumerate(input_df.iterrows()): 
     # Original Prompt + Response
@@ -65,5 +75,17 @@ for index, (_,row) in enumerate(input_df.iterrows()):
     # Update output 
     output_df.loc[index] = [prompt, answer, jb_prompt, jb_answer] 
 
+    curr_time = time.time()
+    runtime_in_s = curr_time - time_since_last_prompt
+    minutes = (runtime_in_s / 60) % 60
+    seconds = runtime_in_s % 60
+    print(f"\nTime taken for this prompt: {str(int(minutes))} minutes, and {str(int(seconds))} seconds")
+
 # Convert output dataframe into CSV format 
 output_df.to_csv(f"/home/taegyoem/scratch/dp-llm-experiments/official_data/gcg_output_{TASK_ID}.csv", index=False)
+
+end_time = time.time()
+runtime_in_s = end_time - model_load_time
+minutes = (runtime_in_s / 60) % 60
+seconds = runtime_in_s % 60
+print(f"\nTotal time taken: {str(int(minutes))} minutes, and {str(int(seconds))} seconds")
