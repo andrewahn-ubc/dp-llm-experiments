@@ -85,7 +85,8 @@ for index, (_,row) in enumerate(input_df.iterrows()):
 output_df.to_csv(f"/home/taegyoem/scratch/dp-llm-experiments/official_data/gcg_output_{TASK_ID}.csv", index=False)
 
 end_time = time.time()
-runtime_in_s = end_time - model_load_time
+runtime_in_s = int(end_time - start_time)
+hours = runtime_in_s // 3600
 minutes = (runtime_in_s / 60) % 60
 seconds = runtime_in_s % 60
-print(f"\nTotal time taken: {str(int(minutes))} minutes, and {str(int(seconds))} seconds")
+print(f"\nTotal time taken: {str(hours)} hours, {str(int(minutes))} minutes, and {str(int(seconds))} seconds")
