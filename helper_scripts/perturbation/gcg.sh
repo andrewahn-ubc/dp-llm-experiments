@@ -3,9 +3,9 @@
 #SBATCH --gres=gpu:1
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=40G
-#SBATCH --time=12:00:00
-#SBATCH --array=0-59             
-#SBATCH --output=output/gcg_%A_%a.out   # %A = array job ID, %a = task ID
+#SBATCH --time=8:00:00
+#SBATCH --array=0-9             
+#SBATCH --output=output/gcg_testing_%A_%a.out   # %A = array job ID, %a = task ID
 
 # Load Python
 module load StdEnv/2023 python/3.11
@@ -27,7 +27,7 @@ source $SCRATCH/venv/nanogcg/bin/activate
 # Run gcg
 python ~/scratch/dp-llm-experiments/helper_scripts/perturbation/gcg.py \
     --input_file "$DATA_PATH" \
-    --save_suffix "train_dataset_$IDX"
+    --save_suffix "train_dataset_testing_$IDX"
 
 python - <<'PY'
 import time

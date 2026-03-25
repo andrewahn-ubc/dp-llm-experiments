@@ -1,11 +1,11 @@
 import pandas as pd
 import math
 
-input = "./train.csv"
+input = "./test.csv"
 
 df = pd.read_csv(input)
 n = len(df)
-chunk_size = 50
+chunk_size = 10
 splits = math.ceil(n / chunk_size)
 
 for i in range(splits):
@@ -16,4 +16,4 @@ for i in range(splits):
     else:
         j = str(i)
 
-    new_df.to_csv(f"train_{j}.csv", index=False)
+    new_df.to_csv(f"test_{j}.csv", index=False)
