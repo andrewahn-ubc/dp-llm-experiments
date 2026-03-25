@@ -4,7 +4,7 @@
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=40G
 #SBATCH --time=9:00:00
-#SBATCH --array=0-107%20             
+#SBATCH --array=0-107%12             
 #SBATCH --output=output/gcg_train_%A_%a.out   # %A = array job ID, %a = task ID
 
 # Load Python
