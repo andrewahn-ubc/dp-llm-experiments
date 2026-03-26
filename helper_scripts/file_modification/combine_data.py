@@ -1,7 +1,7 @@
 import pandas as pd
 import glob
 
-files = glob.glob("./data/gcg*.csv")
+files = glob.glob("./train_dataset*.csv")
 
 dfs = []
 for f in files:
@@ -10,7 +10,7 @@ for f in files:
 df = pd.concat(dfs, ignore_index=True)
 
 df.to_csv(
-    "./data/gcg_output_total.csv",
+    "./autodan_train_dataset.csv",
     index=False,
-    quoting=1  # csv.QUOTE_ALL
+    quoting=1  
 )

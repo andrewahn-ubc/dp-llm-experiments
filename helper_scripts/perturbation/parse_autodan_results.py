@@ -2,24 +2,33 @@ import json
 import csv
 import pandas as pd
 
-csv_data = {
-    "Original Prompt": [],
-    "Original Response": [],
-    "Perturbed Prompt": [],
-    "Perturbed Response": [],
-    "Jailbreak Success": []
-}
+num_chunks = 60
 
-with open("autodan_first_10.json", "r") as f:
-    data = json.load(f)
-    
-    for i in range(len(data)):
-        initial_prompt = data[f"{i}"]["goal"]
-        csv_data["Original Prompt"].append(initial_prompt)
-        csv_data["Original Response"].append(data[f"{i}"]["log"]["respond"][0])
-        csv_data["Perturbed Prompt"].append(initial_prompt + data[f"{i}"]["final_suffix"])
-        csv_data["Perturbed Response"].append(data[f"{i}"]["log"]["respond"][-1])
-        csv_data["Jailbreak Success"].append(data[f"{i}"]["is_success"])
-    
-df = pd.DataFrame(csv_data)
-df.to_csv("autodan_first_10.csv", index=False)
+for i in range(num_chunks):
+    # if i in {19, 20}:
+    #     continue
+    dd = f"{i:02d}"
+    input_path = f"/Users/andrewahn/Desktop/DP-LLM-Safety Research/dp-llm-experiments/autodan_results/llama2_0_training_dataset_{dd}.json"
+    output_path = f"/Users/andrewahn/Desktop/DP-LLM-Safety Research/dp-llm-experiments/autodan_results_parsed/train_dataset_{dd}.csv"
+
+    csv_data = {
+        "goal": [],
+        "original response": [],
+        "perturbed goal": [],
+        "perturbed response": [],
+        "jailbreak success": []
+    }
+
+    with open(input_path, "r") as f:
+        data = json.load(f)
+        
+        for i in range(len(data)):
+            initial_prompt = data[f"{i}"]["goal"]
+            csv_data["goal"].append(initial_prompt)
+            csv_data["original response"].append(data[f"{i}"]["log"]["respond"][0])
+            csv_data["perturbed goal"].append(initial_prompt + data[f"{i}"]["final_suffix"])
+            csv_data["perturbed response"].append(data[f"{i}"]["log"]["respond"][-1])
+            csv_data["jailbreak success"].append(data[f"{i}"]["is_success"])
+        
+    df = pd.DataFrame(csv_data)
+    df.to_csv(output_path, index=False)

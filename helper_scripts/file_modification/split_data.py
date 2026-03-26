@@ -1,7 +1,7 @@
 import pandas as pd
 import math
 
-input = "./test.csv"
+input = "./redo_autodan_test_20.csv"
 
 df = pd.read_csv(input)
 n = len(df)
@@ -16,4 +16,4 @@ for i in range(splits):
     else:
         j = str(i)
 
-    new_df.to_csv(f"test_{j}.csv", index=False)
+    new_df.to_csv(f"redo_autodan_test_20_part_{j}.csv", index=False)
