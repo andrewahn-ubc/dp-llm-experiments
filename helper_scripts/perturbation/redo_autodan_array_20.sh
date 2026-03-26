@@ -1,11 +1,11 @@
 #!/bin/bash
-#SBATCH --job-name=autodan_array
-#SBATCH --array=0-4
+#SBATCH --job-name=redo_autodan_array_20
+#SBATCH --array=0-24%5
 #SBATCH --gres=gpu:1
 #SBATCH --cpus-per-task=6
 #SBATCH --mem=40G
-#SBATCH --time=04:00:00
-#SBATCH --output=output/autodan/autodan_testing_%A_%a.out
+#SBATCH --time=03:00:00
+#SBATCH --output=output/autodan/redo_autodan_testing_%A_%a.out
 
 module load python cuda
 
@@ -20,4 +20,5 @@ cd $SCRATCH/AutoDAN
 
 python autodan_hga_eval.py \
     --dataset_path "$DATA_PATH" \
-    --save_suffix "testing_dataset_20_part_$IDX"
+    --save_suffix "testing_dataset_20_part_$IDX" \
+    --batch_size 32
