@@ -20,5 +20,5 @@ cd $SCRATCH/AutoDAN
 
 python autodan_hga_eval.py \
     --dataset_path "$DATA_PATH" \
-    --save_suffix "testing_dataset_19_part_$IDX" \
-    --batch_size 32
+    --save_suffix "redo_test_20_part_$IDX" \
+    --batch_size 8
