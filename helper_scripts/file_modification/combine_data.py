@@ -1,7 +1,7 @@
 import pandas as pd
 import glob
 
-files = glob.glob("./train_dataset*.csv")
+files = glob.glob("../train_dataset*.csv")
 
 dfs = []
 for f in files:
