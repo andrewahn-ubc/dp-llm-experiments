@@ -15,4 +15,4 @@ cd $SCRATCH/pair
 
 mkdir -p logs results
 
-python3 pair.py
+python3 $SCRATCH/pair/pair.py
