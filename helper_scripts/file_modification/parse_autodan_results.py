@@ -8,8 +8,8 @@ for i in range(num_chunks):
     # if i in {19, 20}:
     #     continue
     dd = f"{i:02d}"
-    input_path = f"/Users/andrewahn/Desktop/DP-LLM-Safety Research/dp-llm-experiments/autodan_output/llama2_0_redo_test_20_part_{dd}.json"
-    output_path = f"/Users/andrewahn/Desktop/DP-LLM-Safety Research/dp-llm-experiments/autodan_output/llama2_0_redo_test_20_part_{dd}.csv"
+    input_path = f"./llama2_0_missing_autodan_train_{dd}.json"
+    output_path = f"./missing_autodan_{dd}.csv"
 
     csv_data = {
         "goal": [],
