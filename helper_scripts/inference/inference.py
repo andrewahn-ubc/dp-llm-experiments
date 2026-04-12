@@ -12,8 +12,8 @@ start_time = time.time()
 DEVICE = "cuda"
 DTYPE = torch.float16
 LLM_NAME = "/home/taegyoem/scratch/llama2_7b_chat_hf" 
-INPUT_DATASET = "/home/taegyoem/scratch/official_data/all_jb_fams_train.csv"
-OUTPUT_DATASET = "/home/taegyoem/scratch/official_data/all_jb_fams_train_response.csv"
+INPUT_DATASET = "/home/taegyoem/scratch/dp-llm-experiments/official_data/all_jb_fams_train.csv"
+OUTPUT_DATASET = "/home/taegyoem/scratch/dp-llm-experiments/official_data/all_jb_fams_train_response.csv"
 
 # Load main LLM
 tokenizer = AutoTokenizer.from_pretrained(LLM_NAME)
