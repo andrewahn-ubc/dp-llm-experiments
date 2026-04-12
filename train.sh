@@ -1,8 +1,8 @@
 #!/bin/bash
 #SBATCH --job-name=train
-#SBATCH --gres=gpu:1
+#SBATCH --gres=gpu:2
 #SBATCH --cpus-per-task=6
-#SBATCH --mem=40G
+#SBATCH --mem=80G
 #SBATCH --time=08:00:00
 #SBATCH --output=output/train_%j.out
 

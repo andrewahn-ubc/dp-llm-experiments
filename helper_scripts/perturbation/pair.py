@@ -1,5 +1,7 @@
 import csv, subprocess, os, shlex
 
+# don't run this version - run the version in the pair repo
+
 csv_path = os.environ["/home/taegyoem/scratch/dp-llm-experiments/official_data/test_00.csv"]
 rows = []
 with open(csv_path, newline="", encoding="utf-8") as f:

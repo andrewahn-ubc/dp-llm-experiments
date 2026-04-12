@@ -2,14 +2,14 @@ import json
 import csv
 import pandas as pd
 
-num_chunks = 60
+num_chunks = 25
 
 for i in range(num_chunks):
     # if i in {19, 20}:
     #     continue
     dd = f"{i:02d}"
-    input_path = f"/Users/andrewahn/Desktop/DP-LLM-Safety Research/dp-llm-experiments/autodan_results/llama2_0_training_dataset_{dd}.json"
-    output_path = f"/Users/andrewahn/Desktop/DP-LLM-Safety Research/dp-llm-experiments/autodan_results_parsed/train_dataset_{dd}.csv"
+    input_path = f"/Users/andrewahn/Desktop/DP-LLM-Safety Research/dp-llm-experiments/autodan_output/llama2_0_redo_test_20_part_{dd}.json"
+    output_path = f"/Users/andrewahn/Desktop/DP-LLM-Safety Research/dp-llm-experiments/autodan_output/llama2_0_redo_test_20_part_{dd}.csv"
 
     csv_data = {
         "goal": [],

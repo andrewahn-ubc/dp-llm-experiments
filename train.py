@@ -7,6 +7,7 @@ from transformers import (
 from peft import LoraConfig, get_peft_model
 import pandas as pd
 import time
+import random
 
 start_time = time.time()
 
@@ -19,7 +20,7 @@ FINETUNED_LLM_PATH = "/home/taegyoem/scratch/finetuned_llm"
 TRAINING_DATA = "./data/train.csv"
 
 LAMBDA = 1.0
-EPSILON = 0.0       # TODO: try different values of epsilon and plot their performance on a validation set 
+EPSILON = 0.0        
 MAX_GEN_TOKENS = 5
 epsilon_term = torch.exp(torch.tensor(EPSILON)).to(DEVICE)
 
@@ -34,7 +35,7 @@ base_model = AutoModelForCausalLM.from_pretrained(
 )
 
 lora_config = LoraConfig(
-    r=8,            # TODO: try out different ranks, try what other people use
+    r=8,            
     lora_alpha=16,
     target_modules=["q_proj", "v_proj"],
     lora_dropout=0.05,
@@ -175,7 +176,7 @@ def training_step(batch):
 
     # Stability hinge
     stability = torch.clamp(
-        C_clean - epsilon_term * C_pert,
+        C_pert - epsilon_term * C_clean,
         min=0
     )
 
@@ -185,34 +186,60 @@ def training_step(batch):
     return total_loss
 
 # Training Loop
-optimizer = torch.optim.AdamW(model.parameters(), lr=2e-5) # TODO: configure LR
+optimizer = torch.optim.AdamW(model.parameters(), lr=2e-5)
 
-df = pd.read_csv(TRAINING_DATA) # TODO: get more examples, in the range of 5,000-10,000
+df = pd.read_csv(TRAINING_DATA) 
 
 batch_size = 1
 
-for epoch in range(3): # TODO: try out different number of epochs and dump checkpoint after each epoch
-    for i in range(0, len(df), batch_size):
-        chunk = df.iloc[i:i+batch_size]
-        batch = (
-            list(chunk["Original Prompt"]),
-            list(chunk["Original Response"]),
-            list(chunk["Perturbed Prompt"]),
-            list(chunk["Perturbed Response"]),
-        )
-        model.train()
-        loss = training_step(batch)
-        loss.backward()
-        optimizer.step()
-        optimizer.zero_grad()
-        torch.cuda.empty_cache()
+neighbour_names = {
+    "gcg": ["GCG Variant", "GCG Response"],
+    "autodan": ["AutoDAN Variant", "AutoDAN Response"],
+    "pair": ["PAIR Variant", "PAIR Response"]
+}
 
-        print(f"Batch {i/batch_size} of epoch {epoch} complete")
+# REQUIREMENT: held_out_family must be one of {"gcg", "pair", and "autodan"}
+def main(eval_mode="seen-family", held_out_family=None):
+    for epoch in range(3): 
+        for i in range(0, len(df), batch_size):
+            chunk = df.iloc[i:i+batch_size]
 
-    print(f"Epoch {epoch} complete")
+            if (eval_mode == "held-out-family" & held_out_family != None):                
+                temp = neighbour_names.copy()
+                temp.pop(held_out_family)
+                neighbour_names_list = list(temp.values())
+                perturbed_neighbour = random.choice(neighbour_names_list)
+                perturbed_prompt = perturbed_neighbour[0]
+                perturbed_response = perturbed_neighbour[1]
+            else:
+                neighbour_names_list = list(neighbour_names.values())
+                perturbed_neighbour = random.choice(neighbour_names_list)
+                perturbed_prompt = perturbed_neighbour[0]
+                perturbed_response = perturbed_neighbour[1]
 
-model.save_pretrained(FINETUNED_LLM_PATH)
-tokenizer.save_pretrained(FINETUNED_LLM_PATH)
+            batch = (
+                list(chunk["Original Prompt"]),
+                list(chunk["Original Response"]),
+                list(chunk[perturbed_prompt]),
+                list(chunk[perturbed_response])
+            )
+
+            model.train()
+            loss = training_step(batch)
+            loss.backward()
+            optimizer.step()
+            optimizer.zero_grad()
+            torch.cuda.empty_cache()
+
+            print(f"Batch {i/batch_size} of epoch {epoch} complete")
+
+        print(f"Epoch {epoch} complete")
+
+    model.save_pretrained(FINETUNED_LLM_PATH)
+    tokenizer.save_pretrained(FINETUNED_LLM_PATH)
+
+if __name__ == "__main__":
+    main()
 
 end_time = time.time()
 runtime_in_s = end_time - start_time
