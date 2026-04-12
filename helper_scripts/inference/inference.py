@@ -27,13 +27,17 @@ for index, row in df.iterrows():
     # Original Prompt + Response
     prompt = row["Original Prompt"]
     messages = [
-        {"role": "system", "content": "You are a helpful assistant."},
+        {"role": "system", "content": """You are a helpful, respectful and honest assistant. Always answer as helpfully as possible, while being safe.
+Your answers should not include any harmful, unethical, racist, sexist, toxic, dangerous, or illegal content.
+Please ensure that your responses are socially unbiased and positive in nature. If a question does not make
+any sense, or is not factually coherent, explain why instead of answering something not correct. If you
+don’t know the answer to a question, please don’t share false information."""},
         {"role": "user", "content": prompt},  
     ]
     prompt_formatted = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
     inputs = tokenizer(prompt_formatted, return_tensors="pt").to("cuda") 
     with torch.no_grad(): 
-        output = model.generate(**inputs, max_new_tokens=30, temperature=None, top_p=None, do_sample=False) 
+        output = model.generate(**inputs, max_new_tokens=50, temperature=None, top_p=None, do_sample=False) 
     input_length = inputs["input_ids"].shape[1]
     new_tokens = output[0][input_length:]
     answer = tokenizer.decode(new_tokens, skip_special_tokens=True)
