@@ -11,6 +11,10 @@ import random
 import argparse
 from test import generate_all_jb_responses, classify_all_jb_safety, generate_original_responses, classify_response_safety
 import os
+import psutil, torch
+
+print(f"CPU RAM available: {psutil.virtual_memory().available / 1e9:.1f}G")
+print(f"GPU memory: {torch.cuda.get_device_properties(0).total_memory / 1e9:.1f}G")
 
 DEVICE = "cuda"
 DTYPE = torch.float16
@@ -30,7 +34,8 @@ def load_model(LLM_NAME, lora_rank, resume_from=None):
     base_model = AutoModelForCausalLM.from_pretrained(
         LLM_NAME,
         torch_dtype=DTYPE,
-        device_map="auto"
+        device_map="auto",
+        low_cpu_mem_usage=True
     )
 
     if resume_from is not None:
@@ -59,7 +64,8 @@ def load_guard(GUARD_NAME):
     guard_model = AutoModelForCausalLM.from_pretrained(
         GUARD_NAME,
         torch_dtype=DTYPE,
-        device_map="auto"
+        device_map="auto",
+        low_cpu_mem_usage=True
     )
 
     for p in guard_model.parameters():
