@@ -311,7 +311,7 @@ def main(args):
                             guard_tokenizer=guard_tokenizer, 
                             testing_mode=args.eval_mode,  
                             unseen_family=args.unseen_family,
-                            output_file=args.validation_data) # gonna write the result in-place
+                            output_file=args.harmful_output_file) # gonna write the result in-place
         
         # Compute FRR on benign prompts
         frr_val_df = pd.read_csv(args.benign_validation_data)
@@ -323,7 +323,7 @@ def main(args):
                                 batch_size = 8, 
                                 guard_model=guard_model, 
                                 guard_tokenizer=guard_tokenizer, 
-                                output_file=args.benign_validation_data) # gonna write the result in-place
+                                output_file=args.benign_output_file) # gonna write the result in-place
 
 if __name__ == "__main__":
     start_time = time.time()
@@ -362,11 +362,16 @@ if __name__ == "__main__":
         default = "/home/taegyoem/scratch/dp-llm-experiments/official_data/frr_validation.csv",
         help = "path to csv containing benign validation data for FRR metric"
     )
-    # parser.add_argument(
-    #     "--output-file",
-    #     default = "output.csv",
-    #     help = "path to csv output that looks the same as validation.csv but with jb responses and safety labels"
-    # )
+    parser.add_argument(
+        "--harmful-output-file",
+        default = "harmful_output.csv",
+        help = "path to csv output that looks the same as validation.csv but with jb responses and safety labels"
+    )
+    parser.add_argument(
+        "--benign-output-file",
+        default = "benign_output.csv",
+        help = "path to csv output that looks the same as frr_validation.csv but with responses and safety labels"
+    )
     parser.add_argument(
         "--lr",
         default = 2e-5,

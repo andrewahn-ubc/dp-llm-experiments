@@ -1,5 +1,4 @@
 #!/bin/bash
-mkdir -p output
 #SBATCH --job-name=train
 #SBATCH --account=rrg-mijungp
 #SBATCH --gres=gpu:1
@@ -7,6 +6,8 @@ mkdir -p output
 #SBATCH --mem=80G
 #SBATCH --time=10:00:00
 #SBATCH --output=output/lr1_train_epoch_2_%j.out
+
+mkdir -p output
 
 set -euo pipefail
 
@@ -30,15 +31,17 @@ mkdir -p $HF_HOME
 # export LLM_NAME=$SLURM_TMPDIR/llama2_7b_chat_hf
 # export GUARD_NAME=$SLURM_TMPDIR/llama_guard_7b
 
+IDX="lr1"
+
 # Run training
 python $SCRATCH/dp-llm-experiments/train.py \
     --eval-mode "seen-family" \
-    --finetuned-llm-path "$SCRATCH/lr1_finetuned_llm" \
+    --finetuned-llm-path "$SCRATCH/${IDX}_finetuned_llm" \
     --training-data "$SCRATCH/dp-llm-experiments/official_data/train.csv" \
     --lr 1e-5 \
     --lambda-val 1.0 \
     --epsilon 0.0 \
     --lora-rank 8 \
     --total-epochs 3 \
-    --resume-from "$SCRATCH/lr1_finetuned_llm_epoch1" \
+    --resume-from "$SCRATCH/${IDX}_finetuned_llm_epoch1" \
     --start-epoch 2
