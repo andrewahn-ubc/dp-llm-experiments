@@ -5,7 +5,7 @@
 #SBATCH --cpus-per-task=6
 #SBATCH --mem=80G
 #SBATCH --time=12:00:00
-#SBATCH --output=output/lr2_train_epoch_3_%j.out
+#SBATCH --output=output/lr5_train_epoch_3_%j.out
 
 mkdir -p output
 
@@ -31,7 +31,7 @@ mkdir -p $HF_HOME
 # export LLM_NAME=$SLURM_TMPDIR/llama2_7b_chat_hf
 # export GUARD_NAME=$SLURM_TMPDIR/llama_guard_7b
 
-IDX="lr2"
+IDX="lr5"
 
 # Run training
 python $SCRATCH/dp-llm-experiments/train.py \
@@ -42,7 +42,7 @@ python $SCRATCH/dp-llm-experiments/train.py \
     --benign-validation-data "$SCRATCH/dp-llm-experiments/official_data/frr_validation.csv" \
     --harmful-output-file "$SCRATCH/dp-llm-experiments/official_data/${IDX}_val_output.csv" \
     --benign-output-file "$SCRATCH/dp-llm-experiments/official_data/${IDX}_frr_output.csv" \
-    --lr 2e-5 \
+    --lr 5e-5 \
     --lambda-val 1.0 \
     --epsilon 0.0 \
     --lora-rank 8 \
