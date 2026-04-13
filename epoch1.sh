@@ -4,7 +4,7 @@ mkdir -p output
 #SBATCH --account=rrg-mijungp
 #SBATCH --gres=gpu:1
 #SBATCH --cpus-per-task=6
-#SBATCH --mem=40G
+#SBATCH --mem=80G
 #SBATCH --time=10:00:00
 #SBATCH --output=output/lr1_train_epoch_1_%j.out
 
@@ -24,11 +24,11 @@ mkdir -p $TRANSFORMERS_CACHE
 mkdir -p $HF_HOME
 
 # Copy models to local SSD (critical for Narval)
-cp -r $SCRATCH/llama2_7b_chat_hf $SLURM_TMPDIR/
-cp -r $SCRATCH/llama_guard_7b $SLURM_TMPDIR/
+# cp -r $SCRATCH/llama2_7b_chat_hf $SLURM_TMPDIR/
+# cp -r $SCRATCH/llama_guard_7b $SLURM_TMPDIR/
 
-export LLM_NAME=$SLURM_TMPDIR/llama2_7b_chat_hf
-export GUARD_NAME=$SLURM_TMPDIR/llama_guard_7b
+# export LLM_NAME=$SLURM_TMPDIR/llama2_7b_chat_hf
+# export GUARD_NAME=$SLURM_TMPDIR/llama_guard_7b
 
 # Run training
 python $SCRATCH/dp-llm-experiments/train.py \

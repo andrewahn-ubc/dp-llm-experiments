@@ -236,8 +236,8 @@ def main(args):
     epsilon_term = torch.exp(torch.tensor(args.epsilon)).to(DEVICE)
     
     # Load LLMs
-    model, tokenizer = load_model(os.environ["LLM_NAME"], args.lora_rank, resume_from=args.resume_from)
-    guard_model, guard_tokenizer = load_guard(os.environ["GUARD_NAME"])
+    model, tokenizer = load_model("/home/taegyoem/scratch/llama2_7b_chat_hf", args.lora_rank, resume_from=args.resume_from)
+    guard_model, guard_tokenizer = load_guard("/home/taegyoem/scratch/llama_guard_7b")
     GUARD_HEADER_EMBEDS, GUARD_FOOTER_EMBEDS = precompute_guard_context(guard_model, guard_tokenizer)
 
     # Load data
