@@ -1,5 +1,6 @@
 #!/bin/bash
 #SBATCH --job-name=missing_autodan_test
+#SBATCH  --account=rrg-mijungp
 #SBATCH --array=0-7
 #SBATCH --gres=gpu:1
 #SBATCH --cpus-per-task=6
