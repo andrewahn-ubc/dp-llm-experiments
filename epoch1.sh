@@ -3,9 +3,9 @@
 #SBATCH --account=rrg-mijungp
 #SBATCH --gres=gpu:1
 #SBATCH --cpus-per-task=6
-#SBATCH --mem=80G
-#SBATCH --time=10:00:00
-#SBATCH --output=output/lr5_train_epoch_1_%j.out
+#SBATCH --mem=40G
+#SBATCH --time=7:00:00
+#SBATCH --output=output/lr2_train_epoch_1_%j.out
 
 mkdir -p output
 
@@ -24,7 +24,7 @@ export HF_HOME=$SLURM_TMPDIR/hf_home
 mkdir -p $TRANSFORMERS_CACHE
 mkdir -p $HF_HOME
 
-IDX="lr5"
+IDX="lr2"
 
 # Copy models to local SSD (critical for Narval)
 # cp -r $SCRATCH/llama2_7b_chat_hf $SLURM_TMPDIR/
@@ -38,7 +38,7 @@ python $SCRATCH/dp-llm-experiments/train.py \
     --eval-mode "seen-family" \
     --finetuned-llm-path "$SCRATCH/${IDX}_finetuned_llm" \
     --training-data "$SCRATCH/dp-llm-experiments/official_data/train.csv" \
-    --lr 5e-5 \
+    --lr 2e-5 \
     --lambda-val 1.0 \
     --epsilon 0.0 \
     --lora-rank 8 \
