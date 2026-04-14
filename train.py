@@ -234,7 +234,7 @@ def training_step(model, tokenizer, guard_model, guard_tokenizer, batch, GUARD_H
     # The full loss function - contains likelihood ratio minimization
     total_loss = lm_loss_term + LAMBDA * stability.mean()
 
-    return total_loss
+    return total_loss, lm_loss_term.detach(), stability.mean().detach()
 
 # REQUIREMENT: unseen_family must be one of {"gcg", "pair", and "autodan"}
 def main(args):
@@ -283,8 +283,11 @@ def main(args):
         )
 
         model.train()
-        loss = training_step(model, tokenizer, guard_model, guard_tokenizer, batch, 
-                                GUARD_HEADER_EMBEDS, GUARD_FOOTER_EMBEDS, epsilon_term, args.lambda_val)
+        loss, lm_loss_val, stability_val = training_step(model, tokenizer, guard_model, guard_tokenizer, batch, 
+                                           GUARD_HEADER_EMBEDS, GUARD_FOOTER_EMBEDS, epsilon_term, args.lambda_val)
+        if i % 10 == 0:
+            print(f"Step {i}: total={loss.item():.4f}, lm={lm_loss_val.item():.4f}, stab={stability_val.item():.4f}", flush=True)
+        
         loss.backward()
         optimizer.step()
         optimizer.zero_grad()
