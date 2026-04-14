@@ -157,7 +157,7 @@ def soft_autoregressive_generate(model, tokenizer, prompts, num_steps, temperatu
             probs = F.softmax(logits / temperature, dim=-1) # (batch_size, vocab_size)
 
             # Expected embedding (soft token)
-            next_embed = (probs @ vocab_embeds).unsqueeze(1).requires_grad_()  # (batch_size, 1, hidden_dim)
+            next_embed = (probs @ vocab_embeds).unsqueeze(1).requires_grad_() # (batch_size, 1, hidden_dim)
 
             # Append soft token
             soft_embeds_of_conversation = torch.cat([soft_embeds_of_conversation, next_embed], dim=1)
@@ -248,6 +248,11 @@ def main(args):
 
     # Load data
     df = pd.read_csv(args.training_data) 
+    # Drop rows with missing values in any column used during training
+    required_cols = ["Original Prompt", "Original Response"] + \
+                    [v[0] for v in neighbour_names.values()]
+    df = df.dropna(subset=required_cols).reset_index(drop=True)
+    print(f"Training on {len(df)} rows after dropping NaNs")
 
     # Training Loop
     optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr)
@@ -299,34 +304,36 @@ def main(args):
     torch.save(optimizer.state_dict(), os.path.join(checkpoint_path, "optimizer.pt"))
     print(f"Saved optimizer state to {os.path.join(checkpoint_path, 'optimizer.pt')}")
 
-    if args.start_epoch == args.total_epochs:
-        # Compute ASR on harmful prompts
-        val_df = pd.read_csv(args.validation_data)
-        df_with_jb_responses =  generate_all_jb_responses(val_df, 
+    # if args.start_epoch == args.total_epochs:
+    # Compute ASR on harmful prompts
+    val_df = pd.read_csv(args.validation_data)
+    end_of_epoch_asr_path = f"{args.harmful_output_file}_epoch{args.start_epoch}.csv"
+    end_of_epoch_frr_path = f"{args.benign_output_file}_epoch{args.start_epoch}.csv"
+    df_with_jb_responses =  generate_all_jb_responses(val_df, 
+                            batch_size=8, 
+                            finetuned_model=model, 
+                            tokenizer=tokenizer, 
+                            testing_mode=args.eval_mode, 
+                            unseen_family=args.unseen_family)
+    classify_all_jb_safety(df_with_jb_responses, 
+                        batch_size = 8, 
+                        guard_model=guard_model, 
+                        guard_tokenizer=guard_tokenizer, 
+                        testing_mode=args.eval_mode,  
+                        unseen_family=args.unseen_family,
+                        output_file=end_of_epoch_asr_path) # gonna write the result in-place
+    
+    # Compute FRR on benign prompts
+    frr_val_df = pd.read_csv(args.benign_validation_data)
+    df_with_regular_responses = generate_original_responses(frr_val_df, 
                                 batch_size=8, 
                                 finetuned_model=model, 
-                                tokenizer=tokenizer, 
-                                testing_mode=args.eval_mode, 
-                                unseen_family=args.unseen_family)
-        classify_all_jb_safety(df_with_jb_responses, 
+                                tokenizer=tokenizer)
+    classify_response_safety(df_with_regular_responses, 
                             batch_size = 8, 
                             guard_model=guard_model, 
                             guard_tokenizer=guard_tokenizer, 
-                            testing_mode=args.eval_mode,  
-                            unseen_family=args.unseen_family,
-                            output_file=args.harmful_output_file) # gonna write the result in-place
-        
-        # Compute FRR on benign prompts
-        frr_val_df = pd.read_csv(args.benign_validation_data)
-        df_with_regular_responses = generate_original_responses(frr_val_df, 
-                                    batch_size=8, 
-                                    finetuned_model=model, 
-                                    tokenizer=tokenizer)
-        classify_response_safety(df_with_regular_responses, 
-                                batch_size = 8, 
-                                guard_model=guard_model, 
-                                guard_tokenizer=guard_tokenizer, 
-                                output_file=args.benign_output_file) # gonna write the result in-place
+                            output_file=end_of_epoch_frr_path) # gonna write the result in-place
 
 if __name__ == "__main__":
     start_time = time.time()
@@ -342,7 +349,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--unseen-family",
         default = None,
-        help = "Name of unseen family. Only used for the unseen family tsting mode.",
+        help = "Name of unseen family. Only used for the unseen family testing mode.",
         choices=["gcg", "autodan", "pair"]
     )
     parser.add_argument(
@@ -406,7 +413,7 @@ if __name__ == "__main__":
         help = "how many times we run through the training data while finetuning"
     )
     parser.add_argument("--resume-from", default=None)
-    parser.add_argument("--start-epoch", default=0, type=int)
+    parser.add_argument("--start-epoch", default=1, type=int)
 
     args = parser.parse_args()
 

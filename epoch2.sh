@@ -4,7 +4,7 @@
 #SBATCH --gres=gpu:1
 #SBATCH --cpus-per-task=6
 #SBATCH --mem=40G
-#SBATCH --time=7:00:00
+#SBATCH --time=9:00:00
 #SBATCH --output=output/lr2_train_epoch_2_%j.out
 
 mkdir -p output
