@@ -1,11 +1,11 @@
 #!/bin/bash
-#SBATCH --job-name=lr1-eval
+#SBATCH --job-name=lr2-eval
 #SBATCH --account=rrg-mijungp
 #SBATCH --gres=gpu:1
 #SBATCH --cpus-per-task=6
 #SBATCH --mem=40G
 #SBATCH --time=00:30:00
-#SBATCH --output=output/lr1_test%j.out
+#SBATCH --output=output/lr2_test%j.out
 
 mkdir -p output
 
@@ -24,7 +24,7 @@ export HF_HOME=$SLURM_TMPDIR/hf_home
 mkdir -p $TRANSFORMERS_CACHE
 mkdir -p $HF_HOME
 
-IDX="lr1"
+IDX="lr2"
 
 # Copy models to local SSD (critical for Narval)
 # cp -r $SCRATCH/llama2_7b_chat_hf $SLURM_TMPDIR/
@@ -36,7 +36,7 @@ IDX="lr1"
 # Run training
 python $SCRATCH/dp-llm-experiments/test_test.py \
     --eval-mode "seen-family" \
-    --lr 1e-5 \
+    --lr 2e-5 \
     --lambda-val 1.0 \
     --epsilon 0.0 \
     --lora-rank 8 \

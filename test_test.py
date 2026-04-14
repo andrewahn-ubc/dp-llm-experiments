@@ -214,9 +214,9 @@ if __name__ == "__main__":
     parser.add_argument("--start-epoch", default=1, type=int)
 
     args = parser.parse_args()
-    args.harmful_output_file = "lr1_final_harmful_eval.csv"
-    args.benign_output_file = "lr1_final_benign_eval.csv"
-    args.finetuned_llm_path = "/scratch/taegyoem/lr1_finetuned_llm_epoch3/"
+    args.harmful_output_file = "lr2_final_harmful_eval.csv"
+    args.benign_output_file = "lr2_final_benign_eval.csv"
+    args.finetuned_llm_path = "/scratch/taegyoem/lr2_finetuned_llm_epoch3/"
 
     main(args)
 
