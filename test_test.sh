@@ -1,11 +1,11 @@
 #!/bin/bash
-#SBATCH --job-name=lr2-eval
+#SBATCH --job-name=lr5-eval
 #SBATCH --account=rrg-mijungp
 #SBATCH --gres=gpu:1
 #SBATCH --cpus-per-task=6
 #SBATCH --mem=40G
 #SBATCH --time=00:30:00
-#SBATCH --output=output/lr2_test%j.out
+#SBATCH --output=output/lr5_test%j.out
 
 mkdir -p output
 
@@ -36,7 +36,7 @@ IDX="lr2"
 # Run training
 python $SCRATCH/dp-llm-experiments/test_test.py \
     --eval-mode "seen-family" \
-    --lr 2e-5 \
+    --lr 5e-5 \
     --lambda-val 1.0 \
     --epsilon 0.0 \
     --lora-rank 8 \
