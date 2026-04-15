@@ -1,11 +1,11 @@
 #!/bin/bash
-#SBATCH --job-name=lr5-eval
+#SBATCH --job-name=lr2-eval
 #SBATCH --account=rrg-mijungp
 #SBATCH --gres=gpu:1
 #SBATCH --cpus-per-task=6
 #SBATCH --mem=40G
 #SBATCH --time=4:00:00
-#SBATCH --output=output/lr5_test%j.out
+#SBATCH --output=output/lr2_test%j.out
 
 mkdir -p output
 
@@ -26,6 +26,6 @@ mkdir -p $HF_HOME
 
 # Run evaluation
 python $SCRATCH/dp-llm-experiments/eval.py \
-    --harmful-output-file "lr5_final_harmful_eval.csv" \
-    --benign-output-file "lr5_final_benign_eval.csv" \
-    --resume-from "/scratch/taegyoem/lr5_finetuned_llm_epoch3/"
+    --harmful-output-file "lr2_final_harmful_eval.csv" \
+    --benign-output-file "lr2_final_benign_eval.csv" \
+    --resume-from "/scratch/taegyoem/lr2_finetuned_llm_epoch3/"
