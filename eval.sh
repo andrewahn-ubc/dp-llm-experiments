@@ -4,7 +4,7 @@
 #SBATCH --gres=gpu:1
 #SBATCH --cpus-per-task=6
 #SBATCH --mem=40G
-#SBATCH --time=00:30:00
+#SBATCH --time=4:00:00
 #SBATCH --output=output/lr5_test%j.out
 
 mkdir -p output
@@ -24,21 +24,8 @@ export HF_HOME=$SLURM_TMPDIR/hf_home
 mkdir -p $TRANSFORMERS_CACHE
 mkdir -p $HF_HOME
 
-IDX="lr2"
-
-# Copy models to local SSD (critical for Narval)
-# cp -r $SCRATCH/llama2_7b_chat_hf $SLURM_TMPDIR/
-# cp -r $SCRATCH/llama_guard_7b $SLURM_TMPDIR/
-
-# export LLM_NAME=$SLURM_TMPDIR/llama2_7b_chat_hf
-# export GUARD_NAME=$SLURM_TMPDIR/llama_guard_7b
-
-# Run training
-python $SCRATCH/dp-llm-experiments/test_test.py \
-    --eval-mode "seen-family" \
-    --lr 5e-5 \
-    --lambda-val 1.0 \
-    --epsilon 0.0 \
-    --lora-rank 8 \
-    --total-epochs 3 \
-    --start-epoch 1
+# Run evaluation
+python $SCRATCH/dp-llm-experiments/eval.py \
+    --harmful-output-file "lr5_final_harmful_eval.csv" \
+    --benign-output-file "lr5_final_benign_eval.csv" \
+    --resume-from "/scratch/taegyoem/lr5_finetuned_llm_epoch3/"

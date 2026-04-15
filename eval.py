@@ -9,7 +9,7 @@ import pandas as pd
 import time
 import random
 import argparse
-from test import generate_all_jb_responses, classify_all_jb_safety, generate_original_responses, classify_response_safety
+from eval_helpers import generate_all_jb_responses, classify_all_jb_safety, generate_original_responses, classify_response_safety
 import os
 import psutil, torch
 
@@ -26,7 +26,7 @@ neighbour_names = {
     "pair": ["PAIR Variant", "PAIR Response"]
 }
 
-def load_model(LLM_NAME, lora_rank, resume_from=None):
+def load_model(LLM_NAME, resume_from=None):
     # Load Main LLM with LoRA
     tokenizer = AutoTokenizer.from_pretrained(LLM_NAME)
     tokenizer.pad_token = tokenizer.eos_token
@@ -38,23 +38,8 @@ def load_model(LLM_NAME, lora_rank, resume_from=None):
         low_cpu_mem_usage=True
     )
 
-    if resume_from is not None:
-        model = PeftModel.from_pretrained(base_model, resume_from, is_trainable=True)
-    else:
-        lora_config = LoraConfig(
-            r=lora_rank,            
-            lora_alpha=16,
-            target_modules=["q_proj", "v_proj"],
-            lora_dropout=0.05,
-            bias="none",
-            task_type="CAUSAL_LM",
-        )
+    model = PeftModel.from_pretrained(base_model, resume_from, is_trainable=True)
 
-        model = get_peft_model(base_model, lora_config)
-
-    model.gradient_checkpointing_enable()
-    model.enable_input_require_grads()
-    model.train()
     return model, tokenizer
 
 def load_guard(GUARD_NAME):
@@ -99,14 +84,13 @@ def format_prompt(tokenizer, prompt):
 # REQUIREMENT: unseen_family must be one of {"gcg", "pair", and "autodan"}
 def main(args):
     # Load LLMs
-    model, tokenizer = load_model(args.finetuned_llm_path, args.lora_rank, resume_from=args.resume_from)
+    model, tokenizer = load_model("/home/taegyoem/scratch/llama2_7b_chat_hf", resume_from=args.resume_from)
     guard_model, guard_tokenizer = load_guard("/home/taegyoem/scratch/llama_guard_7b")
 
-    # if args.start_epoch == args.total_epochs:
     # Compute ASR on harmful prompts
     val_df = pd.read_csv(args.validation_data)
-    end_of_epoch_asr_path = f"{args.harmful_output_file}_epoch{args.start_epoch}.csv"
-    end_of_epoch_frr_path = f"{args.benign_output_file}_epoch{args.start_epoch}.csv"
+    end_of_epoch_asr_path = f"{args.harmful_output_file}.csv"
+    end_of_epoch_frr_path = f"{args.benign_output_file}.csv"
     df_with_jb_responses =  generate_all_jb_responses(val_df, 
                             batch_size=8, 
                             finetuned_model=model, 
@@ -135,9 +119,10 @@ def main(args):
 
 if __name__ == "__main__":
     start_time = time.time()
+
     parser = argparse.ArgumentParser()
 
-    # Experiment parameters
+    # Experiment 
     parser.add_argument(
         "--eval-mode",
         default = "seen-family",
@@ -149,16 +134,6 @@ if __name__ == "__main__":
         default = None,
         help = "Name of unseen family. Only used for the unseen family testing mode.",
         choices=["gcg", "autodan", "pair"]
-    )
-    parser.add_argument(
-        "--finetuned-llm-path",
-        default = "/home/taegyoem/scratch/finetuned_llm",
-        help = "path to finetuned main LLM"
-    )
-    parser.add_argument(
-        "--training-data",
-        default = "/home/taegyoem/scratch/dp-llm-experiments/official_data/train.csv",
-        help = "path to csv containing training data"
     )
     parser.add_argument(
         "--validation-data",
@@ -180,43 +155,9 @@ if __name__ == "__main__":
         default = "benign_output.csv",
         help = "path to csv output that looks the same as frr_validation.csv but with responses and safety labels"
     )
-    parser.add_argument(
-        "--lr",
-        default = 2e-5,
-        type=float,
-        help = "learning rate"
-    )
-    parser.add_argument(
-        "--lambda-val",
-        default = 1.0,
-        type=float,
-        help = "regularization strength"
-    )
-    parser.add_argument(
-        "--epsilon",
-        default = 0.0,
-        type=float,
-        help = "how forgiving our regularizer is"
-    )
-    parser.add_argument(
-        "--lora-rank",
-        default = 8,
-        type=int,
-        help = "size of LoRA component"
-    )
-    parser.add_argument(
-        "--total-epochs",
-        default = 3,
-        type=int,
-        help = "how many times we run through the training data while finetuning"
-    )
-    parser.add_argument("--resume-from", default=None)
-    parser.add_argument("--start-epoch", default=1, type=int)
+    parser.add_argument("--resume-from", default=None) # this is the model you load at the start
 
     args = parser.parse_args()
-    args.harmful_output_file = "lr5_final_harmful_eval.csv"
-    args.benign_output_file = "lr5_final_benign_eval.csv"
-    args.finetuned_llm_path = "/scratch/taegyoem/lr5_finetuned_llm_epoch3/"
 
     main(args)
 
