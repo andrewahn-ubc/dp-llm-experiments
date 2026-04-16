@@ -9,7 +9,7 @@ import pandas as pd
 import time
 import random
 import argparse
-from eval_helpers import generate_all_jb_responses, classify_all_jb_safety, generate_original_responses, classify_response_safety
+from eval_helpers import generate_all_jb_responses, classify_all_jb_safety, generate_original_responses, classify_refusal
 import os
 import psutil, torch
 
@@ -111,7 +111,7 @@ def main(args):
                                 batch_size=8, 
                                 finetuned_model=model, 
                                 tokenizer=tokenizer)
-    classify_response_safety(df_with_regular_responses, 
+    classify_refusal(df_with_regular_responses, 
                             batch_size = 8, 
                             guard_model=guard_model, 
                             guard_tokenizer=guard_tokenizer, 

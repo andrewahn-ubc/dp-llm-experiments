@@ -9,9 +9,10 @@ import pandas as pd
 import time
 import random
 import argparse
-from eval_helpers import generate_all_jb_responses, classify_all_jb_safety, generate_original_responses, classify_response_safety
+from eval_helpers import generate_all_jb_responses, classify_all_jb_safety, generate_original_responses, classify_refusal
 import os
 import psutil, torch
+import gc
 
 print(f"CPU RAM available: {psutil.virtual_memory().available / 1e9:.1f}G")
 print(f"GPU memory: {torch.cuda.get_device_properties(0).total_memory / 1e9:.1f}G")
@@ -56,6 +57,30 @@ def load_model(LLM_NAME, lora_rank, resume_from=None):
     model.enable_input_require_grads()
     model.train()
     return model, tokenizer
+
+def unload_model(model, tokenizer=None, extra_tensors=None):
+    # Move model weights off GPU first if it is a normal single-device model
+    try:
+        model.to("cpu")
+    except Exception:
+        pass
+
+    # Delete any extra tensors that may still hold GPU memory
+    if extra_tensors is not None:
+        for x in extra_tensors:
+            try:
+                del x
+            except Exception:
+                pass
+
+    del model
+    if tokenizer is not None:
+        del tokenizer
+
+    gc.collect()
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+        torch.cuda.ipc_collect()  # optional, sometimes helps
 
 def load_guard(GUARD_NAME):
     guard_tokenizer = AutoTokenizer.from_pretrained(GUARD_NAME)
@@ -325,14 +350,25 @@ def main(args):
     
     # Compute FRR on benign prompts
     frr_val_df = pd.read_csv(args.benign_validation_data)
+    # "original" as in finetuned LLM responding to the original prompts
     df_with_regular_responses = generate_original_responses(frr_val_df, 
                                 batch_size=8, 
                                 finetuned_model=model, 
                                 tokenizer=tokenizer)
-    classify_response_safety(df_with_regular_responses, 
+    model.eval()
+    gc.collect()
+    torch.cuda.empty_cache()
+    unload_model(model, tokenizer=tokenizer)
+    refusal_judge = AutoModelForCausalLM.from_pretrained(
+        args.refusal_judge_path,
+        torch_dtype=torch.float16,
+        device_map="auto",
+    )
+    refusal_judge_tokenizer = AutoTokenizer.from_pretrained(args.refusal_judge_path)
+    classify_refusal(df_with_regular_responses, 
                             batch_size = 8, 
-                            guard_model=guard_model, 
-                            guard_tokenizer=guard_tokenizer, 
+                            refusal_model=refusal_judge, 
+                            refusal_tokenizer=refusal_judge_tokenizer, 
                             output_file=end_of_epoch_frr_path) # gonna write the result in-place
 
 if __name__ == "__main__":
@@ -356,6 +392,11 @@ if __name__ == "__main__":
         "--finetuned-llm-path",
         default = "/home/taegyoem/scratch/finetuned_llm",
         help = "path to finetuned main LLM"
+    )
+    parser.add_argument(
+        "--refusal-judge-path",
+        default = "/home/taegyoem/scratch/llama_3_8b",
+        help = "path to refusal LLM"
     )
     parser.add_argument(
         "--training-data",
