@@ -365,6 +365,7 @@ def main(args):
         device_map="auto",
     )
     refusal_judge_tokenizer = AutoTokenizer.from_pretrained(args.refusal_judge_path)
+    refusal_judge_tokenizer.pad_token = refusal_judge_tokenizer.eos_token
     classify_refusal(df_with_regular_responses, 
                             batch_size = 8, 
                             refusal_model=refusal_judge, 
