@@ -40,8 +40,8 @@ python $SCRATCH/dp-llm-experiments/train.py \
     --training-data "$SCRATCH/dp-llm-experiments/official_data/train.csv" \
     --validation-data "$SCRATCH/dp-llm-experiments/official_data/validation.csv" \
     --benign-validation-data "$SCRATCH/dp-llm-experiments/official_data/frr_validation.csv" \
-    --harmful-output-file "$SCRATCH/dp-llm-experiments/official_data/${IDX}_val_output.csv" \
-    --benign-output-file "$SCRATCH/dp-llm-experiments/official_data/${IDX}_frr_output.csv" \
+    --harmful-output-file "$SCRATCH/dp-llm-experiments/official_data/${IDX}_val_output" \
+    --benign-output-file "$SCRATCH/dp-llm-experiments/official_data/${IDX}_frr_output" \
     --lr 5e-5 \
     --lambda-val 1.0 \
     --epsilon 0.0 \

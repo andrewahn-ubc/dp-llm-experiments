@@ -47,7 +47,7 @@ def generate_responses_for_batch(finetuned_model, tokenizer, batch, column):
     inputs = tokenizer(formatted_prompts, return_tensors="pt", padding=True, truncation=True).to("cuda")
 
     with torch.no_grad(): 
-        outputs = finetuned_model.generate(**inputs, max_new_tokens=50, temperature=None, top_p=None, do_sample=False)
+        outputs = finetuned_model.generate(**inputs, max_new_tokens=150, temperature=None, top_p=None, do_sample=False)
 
     # Decode only the newly generated tokens for each item in batch
     answers = []
@@ -267,7 +267,7 @@ def classify_batch(guard_model, guard_tokenizer, batch, column, classification_m
         with torch.no_grad():
             outputs = guard_model.generate(
                 **inputs,
-                max_new_tokens=5, # Only need 'safe' or 'unsafe'
+                max_new_tokens=5, # Only need 'Yes' or 'No'
                 temperature=None,
                 top_p=None,
                 do_sample=False

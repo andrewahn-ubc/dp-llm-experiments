@@ -188,12 +188,12 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--harmful-output-file",
-        default = "harmful_output.csv",
+        default = "harmful_output",
         help = "path to csv output that looks the same as validation.csv but with jb responses and safety labels"
     )
     parser.add_argument(
         "--benign-output-file",
-        default = "benign_output.csv",
+        default = "benign_output",
         help = "path to csv output that looks the same as frr_validation.csv but with responses and safety labels"
     )
     parser.add_argument("--resume-from", default=None) # this is the model you load at the start
