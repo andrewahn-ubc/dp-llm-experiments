@@ -63,9 +63,12 @@ def load_model(LLM_NAME, resume_from=None):
         low_cpu_mem_usage=True
     )
 
-    model = PeftModel.from_pretrained(base_model, resume_from, is_trainable=True)
+    if resume_from is None:
+        return base_model, tokenizer
+    else:
+        model = PeftModel.from_pretrained(base_model, resume_from, is_trainable=True)
 
-    return model, tokenizer
+        return model, tokenizer
 
 def load_guard(GUARD_NAME):
     guard_tokenizer = AutoTokenizer.from_pretrained(GUARD_NAME)
