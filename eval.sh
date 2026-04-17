@@ -4,7 +4,7 @@
 #SBATCH --gres=gpu:1
 #SBATCH --cpus-per-task=6
 #SBATCH --mem=40G
-#SBATCH --time=4:00:00
+#SBATCH --time=6:00:00
 #SBATCH --output=output/lr1_test%j.out
 
 mkdir -p output
