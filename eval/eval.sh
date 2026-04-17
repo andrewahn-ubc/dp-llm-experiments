@@ -4,7 +4,7 @@
 #SBATCH --gres=gpu:1
 #SBATCH --cpus-per-task=6
 #SBATCH --mem=40G
-#SBATCH --time=6:00:00
+#SBATCH --time=7:00:00
 #SBATCH --output=output/lr1_test%j.out
 
 mkdir -p output
@@ -26,6 +26,6 @@ mkdir -p $HF_HOME
 
 # Run evaluation
 python $SCRATCH/dp-llm-experiments/eval/eval.py \
-    --harmful-output-file "lr1_final_harmful_eval_0416_1900h" \
-    --benign-output-file "lr1_final_benign_eval_0416_1900h" \
+    --harmful-output-file "lr1_final_harmful_eval_0416_2144h" \
+    --benign-output-file "lr1_final_benign_eval_0416_2144h" \
     --resume-from "/scratch/taegyoem/lr1_finetuned_llm_epoch3/"

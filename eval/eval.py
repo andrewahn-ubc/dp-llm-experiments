@@ -9,7 +9,7 @@ import pandas as pd
 import time
 import random
 import argparse
-from eval.eval_helpers import generate_all_jb_responses, classify_all_jb_safety, generate_original_responses, classify_refusal
+from eval_helpers import generate_all_jb_responses, classify_all_jb_safety, generate_original_responses, classify_refusal
 import os
 import gc
 import psutil, torch

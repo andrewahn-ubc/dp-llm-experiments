@@ -1,10 +1,10 @@
 #!/bin/bash
-#SBATCH --job-name=lr1-eval
+#SBATCH --job-name=baseline_eval
 #SBATCH --account=rrg-mijungp
 #SBATCH --gres=gpu:1
 #SBATCH --cpus-per-task=6
 #SBATCH --mem=40G
-#SBATCH --time=6:00:00
+#SBATCH --time=7:00:00
 #SBATCH --output=output/lr1_test%j.out
 
 mkdir -p output
@@ -26,5 +26,5 @@ mkdir -p $HF_HOME
 
 # Run evaluation
 python $SCRATCH/dp-llm-experiments/eval/eval.py \
-    --harmful-output-file "baseline_harmful_eval_0416_1924h" \
-    --benign-output-file "baseline_benign_eval_0416_1924h" 
+    --harmful-output-file "baseline_harmful_eval_0416_2144h" \
+    --benign-output-file "baseline_benign_eval_0416_2144h" 
