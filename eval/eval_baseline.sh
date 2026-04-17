@@ -25,6 +25,6 @@ mkdir -p $TRANSFORMERS_CACHE
 mkdir -p $HF_HOME
 
 # Run evaluation
-python $SCRATCH/dp-llm-experiments/eval.py \
+python $SCRATCH/dp-llm-experiments/eval/eval.py \
     --harmful-output-file "baseline_harmful_eval_0416_1924h" \
     --benign-output-file "baseline_benign_eval_0416_1924h" 

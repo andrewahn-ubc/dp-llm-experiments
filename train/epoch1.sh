@@ -34,7 +34,7 @@ IDX="lr5"
 # export GUARD_NAME=$SLURM_TMPDIR/llama_guard_7b
 
 # Run training
-python $SCRATCH/dp-llm-experiments/train.py \
+python $SCRATCH/dp-llm-experiments/train/train.py \
     --eval-mode "seen-family" \
     --finetuned-llm-path "$SCRATCH/${IDX}_finetuned_llm" \
     --training-data "$SCRATCH/dp-llm-experiments/official_data/train.csv" \
