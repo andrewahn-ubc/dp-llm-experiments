@@ -26,6 +26,6 @@ mkdir -p $HF_HOME
 
 # Run evaluation
 python $SCRATCH/dp-llm-experiments/eval.py \
-    --harmful-output-file "lr1_final_harmful_eval" \
-    --benign-output-file "lr1_final_benign_eval" \
+    --harmful-output-file "lr1_final_harmful_eval_0416_1900h" \
+    --benign-output-file "lr1_final_benign_eval_0416_1900h" \
     --resume-from "/scratch/taegyoem/lr1_finetuned_llm_epoch3/"
