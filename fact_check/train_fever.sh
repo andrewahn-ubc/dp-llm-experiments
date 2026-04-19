@@ -105,8 +105,8 @@ module purge
 module load StdEnv/2023 gcc python/3.11 arrow/21.0.0
 
 TMP_VENV="${SLURM_TMPDIR}/venv"
-echo "[env] creating venv at ${TMP_VENV} (seeding from ${VENV})"
-python -m venv --copies "${TMP_VENV}"
+echo "[env] rsyncing venv ${VENV} → ${TMP_VENV}"
+rsync -a "${VENV}/" "${TMP_VENV}/"
 source "${TMP_VENV}/bin/activate"
 
 # ── Disable all HuggingFace network calls ────────────────────────────────────
