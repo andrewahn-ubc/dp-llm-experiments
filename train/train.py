@@ -9,8 +9,16 @@ import pandas as pd
 import time
 import random
 import argparse
-from eval.eval_helpers import generate_all_jb_responses, classify_all_jb_safety, generate_original_responses, classify_refusal
 import os
+import sys
+
+# train.py lives in train/; sibling package eval/ is at repo root. Slurm runs
+# `python .../train/train.py`, so sys.path[0] is train/ unless we add the root.
+_repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+if _repo_root not in sys.path:
+    sys.path.insert(0, _repo_root)
+
+from eval.eval_helpers import generate_all_jb_responses, classify_all_jb_safety, generate_original_responses, classify_refusal
 import psutil, torch
 import gc
 
