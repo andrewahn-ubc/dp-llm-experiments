@@ -5,7 +5,7 @@
 #SBATCH --cpus-per-task=6
 #SBATCH --mem=40G
 #SBATCH --time=3:00:00
-#SBATCH --output=output/lr5_train_epoch_2_%j.out
+#SBATCH --output=output/lr5_train_epoch_4_%j.out
 
 mkdir -p output
 
@@ -24,13 +24,6 @@ export HF_HOME=$SLURM_TMPDIR/hf_home
 mkdir -p $TRANSFORMERS_CACHE
 mkdir -p $HF_HOME
 
-# Copy models to local SSD (critical for Narval)
-# cp -r $SCRATCH/llama2_7b_chat_hf $SLURM_TMPDIR/
-# cp -r $SCRATCH/llama_guard_7b $SLURM_TMPDIR/
-
-# export LLM_NAME=$SLURM_TMPDIR/llama2_7b_chat_hf
-# export GUARD_NAME=$SLURM_TMPDIR/llama_guard_7b
-
 IDX="lr5"
 
 # Run training
@@ -43,5 +36,5 @@ python $SCRATCH/dp-llm-experiments/train/train.py \
     --epsilon 0.0 \
     --lora-rank 8 \
     --total-epochs 5 \
-    --resume-from "$SCRATCH/${IDX}_finetuned_llm_epoch1" \
-    --start-epoch 2
+    --resume-from "$SCRATCH/${IDX}_finetuned_llm_epoch3" \
+    --start-epoch 4

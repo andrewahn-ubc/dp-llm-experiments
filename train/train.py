@@ -14,6 +14,57 @@ import os
 import psutil, torch
 import gc
 
+def _wandb_enabled():
+    return bool(os.environ.get("WANDB_PROJECT", "").strip())
+
+
+def _wandb_init(args):
+    if not _wandb_enabled():
+        return False
+    try:
+        import wandb
+    except ImportError:
+        print("WANDB_PROJECT is set but wandb is not installed; skipping Weights & Biases logging.")
+        return False
+    mode = os.environ.get("WANDB_MODE", "online")
+    wandb_dir = os.environ.get("WANDB_DIR", ".")
+    run_id = os.environ.get("WANDB_RUN_ID")
+    run_name = os.environ.get("WANDB_RUN_NAME")
+    init_kwargs = {
+        "project": os.environ["WANDB_PROJECT"],
+        "mode": mode,
+        "dir": wandb_dir,
+        "config": {
+            "lr": args.lr,
+            "lambda_val": args.lambda_val,
+            "epsilon": args.epsilon,
+            "lora_rank": args.lora_rank,
+            "start_epoch": args.start_epoch,
+            "total_epochs": args.total_epochs,
+            "eval_mode": args.eval_mode,
+            "unseen_family": args.unseen_family,
+        },
+    }
+    if run_name:
+        init_kwargs["name"] = run_name
+    if run_id:
+        init_kwargs["id"] = run_id
+    init_kwargs["resume"] = "must" if args.start_epoch > 1 else "allow"
+    wandb.init(**init_kwargs)
+    return True
+
+
+def _wandb_finish(wandb_on):
+    if not wandb_on:
+        return
+    try:
+        import wandb
+        if wandb.run is not None:
+            wandb.finish()
+    except ImportError:
+        pass
+
+
 print(f"CPU RAM available: {psutil.virtual_memory().available / 1e9:.1f}G")
 print(f"GPU memory: {torch.cuda.get_device_properties(0).total_memory / 1e9:.1f}G")
 
@@ -263,9 +314,16 @@ def training_step(model, tokenizer, guard_model, guard_tokenizer, batch, GUARD_H
 
 # REQUIREMENT: unseen_family must be one of {"gcg", "pair", and "autodan"}
 def main(args):
-    
+    wandb_on = _wandb_init(args)
+    try:
+        _main_train(args, wandb_on)
+    finally:
+        _wandb_finish(wandb_on)
+
+
+def _main_train(args, wandb_on):
     epsilon_term = torch.exp(torch.tensor(args.epsilon)).to(DEVICE)
-    
+
     # Load LLMs
     model, tokenizer = load_model("/home/taegyoem/scratch/llama2_7b_chat_hf", args.lora_rank, resume_from=args.resume_from)
     guard_model, guard_tokenizer = load_guard("/home/taegyoem/scratch/llama_guard_2")
@@ -278,6 +336,11 @@ def main(args):
                     [v[0] for v in neighbour_names.values()]
     df = df.dropna(subset=required_cols).reset_index(drop=True)
     print(f"Training on {len(df)} rows after dropping NaNs")
+    print(
+        f"Epoch {args.start_epoch}/{args.total_epochs} — checkpoint will be saved under "
+        f"{args.finetuned_llm_path}_epoch{args.start_epoch}",
+        flush=True,
+    )
 
     # Training Loop
     optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr)
@@ -317,6 +380,16 @@ def main(args):
                                            GUARD_HEADER_EMBEDS, GUARD_FOOTER_EMBEDS, epsilon_term, args.lambda_val)
         if i % 10 == 0:
             print(f"Step {i}: total={loss.item():.4f}, lm={lm_loss_val.item():.4f}, stab={stability_val.item():.4f}", flush=True)
+            if wandb_on:
+                import wandb
+                wandb.log(
+                    {
+                        "train/total_loss": loss.item(),
+                        "train/lm_loss": lm_loss_val.item(),
+                        "train/stability": stability_val.item(),
+                    },
+                    step=i,
+                )
         
         loss.backward()
         optimizer.step()
@@ -329,48 +402,57 @@ def main(args):
     torch.save(optimizer.state_dict(), os.path.join(checkpoint_path, "optimizer.pt"))
     print(f"Saved optimizer state to {os.path.join(checkpoint_path, 'optimizer.pt')}")
 
-    # if args.start_epoch == args.total_epochs:
+    if wandb_on:
+        import wandb
+        wandb.log(
+            {
+                "checkpoint/path": checkpoint_path,
+                "train/epoch_done": args.start_epoch,
+            },
+        )
+
+    #NOTE: will skip eval for now, and just evaluate the saved models after all training runs
     # Compute ASR on harmful prompts
-    val_df = pd.read_csv(args.validation_data)
-    end_of_epoch_asr_path = f"{args.harmful_output_file}_epoch{args.start_epoch}.csv"
-    end_of_epoch_frr_path = f"{args.benign_output_file}_epoch{args.start_epoch}.csv"
-    df_with_jb_responses =  generate_all_jb_responses(val_df, 
-                            batch_size=8, 
-                            finetuned_model=model, 
-                            tokenizer=tokenizer, 
-                            testing_mode=args.eval_mode, 
-                            unseen_family=args.unseen_family)
-    classify_all_jb_safety(df_with_jb_responses, 
-                        batch_size = 8, 
-                        guard_model=guard_model, 
-                        guard_tokenizer=guard_tokenizer, 
-                        testing_mode=args.eval_mode,  
-                        unseen_family=args.unseen_family,
-                        output_file=end_of_epoch_asr_path) # gonna write the result in-place
+    # val_df = pd.read_csv(args.validation_data)
+    # end_of_epoch_asr_path = f"{args.harmful_output_file}_epoch{args.start_epoch}.csv"
+    # end_of_epoch_frr_path = f"{args.benign_output_file}_epoch{args.start_epoch}.csv"
+    # df_with_jb_responses =  generate_all_jb_responses(val_df, 
+    #                         batch_size=8, 
+    #                         finetuned_model=model, 
+    #                         tokenizer=tokenizer, 
+    #                         testing_mode=args.eval_mode, 
+    #                         unseen_family=args.unseen_family)
+    # classify_all_jb_safety(df_with_jb_responses, 
+    #                     batch_size = 8, 
+    #                     guard_model=guard_model, 
+    #                     guard_tokenizer=guard_tokenizer, 
+    #                     testing_mode=args.eval_mode,  
+    #                     unseen_family=args.unseen_family,
+    #                     output_file=end_of_epoch_asr_path) # gonna write the result in-place
     
-    # Compute FRR on benign prompts
-    frr_val_df = pd.read_csv(args.benign_validation_data)
-    # "original" as in finetuned LLM responding to the original prompts
-    df_with_regular_responses = generate_original_responses(frr_val_df, 
-                                batch_size=8, 
-                                finetuned_model=model, 
-                                tokenizer=tokenizer)
-    model.eval()
-    gc.collect()
-    torch.cuda.empty_cache()
-    unload_model(model, tokenizer=tokenizer)
-    refusal_judge = AutoModelForCausalLM.from_pretrained(
-        args.refusal_judge_path,
-        torch_dtype=torch.float16,
-        device_map="auto",
-    )
-    refusal_judge_tokenizer = AutoTokenizer.from_pretrained(args.refusal_judge_path)
-    refusal_judge_tokenizer.pad_token = refusal_judge_tokenizer.eos_token
-    classify_refusal(df_with_regular_responses, 
-                            batch_size = 8, 
-                            refusal_model=refusal_judge, 
-                            refusal_tokenizer=refusal_judge_tokenizer, 
-                            output_file=end_of_epoch_frr_path) # gonna write the result in-place
+    # # Compute FRR on benign prompts
+    # frr_val_df = pd.read_csv(args.benign_validation_data)
+    # # "original" as in finetuned LLM responding to the original prompts
+    # df_with_regular_responses = generate_original_responses(frr_val_df, 
+    #                             batch_size=8, 
+    #                             finetuned_model=model, 
+    #                             tokenizer=tokenizer)
+    # model.eval()
+    # gc.collect()
+    # torch.cuda.empty_cache()
+    # unload_model(model, tokenizer=tokenizer)
+    # refusal_judge = AutoModelForCausalLM.from_pretrained(
+    #     args.refusal_judge_path,
+    #     torch_dtype=torch.float16,
+    #     device_map="auto",
+    # )
+    # refusal_judge_tokenizer = AutoTokenizer.from_pretrained(args.refusal_judge_path)
+    # refusal_judge_tokenizer.pad_token = refusal_judge_tokenizer.eos_token
+    # classify_refusal(df_with_regular_responses, 
+    #                         batch_size = 8, 
+    #                         refusal_model=refusal_judge, 
+    #                         refusal_tokenizer=refusal_judge_tokenizer, 
+    #                         output_file=end_of_epoch_frr_path) # gonna write the result in-place
 
 if __name__ == "__main__":
     start_time = time.time()
@@ -450,9 +532,9 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--total-epochs",
-        default = 3,
+        default = 5,
         type=int,
-        help = "how many times we run through the training data while finetuning"
+        help = "Number of outer epochs (each is a separate process that saves its own adapter folder).",
     )
     parser.add_argument("--resume-from", default=None)
     parser.add_argument("--start-epoch", default=1, type=int)

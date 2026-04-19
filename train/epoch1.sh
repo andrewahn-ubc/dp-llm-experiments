@@ -4,7 +4,7 @@
 #SBATCH --gres=gpu:1
 #SBATCH --cpus-per-task=6
 #SBATCH --mem=40G
-#SBATCH --time=9:00:00
+#SBATCH --time=3:00:00
 #SBATCH --output=output/lr5_train_epoch_1_%j.out
 
 mkdir -p output
@@ -42,5 +42,5 @@ python $SCRATCH/dp-llm-experiments/train/train.py \
     --lambda-val 1.0 \
     --epsilon 0.0 \
     --lora-rank 8 \
-    --total-epochs 3 \
+    --total-epochs 5 \
     --start-epoch 1
