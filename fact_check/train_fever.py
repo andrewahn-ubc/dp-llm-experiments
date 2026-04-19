@@ -309,7 +309,7 @@ def main(args):
         project="fact-check-fever",
         name=args.run_id,
         id=wandb_run_id,
-        dir=str(out_dir),
+        dir=os.environ.get("WANDB_DIR", str(out_dir)),
         config={
             "lambda":           args.lambda_val,
             "epsilon":          args.epsilon,

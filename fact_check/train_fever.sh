@@ -123,9 +123,17 @@ export HF_DATASETS_OFFLINE=1
 export TRANSFORMERS_OFFLINE=1
 export HF_HUB_OFFLINE=1
 
-# ── W&B offline mode (compute nodes have no internet) ────────────────────────
-export WANDB_MODE=offline
-export WANDB_DIR="${OUTPUT_PATH}"
+# ── W&B: probe for internet, fall back to offline if unavailable ──────────────
+export WANDB_DIR="${OUTPUT_PATH}/wandb"
+mkdir -p "${WANDB_DIR}"
+if curl -sf --max-time 5 https://api.wandb.ai > /dev/null 2>&1; then
+    export WANDB_MODE=online
+    echo "[wandb] online mode (internet reachable)"
+else
+    export WANDB_MODE=offline
+    echo "[wandb] offline mode (no internet — sync manually after job):"
+    echo "  wandb sync ${WANDB_DIR}/offline-run-*"
+fi
 
 # Point HF caches at SLURM_TMPDIR so any incidental cache writes stay local.
 export HF_HOME="${SLURM_TMPDIR}/hf_home"
@@ -169,13 +177,3 @@ echo "  Log:     ${OUTPUT_PATH}/${RUN_ID}.log"
 echo "  Results: ${OUTPUT_PATH}/training_log.json"
 echo "==================================================================="
 
-# ── Sync W&B offline run to cloud ────────────────────────────────────────────
-# This will succeed on interactive nodes (which have internet) and fail silently
-# on batch compute nodes (no internet). In that case, sync manually from the
-# login node after the job finishes:
-#   wandb sync ${OUTPUT_PATH}/wandb/run-*
-echo "[wandb] attempting sync..."
-wandb sync "${OUTPUT_PATH}/wandb/run-"* 2>/dev/null \
-    && echo "[wandb] sync complete." \
-    || echo "[wandb] sync failed (no internet — run manually from login node):"
-echo "  wandb sync ${OUTPUT_PATH}/wandb/run-*"
