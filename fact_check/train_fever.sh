@@ -125,14 +125,10 @@ export HF_HUB_OFFLINE=1
 
 # ── W&B: probe for internet, fall back to offline if unavailable ──────────────
 export WANDB_DIR="${OUTPUT_PATH}"
-if curl -sf --max-time 5 https://wandb.ai > /dev/null 2>&1; then
-    export WANDB_MODE=online
-    echo "[wandb] online mode (internet reachable)"
-else
-    export WANDB_MODE=offline
-    echo "[wandb] offline mode (no internet — sync manually after job):"
-    echo "  wandb sync ${OUTPUT_PATH}/wandb/offline-run-*"
-fi
+export WANDB_MODE=offline
+echo "[wandb] Because wandb on Compute Canada is SDK 0.24, it has a bug that doesnt send live data. And since we can't upgrade it yet because of the oh so wonderful people at Compute Canada, we have to use offline mode and sync after the job. So setting WANDB_MODE=offline for now."
+echo "[wandb] offline mode — sync after job with:"
+echo "  wandb sync ${OUTPUT_PATH}/wandb/offline-run-*"
 
 # Point HF caches at SLURM_TMPDIR so any incidental cache writes stay local.
 export HF_HOME="${SLURM_TMPDIR}/hf_home"
