@@ -490,11 +490,12 @@ def main(args):
                     current_lr,
                 )
                 wandb.log({
-                    "train/ce":   ce.item(),
-                    "train/stab": stab.item(),
-                    "train/loss": loss.item(),
-                    "train/lr":   current_lr,
-                }, step=global_step)
+                    "train/ce":    ce.item(),
+                    "train/stab":  stab.item(),
+                    "train/loss":  loss.item(),
+                    "train/lr":    current_lr,
+                    "global_step": global_step,
+                })
 
             # ── Mid-epoch checkpoint ──────────────────────────────────────────
             if ckpt_every_steps > 0 and global_step % ckpt_every_steps == 0:
@@ -528,7 +529,8 @@ def main(args):
             "epoch/val_acc": val_metrics["accuracy"],
             "epoch/sym_acc": sym_metrics["accuracy"],
             "epoch":         epoch,
-        }, step=global_step)
+            "global_step":   global_step,
+        })
 
         epoch_record = {
             "epoch":     epoch,
