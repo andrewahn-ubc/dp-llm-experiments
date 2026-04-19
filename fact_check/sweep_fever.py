@@ -156,6 +156,10 @@ def main() -> None:
         print(f"  {run_id}")
     print()
 
+    if args.resume_from and len(combos) > 1:
+        sys.exit(f"ERROR: --resume-from is for a single job but grid has {len(combos)} combos. "
+                 f"Narrow the grid to exactly one lambda/lr/epsilon/rank combination.")
+
     if args.dry_run:
         print("[DRY RUN] — no jobs submitted.")
         return
