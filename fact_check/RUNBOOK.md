@@ -253,7 +253,23 @@ The resumed job picks up from the next epoch and appends to the existing
 `training_log.json`. The scheduler is reconstructed from `global_step` — no
 scheduler checkpoint needed.
 
-### 4e. Collect results
+### 4e. Sync W&B (offline runs only)
+
+On clusters where W&B ran in offline mode (e.g. Narval), sync to the cloud from
+the login node after jobs finish:
+
+```bash
+# Sync all unsynced runs under the output root (skips already-synced ones):
+wandb sync --sync-all $FC_OUTPUT_ROOT/
+
+# Or sync a specific run:
+wandb sync $FC_OUTPUT_ROOT/<run_id>/wandb/offline-run-*
+```
+
+W&B marks runs as synced after the first upload, so re-running is safe.
+On Vulcan, runs sync in real time and this step is not needed.
+
+### 4f. Collect results
 
 ```bash
 cd /home/ammany/repos/dp-llm-experiments
@@ -269,7 +285,7 @@ python fact_check/compare_runs.py
 
 Target: `sym_acc > 65.30%` (beats PoE) with `val_acc > 85%`.
 
-### 4f. Full sweep (after reviewing small sweep)
+### 4g. Full sweep (after reviewing small sweep)
 
 ```bash
 python fact_check/sweep_fever.py

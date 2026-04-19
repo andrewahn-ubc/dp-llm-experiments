@@ -112,7 +112,16 @@ def main() -> None:
     parser.add_argument("--slurm-script",     default="fact_check/train_fever.sh")
     args = parser.parse_args()
 
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    if args.resume_from:
+        meta_path = Path(args.resume_from) / "checkpoint_meta.json"
+        if meta_path.exists():
+            import json
+            with open(meta_path) as f:
+                timestamp = json.load(f).get("sweep_timestamp") or datetime.now().strftime("%Y%m%d_%H%M%S")
+        else:
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    else:
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 
     cfg = load_config(Path(args.config) if args.config else None)
     sweep = cfg.sweep
