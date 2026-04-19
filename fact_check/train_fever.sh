@@ -7,6 +7,8 @@
 #SBATCH --time=8:00:00
 #SBATCH --output=output/fever_%x_%j.out
 #SBATCH --signal=B:SIGUSR1@120
+#SBATCH --mail-user=ammany01@cs.ubc.ca
+#SBATCH --mail-type=FAIL,TIME_LIMIT
 
 # =============================================================================
 # All paths and sweep defaults come from fact_check/config.yaml.
