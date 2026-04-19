@@ -4,7 +4,7 @@
 #SBATCH --gpus-per-node=l40s:1
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=32G
-#SBATCH --time=6:00:00
+#SBATCH --time=8:00:00
 #SBATCH --output=output/fever_%x_%j.out
 #SBATCH --signal=B:SIGUSR1@120
 

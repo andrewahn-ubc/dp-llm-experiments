@@ -21,7 +21,7 @@ slurm:
   gpus_per_node: l40s:1
   cpus_per_task: 4
   mem: 32G
-  time: 6:00:00
+  time: 8:00:00
   signal_seconds: 120
   log_dir: output
 
@@ -33,7 +33,7 @@ model:
 
 # ── Training hyperparameters ──────────────────────────────────────────────────
 training:
-  epochs: 3
+  epochs: 1
   batch_size: 16
   lr: 2.0e-5
   lambda_val: 1.0
@@ -45,5 +45,5 @@ training:
 sweep:
   lambdas:    [0.0, 0.1, 1.0, 5.0]
   lrs:        [1.0e-5, 2.0e-5, 5.0e-5]
-  epsilons:   [0.0]
-  lora_ranks: [0]
+  epsilons:   [0.0, 0.1, 0.5, 1.0]
+  lora_ranks: [0, 8, 32]
