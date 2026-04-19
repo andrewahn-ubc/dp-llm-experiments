@@ -297,32 +297,6 @@ def main(args):
     is_resume = args.resume_from_checkpoint is not None
     ckpt_dir  = Path(args.resume_from_checkpoint) if is_resume else None
 
-    # On resume, reuse the same W&B run so the loss curves are continuous.
-    wandb_run_id = None
-    if is_resume:
-        meta_path = ckpt_dir / "checkpoint_meta.json"
-        if meta_path.exists():
-            with open(meta_path) as f:
-                wandb_run_id = json.load(f).get("wandb_run_id")
-
-    wandb.init(
-        project="fact-check-fever",
-        name=args.run_id,
-        id=wandb_run_id,
-        dir=os.environ.get("WANDB_DIR", str(out_dir)),
-        config={
-            "lambda":           args.lambda_val,
-            "epsilon":          args.epsilon,
-            "lr":               args.lr,
-            "batch_size":       args.batch_size,
-            "epochs":           args.epochs,
-            "lora_rank":        args.lora_rank,
-            "ckpt_every_steps": args.ckpt_every_steps,
-            "model_path":       args.model_path,
-        },
-        resume="allow",
-    )
-
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     log.info("Device: %s", device)
     if device.type == "cuda":
@@ -424,6 +398,32 @@ def main(args):
 
     epsilon_val      = args.epsilon
     ckpt_every_steps = args.ckpt_every_steps
+
+    # ── W&B init — done here (just before first log call) to avoid timeout ───
+    wandb_run_id = None
+    if is_resume:
+        meta_path = ckpt_dir / "checkpoint_meta.json"
+        if meta_path.exists():
+            with open(meta_path) as f:
+                wandb_run_id = json.load(f).get("wandb_run_id")
+
+    wandb.init(
+        project="fact-check-fever",
+        name=args.run_id,
+        id=wandb_run_id,
+        dir=os.environ.get("WANDB_DIR", str(out_dir)),
+        config={
+            "lambda":           args.lambda_val,
+            "epsilon":          args.epsilon,
+            "lr":               args.lr,
+            "batch_size":       args.batch_size,
+            "epochs":           args.epochs,
+            "lora_rank":        args.lora_rank,
+            "ckpt_every_steps": args.ckpt_every_steps,
+            "model_path":       args.model_path,
+        },
+        resume="allow",
+    )
 
     # ── Training loop ────────────────────────────────────────────────────────
     log.info("Starting training: epochs %d→%d  λ=%.3f  ε=%.3f", start_epoch, args.epochs, args.lambda_val, epsilon_val)
