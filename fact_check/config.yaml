@@ -1,0 +1,49 @@
+# fact_check/config.yaml
+#
+# Uses OmegaConf's oc.env resolver for environment variable interpolation:
+#   ${oc.env:FC_VAR}            — required; raises if FC_VAR is not set
+#   ${oc.env:FC_VAR,/fallback}  — optional; uses /fallback if FC_VAR is not set
+#
+# Set FC_* variables before running any script:
+#   source env.sh fact-check
+
+# ── Cluster paths ─────────────────────────────────────────────────────────────
+paths:
+  repo_root:   ${oc.env:FC_REPO_ROOT,/home/ammany/repos/dp-llm-experiments}
+  data_dir:    ${oc.env:FC_DATA_DIR,/home/ammany/scratch/dp-llm-experiments/fact_check_data}
+  model_root:  ${oc.env:FC_MODEL_ROOT,/home/ammany/scratch/hf_models}
+  output_root: ${oc.env:FC_OUTPUT_ROOT,/home/ammany/scratch/dp-llm-experiments/fact_check_models}
+  venv:        ${oc.env:FC_VENV,/home/ammany/scratch/venv/factcheck}
+
+# ── SLURM ─────────────────────────────────────────────────────────────────────
+slurm:
+  account: aip-mijungp
+  gpus_per_node: l40s:1
+  cpus_per_task: 4
+  mem: 32G
+  time: 6:00:00
+  signal_seconds: 120
+  log_dir: output
+
+# ── Model ─────────────────────────────────────────────────────────────────────
+model:
+  name: bert_base_uncased
+  hf_repo: bert-base-uncased
+  max_seq_len: 128
+
+# ── Training hyperparameters ──────────────────────────────────────────────────
+training:
+  epochs: 3
+  batch_size: 16
+  lr: 2.0e-5
+  lambda_val: 1.0
+  epsilon: 0.0
+  lora_rank: 0
+  ckpt_every_steps: 500
+
+# ── Hyperparameter sweep grid ─────────────────────────────────────────────────
+sweep:
+  lambdas:    [0.0, 0.1, 1.0, 5.0]
+  lrs:        [1.0e-5, 2.0e-5, 5.0e-5]
+  epsilons:   [0.0]
+  lora_ranks: [0]

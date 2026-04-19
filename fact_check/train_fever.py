@@ -1,0 +1,547 @@
+"""
+train_fever.py — Fine-tune a fact-checking model with the symmetric stability loss.
+
+=======================================================================
+WHAT THIS EXPERIMENT IS SHOWING
+=======================================================================
+Standard NLI/fact-checking models trained on FEVER learn annotation
+shortcuts: they fire on surface features like negation words ("not",
+"never") rather than truly reasoning over evidence.  This means they're
+brittle, swap the evidence order, drop a sentence, or paraphrase a
+claim and the predicted label can flip, even though the underlying
+fact hasn't changed.
+
+We apply the symmetric regularizer from the paper:
+
+    L_stab = | C(claim, evidence_clean) - C(claim, evidence_perturbed) |
+
+where C(·) is the model's own confidence in "SUPPORTS" (a scalar in [0,1]).
+Because both inputs represent the same underlying fact, the model should
+give them similar confidence scores.  The regularizer penalizes the gap.
+
+Since the model's output is a single token (SUPPORTS / REFUTES), 
+we don't need a separate safety classifier we can read the probability 
+directly from the model's own output head. This avoids the embedding-compatibility 
+constraint that required Llama Guard to share the same embedding 
+space as the LLM being trained.
+
+Full loss:
+    L = L_CE(clean) + λ * max(0, |P_SUPPORTS(clean) - P_SUPPORTS(perturbed)| - ε)
+
+=======================================================================
+HYPERPARAMETERS (all injectable via env vars — see train_fever.sh)
+=======================================================================
+  LAMBDA            — weight of the stability term (default 1.0)
+  EPSILON           — allowed gap before penalty kicks in (default 0.0)
+  LR                — learning rate (default 2e-5)
+  BATCH_SIZE        — examples per gradient step (default 16)
+  EPOCHS            — number of training epochs (default 3)
+  LORA_RANK         — LoRA rank; 0 means full fine-tuning (default 0)
+  CKPT_EVERY_STEPS  — save a mid-epoch checkpoint every N steps (default 500)
+
+=======================================================================
+CHECKPOINTING & RESUMPTION
+=======================================================================
+The script saves a checkpoint after every epoch and optionally mid-epoch
+(every CKPT_EVERY_STEPS steps).  Each checkpoint directory contains:
+  - model weights (pytorch_model.bin / adapter_model.bin)
+  - tokenizer files
+  - optimizer.pt
+  - checkpoint_meta.json  ← epoch, global_step, log_rows so far
+  (scheduler is NOT saved — it is reconstructed from global_step on resume)
+
+To resume after an interruption:
+    python train_fever.py ... --resume-from-checkpoint /path/to/checkpoint/dir
+
+The script will pick up from the saved epoch/step and append to the
+existing training_log.json in the final output directory.
+
+=======================================================================
+"""
+
+import os
+import argparse
+import json
+import random
+import time
+from pathlib import Path
+
+import torch
+import pandas as pd
+from torch.utils.data import Dataset, DataLoader
+from transformers import (
+    AutoTokenizer,
+    AutoModelForSequenceClassification,
+)
+from peft import LoraConfig, get_peft_model, PeftModel, TaskType
+
+from fact_check.logging_utils import get_logger
+
+# ---------------------------------------------------------------------------
+# Label map
+# ---------------------------------------------------------------------------
+LABEL2ID = {"SUPPORTS": 0, "REFUTES": 1}
+ID2LABEL  = {v: k for k, v in LABEL2ID.items()}
+NUM_LABELS = 2   # binary; NOT ENOUGH INFO excluded at setup stage
+
+
+# ---------------------------------------------------------------------------
+# Dataset
+# ---------------------------------------------------------------------------
+class FeverDataset(Dataset):
+    """
+    Loads a CSV with at minimum: claim, evidence, label.
+    If original_claim / original_evidence columns are present (the perturbed
+    training CSV), pairs each clean row with one of its perturbed variants
+    on the fly.
+    """
+
+    def __init__(self, csv_path: str, tokenizer, max_length: int = 128):
+        df = pd.read_csv(csv_path)
+        df = df[df["label"].isin(LABEL2ID)].reset_index(drop=True)
+        self.tokenizer  = tokenizer
+        self.max_length = max_length
+
+        if "original_claim" in df.columns:
+            self.perturbed = True
+            self.rows = df
+            self.orig_groups: dict[tuple, list[int]] = {}
+            for idx, row in df.iterrows():
+                key = (str(row["original_claim"]), str(row["original_evidence"]))
+                self.orig_groups.setdefault(key, []).append(idx)
+            # originals: rows where claim == original_claim
+            mask = df["claim"].astype(str) == df["original_claim"].astype(str)
+            self.originals = df[mask].reset_index(drop=True)
+        else:
+            self.perturbed = False
+            self.originals = df
+
+    def __len__(self):
+        return len(self.originals)
+
+    def _encode(self, claim: str, evidence: str):
+        return self.tokenizer(
+            claim,
+            evidence,
+            max_length=self.max_length,
+            truncation=True,
+            padding="max_length",
+            return_tensors="pt",
+        )
+
+    def __getitem__(self, idx):
+        row   = self.originals.iloc[idx]
+        claim = str(row["claim"])
+        evid  = str(row["evidence"])
+        label = LABEL2ID[row["label"]]
+
+        enc_clean = self._encode(claim, evid)
+        item = {
+            "input_ids_clean":      enc_clean["input_ids"].squeeze(0),
+            "attention_mask_clean": enc_clean["attention_mask"].squeeze(0),
+            "label":                torch.tensor(label, dtype=torch.long),
+        }
+
+        if self.perturbed:
+            key       = (claim, evid)   # already str() from above
+            pert_idxs = self.orig_groups.get(key, [])
+            if pert_idxs:
+                pert_row   = self.rows.loc[random.choice(pert_idxs)]
+                pert_claim = str(pert_row["claim"])
+                pert_evid  = str(pert_row["evidence"])
+            else:
+                pert_claim = claim
+                pert_evid  = evid
+
+            enc_pert = self._encode(pert_claim, pert_evid)
+            item["input_ids_pert"]      = enc_pert["input_ids"].squeeze(0)
+            item["attention_mask_pert"] = enc_pert["attention_mask"].squeeze(0)
+
+        return item
+
+
+# ---------------------------------------------------------------------------
+# Stability loss
+# ---------------------------------------------------------------------------
+def supports_prob(logits: torch.Tensor) -> torch.Tensor:
+    """P(SUPPORTS) from classification logits. Shape: (B,)"""
+    return torch.softmax(logits, dim=-1)[:, LABEL2ID["SUPPORTS"]]
+
+
+def stability_loss(
+    logits_clean: torch.Tensor,
+    model,
+    input_ids_pert,  attention_mask_pert,
+    epsilon: float,
+) -> torch.Tensor:
+    """
+    Symmetric stability regularizer:
+        max(0, |P_SUPPORTS(clean) - P_SUPPORTS(pert)| - epsilon)
+
+    Takes pre-computed clean logits to avoid a redundant forward pass —
+    the training loop already ran the model on the clean input for CE loss.
+    """
+    logits_pert = model(input_ids=input_ids_pert, attention_mask=attention_mask_pert).logits
+    gap = torch.abs(supports_prob(logits_clean) - supports_prob(logits_pert))
+    return torch.clamp(gap - epsilon, min=0.0).mean()
+
+
+# ---------------------------------------------------------------------------
+# Evaluation
+# ---------------------------------------------------------------------------
+@torch.no_grad()
+def evaluate(model, dataloader, device, log) -> dict:
+    model.eval()
+    try:
+        correct = total = 0
+        for batch in dataloader:
+            input_ids = batch["input_ids_clean"].to(device)
+            attn_mask = batch["attention_mask_clean"].to(device)
+            labels    = batch["label"].to(device)
+            logits = model(input_ids=input_ids, attention_mask=attn_mask).logits
+            preds  = logits.argmax(dim=-1)
+            correct += (preds == labels).sum().item()
+            total   += labels.size(0)
+    finally:
+        model.train()
+    acc = correct / total if total > 0 else 0.0
+    log.debug("evaluate: correct=%d / total=%d  acc=%.4f", correct, total, acc)
+    return {"accuracy": acc}
+
+
+# ---------------------------------------------------------------------------
+# Checkpointing
+# ---------------------------------------------------------------------------
+def save_checkpoint(
+    ckpt_dir: Path,
+    model,
+    tokenizer,
+    optimizer,
+    epoch: int,
+    global_step: int,
+    log_rows: list,
+    log,
+):
+    """Save a resumable checkpoint to ckpt_dir."""
+    ckpt_dir.mkdir(parents=True, exist_ok=True)
+    model.save_pretrained(ckpt_dir)
+    tokenizer.save_pretrained(ckpt_dir)
+    torch.save(optimizer.state_dict(), ckpt_dir / "optimizer.pt")
+    meta = {
+        "epoch":       epoch,
+        "global_step": global_step,
+        "log_rows":    log_rows,
+    }
+    with open(ckpt_dir / "checkpoint_meta.json", "w") as f:
+        json.dump(meta, f, indent=2)
+    log.info("Checkpoint saved → %s  (epoch=%d  step=%d)", ckpt_dir, epoch, global_step)
+
+
+def load_checkpoint(ckpt_dir: Path, model, optimizer, log):
+    """
+    Load optimizer state and metadata from a checkpoint directory.
+    Model weights must already be loaded via from_pretrained before calling this.
+    The scheduler is NOT saved/loaded — it is reconstructed from global_step
+    in main() to avoid total_iters mismatch on resume.
+    Returns (start_epoch, global_step, log_rows).
+    """
+    opt_path  = ckpt_dir / "optimizer.pt"
+    meta_path = ckpt_dir / "checkpoint_meta.json"
+
+    if not meta_path.exists():
+        raise FileNotFoundError(f"No checkpoint_meta.json found in {ckpt_dir}")
+
+    with open(meta_path) as f:
+        meta = json.load(f)
+
+    if opt_path.exists():
+        optimizer.load_state_dict(torch.load(opt_path, map_location="cpu"))
+        log.info("Loaded optimizer state from %s", opt_path)
+    else:
+        log.warning("optimizer.pt not found in checkpoint — starting optimizer fresh")
+
+    start_epoch = meta["epoch"] + 1   # resume from the next epoch
+    global_step = meta["global_step"]
+    log_rows    = meta.get("log_rows", [])
+    log.info(
+        "Resuming from checkpoint: completed epoch=%d  global_step=%d  "
+        "log_rows_so_far=%d",
+        meta["epoch"], global_step, len(log_rows),
+    )
+    return start_epoch, global_step, log_rows
+
+
+# ---------------------------------------------------------------------------
+# Main
+# ---------------------------------------------------------------------------
+def main(args):
+    out_dir  = Path(args.output_path)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    ckpt_base = out_dir / "checkpoints"
+
+    log = get_logger(__name__, output_dir=str(out_dir), run_id=args.run_id)
+    log.info("=" * 60)
+    log.info("Run ID: %s", args.run_id)
+    log.info("Args: %s", vars(args))
+    log.info("Output dir: %s", out_dir)
+
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    log.info("Device: %s", device)
+    if device.type == "cuda":
+        log.info(
+            "GPU: %s  (%.1f GB total)",
+            torch.cuda.get_device_name(0),
+            torch.cuda.get_device_properties(0).total_memory / 1e9,
+        )
+
+    # ── Model + tokenizer ────────────────────────────────────────────────────
+    is_resume = args.resume_from_checkpoint is not None
+    ckpt_dir  = Path(args.resume_from_checkpoint) if is_resume else None
+
+    if is_resume:
+        log.info("Resuming — loading model weights from checkpoint: %s", ckpt_dir)
+        tokenizer = AutoTokenizer.from_pretrained(ckpt_dir)
+        # No ignore_mismatched_sizes: checkpoint was trained with NUM_LABELS=2,
+        # so the head should load exactly. If it fails, that's a real mismatch.
+        base = AutoModelForSequenceClassification.from_pretrained(
+            ckpt_dir,
+            num_labels=NUM_LABELS,
+            id2label=ID2LABEL,
+            label2id=LABEL2ID,
+        )
+    else:
+        log.info("Fresh run — loading base model from: %s", args.model_path)
+        tokenizer = AutoTokenizer.from_pretrained(args.model_path)
+        # ignore_mismatched_sizes resizes the pre-trained head (e.g. bert-base has
+        # no classification head; HF initialises one to num_labels).
+        base = AutoModelForSequenceClassification.from_pretrained(
+            args.model_path,
+            num_labels=NUM_LABELS,
+            id2label=ID2LABEL,
+            label2id=LABEL2ID,
+            ignore_mismatched_sizes=True,
+        )
+
+    if args.lora_rank > 0:
+        if is_resume:
+            model = PeftModel.from_pretrained(base, ckpt_dir, is_trainable=True)
+            log.info("Loaded LoRA adapter from checkpoint")
+        else:
+            lora_cfg = LoraConfig(
+                task_type=TaskType.SEQ_CLS,
+                r=args.lora_rank,
+                lora_alpha=16,
+                lora_dropout=0.05,
+                target_modules=["query", "value"],
+            )
+            model = get_peft_model(base, lora_cfg)
+            trainable, total = model.get_nb_trainable_parameters()
+            log.info("LoRA rank=%d  trainable params: %d / %d", args.lora_rank, trainable, total)
+    else:
+        model = base
+
+    model.to(device)
+    log.info("Model loaded and moved to %s", device)
+
+    # ── Datasets ─────────────────────────────────────────────────────────────
+    log.info("Loading datasets...")
+    train_dataset = FeverDataset(args.train_csv,   tokenizer)
+    val_dataset   = FeverDataset(args.val_csv,     tokenizer)
+    sym_dataset   = FeverDataset(args.sym_val_csv, tokenizer)
+
+    log.info(
+        "Dataset sizes — train: %d  val: %d  fever_sym: %d",
+        len(train_dataset), len(val_dataset), len(sym_dataset),
+    )
+    log.debug(
+        "Perturbation pairing: train has %d orig_groups",
+        len(train_dataset.orig_groups) if train_dataset.perturbed else 0,
+    )
+
+    train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True,  num_workers=2, pin_memory=True)
+    val_loader   = DataLoader(val_dataset,   batch_size=args.batch_size, shuffle=False, num_workers=2, pin_memory=True)
+    sym_loader   = DataLoader(sym_dataset,   batch_size=args.batch_size, shuffle=False, num_workers=2, pin_memory=True)
+
+    # ── Optimizer + scheduler ────────────────────────────────────────────────
+    optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay=0.01)
+
+    total_steps  = len(train_loader) * args.epochs
+    warmup_steps = int(0.06 * total_steps)
+    log.info("Optimizer: AdamW  lr=%.2e  warmup_steps=%d / total_steps=%d", args.lr, warmup_steps, total_steps)
+
+    # ── Resume state ─────────────────────────────────────────────────────────
+    if is_resume:
+        start_epoch, global_step, log_rows = load_checkpoint(
+            ckpt_dir, model, optimizer, log
+        )
+    else:
+        start_epoch, global_step, log_rows = 1, 0, []
+
+    # Scheduler is rebuilt from scratch after loading the resume global_step so
+    # that total_iters and the internal last_epoch counter are always consistent.
+    scheduler = torch.optim.lr_scheduler.LinearLR(
+        optimizer,
+        start_factor=1e-3,
+        end_factor=1.0,
+        total_iters=warmup_steps,
+        last_epoch=global_step - 1,  # -1 because scheduler.step() will increment
+    )
+
+    epsilon_val      = args.epsilon
+    ckpt_every_steps = args.ckpt_every_steps
+
+    # ── Training loop ────────────────────────────────────────────────────────
+    log.info("Starting training: epochs %d→%d  λ=%.3f  ε=%.3f", start_epoch, args.epochs, args.lambda_val, epsilon_val)
+
+    for epoch in range(start_epoch, args.epochs + 1):
+        model.train()
+        epoch_ce = epoch_stab = epoch_total = 0.0
+        n_batches   = 0
+        epoch_start = time.time()
+
+        log.info("── Epoch %d / %d ──────────────────────────────", epoch, args.epochs)
+
+        for batch_idx, batch in enumerate(train_loader):
+            ids_c  = batch["input_ids_clean"].to(device)
+            attn_c = batch["attention_mask_clean"].to(device)
+            labels = batch["label"].to(device)
+
+            out          = model(input_ids=ids_c, attention_mask=attn_c, labels=labels)
+            ce           = out.loss
+            logits_clean = out.logits  # reused below — avoids a second forward pass
+
+            if "input_ids_pert" in batch:
+                ids_p  = batch["input_ids_pert"].to(device)
+                attn_p = batch["attention_mask_pert"].to(device)
+                stab   = stability_loss(logits_clean, model, ids_p, attn_p, epsilon_val)
+            else:
+                stab = torch.tensor(0.0, device=device)
+
+            loss = ce + args.lambda_val * stab
+
+            loss.backward()
+            torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+            optimizer.step()
+            scheduler.step()
+            optimizer.zero_grad()
+
+            epoch_ce    += ce.item()
+            epoch_stab  += stab.item()
+            epoch_total += loss.item()
+            n_batches   += 1
+            global_step += 1
+
+            log.debug(
+                "step=%d  epoch=%d  batch=%d  ce=%.4f  stab=%.4f  loss=%.4f  lr=%.2e",
+                global_step, epoch, batch_idx,
+                ce.item(), stab.item(), loss.item(),
+                scheduler.get_last_lr()[0],
+            )
+
+            if global_step % 100 == 0:
+                log.info(
+                    "step=%d  ce=%.4f  stab=%.4f  loss=%.4f  lr=%.2e",
+                    global_step, ce.item(), stab.item(), loss.item(),
+                    scheduler.get_last_lr()[0],
+                )
+
+            # ── Mid-epoch checkpoint ──────────────────────────────────────────
+            if ckpt_every_steps > 0 and global_step % ckpt_every_steps == 0:
+                mid_ckpt = ckpt_base / f"step_{global_step}"
+                save_checkpoint(
+                    mid_ckpt, model, tokenizer, optimizer,
+                    epoch, global_step, log_rows, log
+                )
+
+        # ── End-of-epoch ─────────────────────────────────────────────────────
+        epoch_elapsed = time.time() - epoch_start
+        avg_ce   = epoch_ce   / n_batches
+        avg_stab = epoch_stab / n_batches
+        avg_loss = epoch_total / n_batches
+
+        log.info("Epoch %d complete — %.1fs  avg: loss=%.4f  ce=%.4f  stab=%.4f",
+                 epoch, epoch_elapsed, avg_loss, avg_ce, avg_stab)
+        log.info("Running evaluation...")
+
+        val_metrics = evaluate(model, val_loader, device, log)
+        sym_metrics = evaluate(model, sym_loader, device, log)
+
+        log.info(
+            "Epoch %d results — val_acc=%.4f  sym_acc=%.4f",
+            epoch, val_metrics["accuracy"], sym_metrics["accuracy"],
+        )
+
+        epoch_record = {
+            "epoch":     epoch,
+            "loss":      avg_loss,
+            "ce":        avg_ce,
+            "stab":      avg_stab,
+            "val_acc":   val_metrics["accuracy"],
+            "sym_acc":   sym_metrics["accuracy"],
+            "lambda":    args.lambda_val,
+            "epsilon":   args.epsilon,
+            "lr":        args.lr,
+            "lora_rank": args.lora_rank,
+            "run_id":    args.run_id,
+            "global_step": global_step,
+        }
+        log_rows.append(epoch_record)
+
+        log_path = out_dir / "training_log.json"
+        with open(log_path, "w") as f:
+            json.dump(log_rows, f, indent=2)
+        log.debug("Training log updated: %s", log_path)
+
+        # ── End-of-epoch checkpoint ───────────────────────────────────────────
+        epoch_ckpt = ckpt_base / f"epoch_{epoch}"
+        save_checkpoint(
+            epoch_ckpt, model, tokenizer, optimizer,
+            epoch, global_step, log_rows, log
+        )
+
+    # ── Final model save ─────────────────────────────────────────────────────
+    log.info("Training complete. Saving final model to %s", out_dir)
+    model.save_pretrained(out_dir)
+    tokenizer.save_pretrained(out_dir)
+
+    final = log_rows[-1]
+    log.info("=" * 60)
+    log.info("FINAL RESULTS  run_id=%s", args.run_id)
+    log.info("  val_acc  = %.4f", final["val_acc"])
+    log.info("  sym_acc  = %.4f", final["sym_acc"])
+    log.info("  λ=%.3f  ε=%.3f  lr=%.2e  lora_rank=%d", args.lambda_val, args.epsilon, args.lr, args.lora_rank)
+    log.info("  Log file: %s", out_dir / f"{args.run_id}.log")
+    log.info(
+        "  To resume from last checkpoint:\n"
+        "    --resume-from-checkpoint %s",
+        ckpt_base / f"epoch_{final['epoch']}",
+    )
+    log.info("=" * 60)
+
+
+if __name__ == "__main__":
+    t0 = time.time()
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--model-path",    required=True)
+    parser.add_argument("--train-csv",     required=True)
+    parser.add_argument("--val-csv",       required=True)
+    parser.add_argument("--sym-val-csv",   required=True)
+    parser.add_argument("--output-path",   required=True)
+    parser.add_argument("--run-id",        required=True)
+    parser.add_argument("--lambda-val",    type=float, default=float(os.getenv("LAMBDA",            "1.0")))
+    parser.add_argument("--epsilon",       type=float, default=float(os.getenv("EPSILON",           "0.0")))
+    parser.add_argument("--lr",            type=float, default=float(os.getenv("LR",                "2e-5")))
+    parser.add_argument("--batch-size",    type=int,   default=int(os.getenv("BATCH_SIZE",          "16")))
+    parser.add_argument("--epochs",        type=int,   default=int(os.getenv("EPOCHS",              "3")))
+    parser.add_argument("--lora-rank",     type=int,   default=int(os.getenv("LORA_RANK",           "0")))
+    parser.add_argument("--ckpt-every-steps", type=int, default=int(os.getenv("CKPT_EVERY_STEPS",  "500")),
+                        help="Save a mid-epoch checkpoint every N steps. 0 = epoch-only checkpoints.")
+    parser.add_argument("--resume-from-checkpoint", default=None,
+                        help="Path to a checkpoint directory to resume from.")
+
+    args = parser.parse_args()
+    main(args)
+
+    elapsed = time.time() - t0
+    print(f"\nTotal wall time: {elapsed/3600:.2f}h  ({elapsed/60:.1f}min)")
