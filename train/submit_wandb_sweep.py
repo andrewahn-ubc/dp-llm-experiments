@@ -196,7 +196,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     p.add_argument(
         "--hours-per-epoch",
         type=int,
-        default=3,
+        default=2,
         help="Budget per epoch (hours); used to set default --time as hours-per-epoch × total-epochs.",
     )
     p.add_argument(
@@ -239,7 +239,11 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         default=5,
         help="Number of sequential train.py invocations per job (each saves its own checkpoint).",
     )
-    return p.parse_args(argv)
+    args = p.parse_args(argv)
+    if args.time_limit is None:
+        total_h = args.hours_per_epoch * args.total_epochs
+        args.time_limit = f"{total_h}:00:00"
+    return args
 
 
 def main(argv: list[str]) -> int:
