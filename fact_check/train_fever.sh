@@ -124,15 +124,14 @@ export TRANSFORMERS_OFFLINE=1
 export HF_HUB_OFFLINE=1
 
 # ── W&B: probe for internet, fall back to offline if unavailable ──────────────
-export WANDB_DIR="${OUTPUT_PATH}/wandb"
-mkdir -p "${WANDB_DIR}"
+export WANDB_DIR="${OUTPUT_PATH}"
 if curl -sf --max-time 5 https://api.wandb.ai > /dev/null 2>&1; then
     export WANDB_MODE=online
     echo "[wandb] online mode (internet reachable)"
 else
     export WANDB_MODE=offline
     echo "[wandb] offline mode (no internet — sync manually after job):"
-    echo "  wandb sync ${WANDB_DIR}/offline-run-*"
+    echo "  wandb sync ${OUTPUT_PATH}/wandb/offline-run-*"
 fi
 
 # Point HF caches at SLURM_TMPDIR so any incidental cache writes stay local.
