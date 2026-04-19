@@ -32,6 +32,7 @@ import itertools
 import os
 import subprocess
 import sys
+from datetime import datetime
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -48,17 +49,18 @@ def fmt(v: float) -> str:
 
 def build_env(model_name: str, lam: float, lr: float, eps: float, rank: int,
               epochs: int, batch_size: int, ckpt_every_steps: int,
-              resume_from: str | None) -> dict[str, str]:
+              resume_from: str | None, timestamp: str) -> dict[str, str]:
     env = os.environ.copy()
     env.update({
-        "MODEL_NAME":       model_name,
-        "LAMBDA":           fmt(lam),
-        "LR":               fmt(lr),
-        "EPSILON":          fmt(eps),
-        "LORA_RANK":        str(rank),
-        "EPOCHS":           str(epochs),
-        "BATCH_SIZE":       str(batch_size),
-        "CKPT_EVERY_STEPS": str(ckpt_every_steps),
+        "MODEL_NAME":        model_name,
+        "LAMBDA":            fmt(lam),
+        "LR":                fmt(lr),
+        "EPSILON":           fmt(eps),
+        "LORA_RANK":         str(rank),
+        "EPOCHS":            str(epochs),
+        "BATCH_SIZE":        str(batch_size),
+        "CKPT_EVERY_STEPS":  str(ckpt_every_steps),
+        "SWEEP_TIMESTAMP":   timestamp,
         # FC_* vars are already in os.environ (from env.sh) and forwarded
         # automatically to sbatch via os.environ.copy().
     })
@@ -110,6 +112,8 @@ def main() -> None:
     parser.add_argument("--slurm-script",     default="fact_check/train_fever.sh")
     args = parser.parse_args()
 
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+
     cfg = load_config(Path(args.config) if args.config else None)
     sweep = cfg.sweep
     train = cfg.training
@@ -129,8 +133,9 @@ def main() -> None:
 
     combos = list(itertools.product(lambdas, lrs, epsilons, lora_ranks))
 
-    print(f"Config: {Path(__file__).parent / 'config.yaml'}")
-    print(f"Grid:   {len(combos)} jobs")
+    print(f"Config:    {Path(__file__).parent / 'config.yaml'}")
+    print(f"Timestamp: {timestamp}")
+    print(f"Grid:      {len(combos)} jobs")
     print(f"  lambdas={lambdas}  lrs={lrs}  epsilons={epsilons}  lora_ranks={lora_ranks}")
     print(f"  epochs={epochs}  batch={batch_size}  ckpt_every={ckpt_every}")
     if args.resume_from:
@@ -138,7 +143,7 @@ def main() -> None:
     print()
     print("Jobs to be submitted:")
     for lam, lr, eps, rank in combos:
-        run_id = f"{cfg.model.name}_lam{fmt(lam)}_eps{fmt(eps)}_lr{fmt(lr)}_rank{rank}"
+        run_id = f"{cfg.model.name}_lam{fmt(lam)}_eps{fmt(eps)}_lr{fmt(lr)}_rank{rank}_{timestamp}"
         print(f"  {run_id}")
     print()
 
@@ -165,8 +170,8 @@ def main() -> None:
     succeeded, failed = [], []
 
     for lam, lr, eps, rank in combos:
-        env    = build_env(cfg.model.name, lam, lr, eps, rank, epochs, batch_size, ckpt_every, args.resume_from)
-        run_id = f"{cfg.model.name}_lam{fmt(lam)}_eps{fmt(eps)}_lr{fmt(lr)}_rank{rank}"
+        env    = build_env(cfg.model.name, lam, lr, eps, rank, epochs, batch_size, ckpt_every, args.resume_from, timestamp)
+        run_id = f"{cfg.model.name}_lam{fmt(lam)}_eps{fmt(eps)}_lr{fmt(lr)}_rank{rank}_{timestamp}"
 
         if args.interactive:
             print(f"── Running {run_id} ──")
