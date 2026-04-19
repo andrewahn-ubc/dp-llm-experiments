@@ -44,8 +44,16 @@ SLURM_LOG_DIR="${REPO_ROOT}/output"
 : "${LORA_RANK:?LORA_RANK is not set}"
 : "${CKPT_EVERY_STEPS:?CKPT_EVERY_STEPS is not set}"
 : "${MODEL_NAME:?MODEL_NAME is not set}"
-: "${SWEEP_TIMESTAMP:?SWEEP_TIMESTAMP is not set}"
 RESUME_FROM="${RESUME_FROM:-}"
+
+# On resume, read the original timestamp from the checkpoint so the output dir
+# and run ID stay consistent with the original sweep.
+if [ -n "${RESUME_FROM}" ] && [ -f "${RESUME_FROM}/checkpoint_meta.json" ]; then
+    SWEEP_TIMESTAMP="$(python -c "import json; print(json.load(open('${RESUME_FROM}/checkpoint_meta.json'))['sweep_timestamp'])")"
+    echo "[resume] Using timestamp from checkpoint: ${SWEEP_TIMESTAMP}"
+else
+    : "${SWEEP_TIMESTAMP:?SWEEP_TIMESTAMP is not set}"
+fi
 
 RUN_ID="${MODEL_NAME}_lam${LAMBDA}_eps${EPSILON}_lr${LR}_rank${LORA_RANK}_${SWEEP_TIMESTAMP}"
 OUTPUT_PATH="${OUTPUT_ROOT}/${RUN_ID}"
@@ -115,6 +123,10 @@ export HF_DATASETS_OFFLINE=1
 export TRANSFORMERS_OFFLINE=1
 export HF_HUB_OFFLINE=1
 
+# ── W&B offline mode (compute nodes have no internet) ────────────────────────
+export WANDB_MODE=offline
+export WANDB_DIR="${OUTPUT_PATH}"
+
 # Point HF caches at SLURM_TMPDIR so any incidental cache writes stay local.
 export HF_HOME="${SLURM_TMPDIR}/hf_home"
 export TRANSFORMERS_CACHE="${SLURM_TMPDIR}/hf_cache"
@@ -156,3 +168,14 @@ echo "  Output:  ${OUTPUT_PATH}"
 echo "  Log:     ${OUTPUT_PATH}/${RUN_ID}.log"
 echo "  Results: ${OUTPUT_PATH}/training_log.json"
 echo "==================================================================="
+
+# ── Sync W&B offline run to cloud ────────────────────────────────────────────
+# This will succeed on interactive nodes (which have internet) and fail silently
+# on batch compute nodes (no internet). In that case, sync manually from the
+# login node after the job finishes:
+#   wandb sync ${OUTPUT_PATH}/wandb/run-*
+echo "[wandb] attempting sync..."
+wandb sync "${OUTPUT_PATH}/wandb/run-"* 2>/dev/null \
+    && echo "[wandb] sync complete." \
+    || echo "[wandb] sync failed (no internet — run manually from login node):"
+echo "  wandb sync ${OUTPUT_PATH}/wandb/run-*"

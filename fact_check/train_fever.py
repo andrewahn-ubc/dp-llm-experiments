@@ -66,6 +66,7 @@ import random
 import time
 from pathlib import Path
 
+import wandb
 import torch
 import pandas as pd
 from torch.utils.data import Dataset, DataLoader
@@ -228,9 +229,11 @@ def save_checkpoint(
     tokenizer.save_pretrained(ckpt_dir)
     torch.save(optimizer.state_dict(), ckpt_dir / "optimizer.pt")
     meta = {
-        "epoch":       epoch,
-        "global_step": global_step,
-        "log_rows":    log_rows,
+        "epoch":           epoch,
+        "global_step":     global_step,
+        "log_rows":        log_rows,
+        "wandb_run_id":    wandb.run.id if wandb.run else None,
+        "sweep_timestamp": os.environ.get("SWEEP_TIMESTAMP", ""),
     }
     with open(ckpt_dir / "checkpoint_meta.json", "w") as f:
         json.dump(meta, f, indent=2)
@@ -284,6 +287,32 @@ def main(args):
     log.info("Run ID: %s", args.run_id)
     log.info("Args: %s", vars(args))
     log.info("Output dir: %s", out_dir)
+
+    # On resume, reuse the same W&B run so the loss curves are continuous.
+    wandb_run_id = None
+    if is_resume:
+        meta_path = Path(args.resume_from_checkpoint) / "checkpoint_meta.json"
+        if meta_path.exists():
+            with open(meta_path) as f:
+                wandb_run_id = json.load(f).get("wandb_run_id")
+
+    wandb.init(
+        project="fact-check-fever",
+        name=args.run_id,
+        id=wandb_run_id,
+        dir=str(out_dir),
+        config={
+            "lambda":           args.lambda_val,
+            "epsilon":          args.epsilon,
+            "lr":               args.lr,
+            "batch_size":       args.batch_size,
+            "epochs":           args.epochs,
+            "lora_rank":        args.lora_rank,
+            "ckpt_every_steps": args.ckpt_every_steps,
+            "model_path":       args.model_path,
+        },
+        resume="allow",
+    )
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     log.info("Device: %s", device)
@@ -439,11 +468,18 @@ def main(args):
             )
 
             if global_step % 100 == 0:
+                current_lr = scheduler.get_last_lr()[0]
                 log.info(
                     "step=%d  ce=%.4f  stab=%.4f  loss=%.4f  lr=%.2e",
                     global_step, ce.item(), stab.item(), loss.item(),
-                    scheduler.get_last_lr()[0],
+                    current_lr,
                 )
+                wandb.log({
+                    "train/ce":   ce.item(),
+                    "train/stab": stab.item(),
+                    "train/loss": loss.item(),
+                    "train/lr":   current_lr,
+                }, step=global_step)
 
             # ── Mid-epoch checkpoint ──────────────────────────────────────────
             if ckpt_every_steps > 0 and global_step % ckpt_every_steps == 0:
@@ -470,6 +506,14 @@ def main(args):
             "Epoch %d results — val_acc=%.4f  sym_acc=%.4f",
             epoch, val_metrics["accuracy"], sym_metrics["accuracy"],
         )
+        wandb.log({
+            "epoch/loss":    avg_loss,
+            "epoch/ce":      avg_ce,
+            "epoch/stab":    avg_stab,
+            "epoch/val_acc": val_metrics["accuracy"],
+            "epoch/sym_acc": sym_metrics["accuracy"],
+            "epoch":         epoch,
+        }, step=global_step)
 
         epoch_record = {
             "epoch":     epoch,
@@ -517,6 +561,7 @@ def main(args):
         ckpt_base / f"epoch_{final['epoch']}",
     )
     log.info("=" * 60)
+    wandb.finish()
 
 
 if __name__ == "__main__":
