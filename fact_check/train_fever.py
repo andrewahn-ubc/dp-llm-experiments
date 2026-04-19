@@ -222,6 +222,7 @@ def save_checkpoint(
     global_step: int,
     log_rows: list,
     log,
+    mid_epoch: bool = False,
 ):
     """Save a resumable checkpoint to ckpt_dir."""
     ckpt_dir.mkdir(parents=True, exist_ok=True)
@@ -234,6 +235,7 @@ def save_checkpoint(
         "log_rows":        log_rows,
         "wandb_run_id":    wandb.run.id if wandb.run else None,
         "sweep_timestamp": os.environ.get("SWEEP_TIMESTAMP", ""),
+        "mid_epoch":       mid_epoch,
     }
     with open(ckpt_dir / "checkpoint_meta.json", "w") as f:
         json.dump(meta, f, indent=2)
@@ -263,13 +265,16 @@ def load_checkpoint(ckpt_dir: Path, model, optimizer, log):
     else:
         log.warning("optimizer.pt not found in checkpoint — starting optimizer fresh")
 
-    start_epoch = meta["epoch"] + 1   # resume from the next epoch
+    mid_epoch   = meta.get("mid_epoch", False)
+    # Mid-epoch checkpoint: resume within the same epoch.
+    # End-of-epoch checkpoint: resume from the next epoch.
+    start_epoch = meta["epoch"] if mid_epoch else meta["epoch"] + 1
     global_step = meta["global_step"]
     log_rows    = meta.get("log_rows", [])
     log.info(
-        "Resuming from checkpoint: completed epoch=%d  global_step=%d  "
+        "Resuming from checkpoint: epoch=%d  mid_epoch=%s  global_step=%d  "
         "log_rows_so_far=%d",
-        meta["epoch"], global_step, len(log_rows),
+        meta["epoch"], mid_epoch, global_step, len(log_rows),
     )
     return start_epoch, global_step, log_rows
 
@@ -288,10 +293,14 @@ def main(args):
     log.info("Args: %s", vars(args))
     log.info("Output dir: %s", out_dir)
 
+    # ── Resume flag (needed by W&B init below and model loading below) ──────────
+    is_resume = args.resume_from_checkpoint is not None
+    ckpt_dir  = Path(args.resume_from_checkpoint) if is_resume else None
+
     # On resume, reuse the same W&B run so the loss curves are continuous.
     wandb_run_id = None
     if is_resume:
-        meta_path = Path(args.resume_from_checkpoint) / "checkpoint_meta.json"
+        meta_path = ckpt_dir / "checkpoint_meta.json"
         if meta_path.exists():
             with open(meta_path) as f:
                 wandb_run_id = json.load(f).get("wandb_run_id")
@@ -324,9 +333,6 @@ def main(args):
         )
 
     # ── Model + tokenizer ────────────────────────────────────────────────────
-    is_resume = args.resume_from_checkpoint is not None
-    ckpt_dir  = Path(args.resume_from_checkpoint) if is_resume else None
-
     if is_resume:
         log.info("Resuming — loading model weights from checkpoint: %s", ckpt_dir)
         tokenizer = AutoTokenizer.from_pretrained(ckpt_dir)
@@ -422,15 +428,24 @@ def main(args):
     # ── Training loop ────────────────────────────────────────────────────────
     log.info("Starting training: epochs %d→%d  λ=%.3f  ε=%.3f", start_epoch, args.epochs, args.lambda_val, epsilon_val)
 
+    steps_per_epoch = len(train_loader)
+
     for epoch in range(start_epoch, args.epochs + 1):
         model.train()
         epoch_ce = epoch_stab = epoch_total = 0.0
         n_batches   = 0
         epoch_start = time.time()
 
-        log.info("── Epoch %d / %d ──────────────────────────────", epoch, args.epochs)
+        # On a mid-epoch resume, skip batches already processed in this epoch.
+        batches_done = global_step % steps_per_epoch if epoch == start_epoch and is_resume else 0
+        if batches_done:
+            log.info("── Epoch %d / %d  (skipping first %d batches) ──────────────────────────────", epoch, args.epochs, batches_done)
+        else:
+            log.info("── Epoch %d / %d ──────────────────────────────", epoch, args.epochs)
 
         for batch_idx, batch in enumerate(train_loader):
+            if batch_idx < batches_done:
+                continue
             ids_c  = batch["input_ids_clean"].to(device)
             attn_c = batch["attention_mask_clean"].to(device)
             labels = batch["label"].to(device)
@@ -486,7 +501,7 @@ def main(args):
                 mid_ckpt = ckpt_base / f"step_{global_step}"
                 save_checkpoint(
                     mid_ckpt, model, tokenizer, optimizer,
-                    epoch, global_step, log_rows, log
+                    epoch, global_step, log_rows, log, mid_epoch=True,
                 )
 
         # ── End-of-epoch ─────────────────────────────────────────────────────
