@@ -125,7 +125,7 @@ export HF_HUB_OFFLINE=1
 
 # ── W&B: probe for internet, fall back to offline if unavailable ──────────────
 export WANDB_DIR="${OUTPUT_PATH}"
-if curl -sf --max-time 5 https://api.wandb.ai > /dev/null 2>&1; then
+if curl -sf --max-time 5 https://wandb.ai > /dev/null 2>&1; then
     export WANDB_MODE=online
     echo "[wandb] online mode (internet reachable)"
 else
