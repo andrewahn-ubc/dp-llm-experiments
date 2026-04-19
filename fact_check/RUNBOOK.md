@@ -60,23 +60,26 @@ wc -l $FC_DATA_DIR/fever_train.csv
 # ~97,000 lines (SUPPORTS + REFUTES only)
 ```
 
-**If FeverSymmetric download fails**, the script falls back to the GitHub raw JSONL
-automatically. If both fail, run manually:
+**If FeverSymmetric download fails**, check your internet connection on the login
+node. The script downloads directly from GitHub (no HuggingFace mirror exists).
+Run manually if needed:
 ```bash
 source env.sh fact-check
 python - <<'PY'
-import json, urllib.request, pandas as pd
+import json, urllib.request, os
+import pandas as pd
 from pathlib import Path
-url = "https://raw.githubusercontent.com/TalSchuster/FeverSymmetric/master/symmetric_v2/fever_symmetric_generated.jsonl"
+
+base = "https://raw.githubusercontent.com/TalSchuster/FeverSymmetric/master/symmetric_v0.2"
 rows = []
-with urllib.request.urlopen(url) as r:
-    for line in r:
-        ex = json.loads(line)
-        if ex.get("gold_label") in ("SUPPORTS", "REFUTES"):
-            rows.append({"claim": ex["claim"],
-                         "evidence": " ".join(ex.get("evidence_sentence", [])),
-                         "label": ex["gold_label"]})
-import os
+for url in [f"{base}/fever_symmetric_dev.jsonl", f"{base}/fever_symmetric_test.jsonl"]:
+    with urllib.request.urlopen(url) as r:
+        for line in r:
+            ex = json.loads(line)
+            if ex.get("gold_label") in ("SUPPORTS", "REFUTES"):
+                rows.append({"claim": ex["claim"],
+                             "evidence": " ".join(ex.get("evidence", [])),
+                             "label": ex["gold_label"]})
 out = Path(os.environ["FC_DATA_DIR"]) / "fever_symmetric.csv"
 pd.DataFrame(rows).to_csv(out, index=False)
 print(f"Wrote {len(rows)} rows to {out}")

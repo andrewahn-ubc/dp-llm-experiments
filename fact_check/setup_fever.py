@@ -66,6 +66,7 @@ def download_fever(data_dir: Path) -> None:
 
 
 def download_fever_symmetric(data_dir: Path) -> None:
+    import json, urllib.request
     import pandas as pd
 
     out = data_dir / "fever_symmetric.csv"
@@ -73,29 +74,17 @@ def download_fever_symmetric(data_dir: Path) -> None:
         print(f"[FeverSymmetric] already exists at {out}, skipping.")
         return
 
-    print("Downloading TalSchuster/fever_symmetric_v2 ...")
-    try:
-        from datasets import load_dataset
-        ds = load_dataset("TalSchuster/fever_symmetric_v2", split="test")
-        rows = []
-        for ex in ds:
-            label = ex.get("gold_label", "")
-            if label not in ("SUPPORTS", "REFUTES"):
-                continue
-            rows.append({
-                "claim":    ex["claim"],
-                "evidence": " ".join(ex.get("evidence", [])),
-                "label":    label,
-            })
-        df = pd.DataFrame(rows)
-    except Exception as e:
-        print(f"  HuggingFace load failed ({e}), trying GitHub raw fallback...")
-        import json, urllib.request
-        url = (
-            "https://raw.githubusercontent.com/TalSchuster/"
-            "FeverSymmetric/master/symmetric_v2/fever_symmetric_generated.jsonl"
-        )
-        rows = []
+    # FeverSymmetric v0.2 (dev + test combined, ~1420 pairs).
+    # No HuggingFace mirror exists — download directly from GitHub.
+    base = "https://raw.githubusercontent.com/TalSchuster/FeverSymmetric/master/symmetric_v0.2"
+    urls = [
+        f"{base}/fever_symmetric_dev.jsonl",
+        f"{base}/fever_symmetric_test.jsonl",
+    ]
+
+    print("Downloading FeverSymmetric v0.2 (dev + test) from GitHub ...")
+    rows = []
+    for url in urls:
         with urllib.request.urlopen(url) as resp:
             for line in resp:
                 ex = json.loads(line)
@@ -104,10 +93,10 @@ def download_fever_symmetric(data_dir: Path) -> None:
                     continue
                 rows.append({
                     "claim":    ex["claim"],
-                    "evidence": " ".join(ex.get("evidence_sentence", [])),
+                    "evidence": " ".join(ex.get("evidence", [])),
                     "label":    label,
                 })
-        df = pd.DataFrame(rows)
+    df = pd.DataFrame(rows)
 
     df.to_csv(out, index=False)
     print(f"  FeverSymmetric: {len(df):,} rows → {out}")
