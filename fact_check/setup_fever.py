@@ -19,31 +19,11 @@ Options:
 """
 
 import argparse
-import subprocess
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from fact_check.config_loader import load_config
-
-
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
-def pip_install(*packages: str) -> None:
-    subprocess.check_call([sys.executable, "-m", "pip", "install", "-q", *packages])
-
-
-def ensure_deps() -> None:
-    try:
-        import datasets   # noqa: F401
-        import pandas     # noqa: F401
-        import pyarrow    # noqa: F401
-        from huggingface_hub import snapshot_download  # noqa: F401
-    except ImportError:
-        print("Installing required packages into current Python...")
-        pip_install("huggingface_hub[cli]", "datasets", "pandas", "pyarrow")
 
 
 # ---------------------------------------------------------------------------
@@ -176,8 +156,6 @@ def main() -> None:
     print(f"Data dir:  {data_dir}")
     print(f"Model:     {model_path}  (from {hf_repo})")
     print()
-
-    ensure_deps()
 
     if not args.skip_data:
         download_fever(data_dir)

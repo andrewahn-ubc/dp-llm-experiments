@@ -3,6 +3,7 @@ transformers
 peft
 datasets
 pandas
+numpy
 omegaconf
 huggingface_hub
 nltk
