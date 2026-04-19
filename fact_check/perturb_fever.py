@@ -43,8 +43,13 @@ Usage:
 import argparse
 import random
 import re
-import pandas as pd
+import sys
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+import pandas as pd
+from fact_check.config_loader import load_config
 
 
 def split_sentences(text: str) -> list[str]:
@@ -144,8 +149,6 @@ CLAIM_PERTURBATIONS = {"claim_synonym"}
 
 
 def main():
-    from fact_check.config_loader import load_config
-
     cfg      = load_config()
     data_dir = Path(cfg.paths.data_dir)
 
