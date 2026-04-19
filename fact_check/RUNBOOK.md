@@ -28,7 +28,7 @@ module load StdEnv/2023 python/3.11
 python -m venv $SCRATCH/venv/factcheck
 source $SCRATCH/venv/factcheck/bin/activate
 pip install --upgrade pip
-pip install requirements.txt
+pip install -r requirements.txt
 deactivate
 ```
 
