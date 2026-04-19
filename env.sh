@@ -25,7 +25,7 @@ module purge
 
 case "$EXPERIMENT" in
     fact-check)
-        module load StdEnv/2023 python/3.11
+        module load StdEnv/2023 gcc python/3.11 arrow/21.0.0
         source "$SCRATCH/venv/factcheck/bin/activate"
         ;;
     *)

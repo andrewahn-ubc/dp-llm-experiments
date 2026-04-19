@@ -102,7 +102,7 @@ echo "[stage] data ready"
 
 # ── Python environment ────────────────────────────────────────────────────────
 module purge
-module load StdEnv/2023 python/3.11
+module load StdEnv/2023 gcc python/3.11 arrow/21.0.0
 
 TMP_VENV="${SLURM_TMPDIR}/venv"
 echo "[env] creating venv at ${TMP_VENV} (seeding from ${VENV})"

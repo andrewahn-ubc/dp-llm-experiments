@@ -23,7 +23,7 @@ Run once. Compute nodes have no internet, so everything must be downloaded here 
 ### 1a. Create the virtualenv (one time only)
 
 ```bash
-module load StdEnv/2023 python/3.11
+module load StdEnv/2023 gcc python/3.11 arrow/21.0.0
 
 python -m venv $SCRATCH/venv/factcheck
 source $SCRATCH/venv/factcheck/bin/activate
