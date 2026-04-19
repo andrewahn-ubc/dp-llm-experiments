@@ -1,10 +1,13 @@
 """
-compare_runs.py — Collect training_log.json from all sweep runs and print a
-sorted comparison table.
+compare_runs.py — Collect training_log.json from all sweep runs, print a
+sorted comparison table, and optionally plot training curves.
 
 Usage (on login node or locally after syncing):
     python fact_check/compare_runs.py \
         --models-dir $SCRATCH/dp-llm-experiments/fact_check_models
+
+    # Also save training curve plots:
+    python fact_check/compare_runs.py --plot --out figures/
 
 Prints a table sorted by FeverSymmetric accuracy (the robustness metric),
 showing the trade-off between standard validation accuracy and symmetric
@@ -20,16 +23,64 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from fact_check.config_loader import load_config
 
 
+def plot_curves(all_entries: list[list[dict]], out_dir: Path | None) -> None:
+    import matplotlib.pyplot as plt
+
+    metrics = [
+        ("loss",    "Loss"),
+        ("ce",      "CE Loss"),
+        ("stab",    "Stability Loss"),
+        ("val_acc", "Val Accuracy"),
+        ("sym_acc", "Sym Accuracy"),
+    ]
+
+    fig, axes = plt.subplots(len(metrics), 1, figsize=(10, 3 * len(metrics)))
+
+    for ax, (key, label) in zip(axes, metrics):
+        for entries in all_entries:
+            if not entries:
+                continue
+            run_id = entries[-1].get("run_id", "?")
+            lam    = entries[-1].get("lambda", 0)
+            eps    = entries[-1].get("epsilon", 0)
+            lr     = entries[-1].get("lr", 0)
+            legend = f"λ={lam} ε={eps} lr={lr:.0e}"
+            epochs = [e["epoch"] for e in entries if key in e]
+            values = [e[key]    for e in entries if key in e]
+            if epochs:
+                ax.plot(epochs, values, marker="o", markersize=4, label=legend)
+        ax.set_xlabel("epoch")
+        ax.set_ylabel(label)
+        ax.set_title(label)
+        ax.legend(fontsize=7)
+        ax.grid(True, alpha=0.3)
+
+    plt.tight_layout()
+
+    if out_dir:
+        out_dir.mkdir(parents=True, exist_ok=True)
+        path = out_dir / "training_curves.png"
+        plt.savefig(path, dpi=150)
+        print(f"\nPlot saved to {path}")
+    else:
+        plt.show()
+
+
 def main():
     cfg = load_config()
 
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(
+        description=__doc__,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
     parser.add_argument(
         "--models-dir",
         default=str(cfg.paths.output_root),
         help="Directory containing one subfolder per run, each with training_log.json "
              "(default: paths.output_root from config.yaml)"
     )
+    parser.add_argument("--plot", action="store_true", help="Plot training curves")
+    parser.add_argument("--out",  default=None, help="Directory to save plot (default: show interactively)")
     args = parser.parse_args()
 
     base = Path(args.models_dir)
@@ -39,22 +90,24 @@ def main():
         print(f"No training_log.json files found under {base}")
         return
 
-    rows = []
+    all_entries = []
+    summary_rows = []
     for log_path in logs:
         with open(log_path) as f:
             entries = json.load(f)
-        # Take the last epoch (best checkpoint policy: last epoch)
-        last = entries[-1]
-        rows.append(last)
+        if not entries:
+            continue
+        all_entries.append(entries)
+        summary_rows.append(entries[-1])  # last epoch as summary
 
     # Sort by FeverSymmetric accuracy descending
-    rows.sort(key=lambda r: r.get("sym_acc", 0), reverse=True)
+    summary_rows.sort(key=lambda r: r.get("sym_acc", 0), reverse=True)
 
     # Print table
     header = f"{'run_id':<55} {'λ':>5} {'ε':>5} {'lr':>7} {'rank':>4} {'val_acc':>8} {'sym_acc':>8}"
     print(header)
     print("-" * len(header))
-    for r in rows:
+    for r in summary_rows:
         print(
             f"{r.get('run_id','?'):<55} "
             f"{r.get('lambda',0):>5.2f} "
@@ -65,7 +118,10 @@ def main():
             f"{r.get('sym_acc',0):>8.4f}"
         )
 
-    print(f"\n{len(rows)} runs found.")
+    print(f"\n{len(summary_rows)} runs found.")
+
+    if args.plot:
+        plot_curves(all_entries, Path(args.out) if args.out else None)
 
 
 if __name__ == "__main__":
