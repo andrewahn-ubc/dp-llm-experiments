@@ -47,6 +47,8 @@ SLURM_LOG_DIR="${REPO_ROOT}/output"
 : "${CKPT_EVERY_STEPS:?CKPT_EVERY_STEPS is not set}"
 : "${MODEL_NAME:?MODEL_NAME is not set}"
 RESUME_FROM="${RESUME_FROM:-}"
+AUGMENTATION_ONLY="${AUGMENTATION_ONLY:-0}"
+export AUGMENTATION_ONLY
 
 # On resume, read the original timestamp from the checkpoint so the output dir
 # and run ID stay consistent with the original sweep.
@@ -57,7 +59,9 @@ else
     : "${SWEEP_TIMESTAMP:?SWEEP_TIMESTAMP is not set}"
 fi
 
-RUN_ID="${MODEL_NAME}_lam${LAMBDA}_eps${EPSILON}_lr${LR}_rank${LORA_RANK}_${SWEEP_TIMESTAMP}"
+RUN_PREFIX=""
+[ "${AUGMENTATION_ONLY}" = "1" ] && RUN_PREFIX="aug_"
+RUN_ID="${RUN_PREFIX}${MODEL_NAME}_lam${LAMBDA}_eps${EPSILON}_lr${LR}_rank${LORA_RANK}_${SWEEP_TIMESTAMP}"
 OUTPUT_PATH="${OUTPUT_ROOT}/${RUN_ID}"
 mkdir -p "${SLURM_LOG_DIR}" "${OUTPUT_PATH}"
 

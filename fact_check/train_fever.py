@@ -117,6 +117,16 @@ class FeverDataset(Dataset):
             self.perturbed = False
             self.originals = df
 
+    def as_augmented(self) -> "FeverDataset":
+        """Return a copy that trains CE on ALL rows (originals + perturbations),
+        used for the augmentation-only baseline (λ=0, all data as CE signal)."""
+        clone = object.__new__(FeverDataset)
+        clone.tokenizer  = self.tokenizer
+        clone.max_length = self.max_length
+        clone.perturbed  = False   # disables stability pairing in __getitem__
+        clone.originals  = self.rows if self.perturbed else self.originals
+        return clone
+
     def __len__(self):
         return len(self.originals)
 
@@ -358,6 +368,10 @@ def main(args):
     val_dataset   = FeverDataset(args.val_csv,     tokenizer)
     sym_dataset   = FeverDataset(args.sym_val_csv, tokenizer)
 
+    if args.augmentation_only:
+        train_dataset = train_dataset.as_augmented()
+        log.info("Mode: augmentation-only (CE on all rows, no stability loss)")
+
     log.info(
         "Dataset sizes — train: %d  val: %d  fever_sym: %d",
         len(train_dataset), len(val_dataset), len(sym_dataset),
@@ -533,16 +547,17 @@ def main(args):
         })
 
         epoch_record = {
-            "epoch":     epoch,
-            "loss":      avg_loss,
-            "ce":        avg_ce,
-            "stab":      avg_stab,
-            "val_acc":   val_metrics["accuracy"],
-            "sym_acc":   sym_metrics["accuracy"],
-            "lambda":    args.lambda_val,
-            "epsilon":   args.epsilon,
-            "lr":        args.lr,
-            "lora_rank": args.lora_rank,
+            "epoch":              epoch,
+            "loss":               avg_loss,
+            "ce":                 avg_ce,
+            "stab":               avg_stab,
+            "val_acc":            val_metrics["accuracy"],
+            "sym_acc":            sym_metrics["accuracy"],
+            "lambda":             args.lambda_val,
+            "epsilon":            args.epsilon,
+            "lr":                 args.lr,
+            "lora_rank":          args.lora_rank,
+            "augmentation_only":  args.augmentation_only,
             "run_id":    args.run_id,
             "global_step": global_step,
         }
@@ -601,6 +616,9 @@ if __name__ == "__main__":
                         help="Save a mid-epoch checkpoint every N steps. 0 = epoch-only checkpoints.")
     parser.add_argument("--resume-from-checkpoint", default=None,
                         help="Path to a checkpoint directory to resume from.")
+    parser.add_argument("--augmentation-only", action="store_true",
+                        default=os.getenv("AUGMENTATION_ONLY", "0") == "1",
+                        help="Augmentation-only baseline: CE on all rows (originals + perturbations), no stability loss.")
 
     args = parser.parse_args()
     main(args)

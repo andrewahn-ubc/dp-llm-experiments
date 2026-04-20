@@ -106,12 +106,14 @@ def main():
     summary_rows.sort(key=lambda r: r.get("sym_acc", 0), reverse=True)
 
     # Print table
-    header = f"{'run_id':<55} {'λ':>5} {'ε':>5} {'lr':>7} {'rank':>4} {'val_acc':>8} {'sym_acc':>8}"
+    header = f"{'run_id':<55} {'mode':<6} {'λ':>5} {'ε':>5} {'lr':>7} {'rank':>4} {'val_acc':>8} {'sym_acc':>8}"
     print(header)
     print("-" * len(header))
     for r in summary_rows:
+        mode = "aug" if r.get("augmentation_only") else "reg"
         print(
             f"{r.get('run_id','?'):<55} "
+            f"{mode:<6} "
             f"{r.get('lambda',0):>5.2f} "
             f"{r.get('epsilon',0):>5.2f} "
             f"{r.get('lr',0):>7.0e} "

@@ -32,6 +32,7 @@ import itertools
 import os
 import subprocess
 import sys
+import time
 from datetime import datetime
 from pathlib import Path
 
@@ -49,7 +50,8 @@ def fmt(v: float) -> str:
 
 def build_env(model_name: str, lam: float, lr: float, eps: float, rank: int,
               epochs: int, batch_size: int, ckpt_every_steps: int,
-              resume_from: str | None, timestamp: str) -> dict[str, str]:
+              resume_from: str | None, timestamp: str,
+              augmentation_only: bool = False) -> dict[str, str]:
     env = os.environ.copy()
     env.update({
         "MODEL_NAME":        model_name,
@@ -61,6 +63,7 @@ def build_env(model_name: str, lam: float, lr: float, eps: float, rank: int,
         "BATCH_SIZE":        str(batch_size),
         "CKPT_EVERY_STEPS":  str(ckpt_every_steps),
         "SWEEP_TIMESTAMP":   timestamp,
+        "AUGMENTATION_ONLY": "1" if augmentation_only else "0",
         # FC_* vars are already in os.environ (from env.sh) and forwarded
         # automatically to sbatch via os.environ.copy().
     })
@@ -108,8 +111,12 @@ def main() -> None:
     parser.add_argument("--epochs",           type=int,   default=None)
     parser.add_argument("--batch-size",       type=int,   default=None)
     parser.add_argument("--ckpt-every-steps", type=int,   default=None)
-    parser.add_argument("--resume-from",      default=None)
-    parser.add_argument("--slurm-script",     default="fact_check/train_fever.sh")
+    parser.add_argument("--resume-from",        default=None)
+    parser.add_argument("--augmentation-only", action="store_true",
+                        help="Run augmentation-only baseline (CE on all rows, λ forced to 0, no stability loss).")
+    parser.add_argument("--slurm-script",      default="fact_check/train_fever.sh")
+    parser.add_argument("--submit-delay",     type=float, default=2.0,
+                        help="Seconds to wait between sbatch submissions (default: 2)")
     args = parser.parse_args()
 
     if args.resume_from:
@@ -150,9 +157,10 @@ def main() -> None:
     if args.resume_from:
         print(f"  resume_from={args.resume_from}  (all jobs)")
     print()
+    prefix = "aug_" if args.augmentation_only else ""
     print("Jobs to be submitted:")
     for lam, lr, eps, rank in combos:
-        run_id = f"{cfg.model.name}_lam{fmt(lam)}_eps{fmt(eps)}_lr{fmt(lr)}_rank{rank}_{timestamp}"
+        run_id = f"{prefix}{cfg.model.name}_lam{fmt(lam)}_eps{fmt(eps)}_lr{fmt(lr)}_rank{rank}_{timestamp}"
         print(f"  {run_id}")
     print()
 
@@ -183,8 +191,9 @@ def main() -> None:
     succeeded, failed = [], []
 
     for lam, lr, eps, rank in combos:
-        env    = build_env(cfg.model.name, lam, lr, eps, rank, epochs, batch_size, ckpt_every, args.resume_from, timestamp)
-        run_id = f"{cfg.model.name}_lam{fmt(lam)}_eps{fmt(eps)}_lr{fmt(lr)}_rank{rank}_{timestamp}"
+        env    = build_env(cfg.model.name, lam, lr, eps, rank, epochs, batch_size, ckpt_every, args.resume_from, timestamp, args.augmentation_only)
+        prefix = "aug_" if args.augmentation_only else ""
+        run_id = f"{prefix}{cfg.model.name}_lam{fmt(lam)}_eps{fmt(eps)}_lr{fmt(lr)}_rank{rank}_{timestamp}"
 
         if args.interactive:
             print(f"── Running {run_id} ──")
@@ -202,6 +211,7 @@ def main() -> None:
                 succeeded.append(job_id)
             else:
                 failed.append(run_id)
+            time.sleep(args.submit_delay)
 
     print()
     print(f"{'Ran' if args.interactive else 'Submitted'} {len(succeeded)} / {len(combos)} jobs.")
