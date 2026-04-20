@@ -79,12 +79,14 @@ def main():
         help="Directory containing one subfolder per run, each with training_log.json "
              "(default: paths.output_root from config.yaml)"
     )
-    parser.add_argument("--plot", action="store_true", help="Plot training curves")
-    parser.add_argument("--out",  default=None, help="Directory to save plot (default: show interactively)")
+    parser.add_argument("--plot",   action="store_true", help="Plot training curves")
+    parser.add_argument("--out",    default=None, help="Directory to save plot (default: show interactively)")
+    parser.add_argument("--filter", default=None, help="Only include runs whose directory name contains this string (e.g. a timestamp)")
     args = parser.parse_args()
 
     base = Path(args.models_dir)
-    logs = list(base.glob("*/training_log.json"))
+    logs = [p for p in base.glob("*/training_log.json")
+            if args.filter is None or args.filter in p.parent.name]
 
     if not logs:
         print(f"No training_log.json files found under {base}")
