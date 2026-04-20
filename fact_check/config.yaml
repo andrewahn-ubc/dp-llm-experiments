@@ -33,7 +33,7 @@ model:
 
 # ── Training hyperparameters ──────────────────────────────────────────────────
 training:
-  epochs: 1
+  epochs: 3
   batch_size: 16
   lr: 2.0e-5
   lambda_val: 1.0
@@ -43,7 +43,7 @@ training:
 
 # ── Hyperparameter sweep grid ─────────────────────────────────────────────────
 sweep:
-  lambdas:    [0.0, 0.1, 1.0, 5.0]
-  lrs:        [1.0e-5, 2.0e-5, 5.0e-5]
-  epsilons:   [0.0, 0.1, 0.5, 1.0]
-  lora_ranks: [0, 8, 32]
+  lambdas:    [0.0, 1.0, 5.0]
+  lrs:        [1.0e-5, 2.0e-5, 3.0e-5]
+  epsilons:   [0.0, 0.05, 0.1, 0.5]
+  lora_ranks: [0, 8]
