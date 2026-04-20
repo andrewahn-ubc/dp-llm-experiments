@@ -48,13 +48,16 @@ def fmt(v: float) -> str:
     return f"{v:g}"
 
 
-def build_env(model_name: str, lam: float, lr: float, eps: float, rank: int,
+def build_env(model_name: str, max_seq_len: int,
+              lam: float, lr: float, eps: float, rank: int,
               epochs: int, batch_size: int, ckpt_every_steps: int,
               resume_from: str | None, timestamp: str,
-              augmentation_only: bool = False) -> dict[str, str]:
+              augmentation_only: bool = False,
+              dataset: str = "fever", mem: str | None = None) -> dict[str, str]:
     env = os.environ.copy()
     env.update({
         "MODEL_NAME":        model_name,
+        "MAX_SEQ_LEN":       str(max_seq_len),
         "LAMBDA":            fmt(lam),
         "LR":                fmt(lr),
         "EPSILON":           fmt(eps),
@@ -64,6 +67,7 @@ def build_env(model_name: str, lam: float, lr: float, eps: float, rank: int,
         "CKPT_EVERY_STEPS":  str(ckpt_every_steps),
         "SWEEP_TIMESTAMP":   timestamp,
         "AUGMENTATION_ONLY": "1" if augmentation_only else "0",
+        "DATASET":           dataset,
         # FC_* vars are already in os.environ (from env.sh) and forwarded
         # automatically to sbatch via os.environ.copy().
     })
@@ -72,12 +76,13 @@ def build_env(model_name: str, lam: float, lr: float, eps: float, rank: int,
     return env
 
 
-def submit(slurm_script: str, env: dict) -> str | None:
+def submit(slurm_script: str, env: dict, mem: str | None = None) -> str | None:
     """Submit via sbatch. Returns job ID string or None on failure."""
-    result = subprocess.run(
-        ["sbatch", "--parsable", slurm_script],
-        env=env, capture_output=True, text=True,
-    )
+    cmd = ["sbatch", "--parsable"]
+    if mem:
+        cmd += [f"--mem={mem}"]
+    cmd.append(slurm_script)
+    result = subprocess.run(cmd, env=env, capture_output=True, text=True)
     if result.returncode != 0:
         print(f"  ERROR: {result.stderr.strip()}", file=sys.stderr)
         return None
@@ -104,6 +109,13 @@ def main() -> None:
     parser.add_argument("--dry-run",          action="store_true")
     parser.add_argument("--interactive",      action="store_true",
                         help="Run script directly via bash instead of sbatch (sequential).")
+    parser.add_argument("--model",            default="bert",
+                        choices=["bert", "deberta", "llama"],
+                        help="Which model to train (bert|deberta|llama). Selects name/hf_repo/max_seq_len from config.")
+    parser.add_argument("--dataset",          choices=["fever", "vitaminc"], default="fever",
+                        help="Training dataset.")
+    parser.add_argument("--mem",              default=None,
+                        help="Override SLURM --mem (e.g. '48G' for Llama). Passed as --mem to sbatch.")
     parser.add_argument("--lambdas",          nargs="+", type=float, default=None)
     parser.add_argument("--lrs",              nargs="+", type=float, default=None)
     parser.add_argument("--epsilons",         nargs="+", type=float, default=None)
@@ -134,6 +146,10 @@ def main() -> None:
     sweep = cfg.sweep
     train = cfg.training
 
+    model_cfg   = getattr(cfg.models, args.model)
+    model_name  = model_cfg.name
+    max_seq_len = model_cfg.max_seq_len
+
     # CLI overrides config; config is the default
     lambdas    = args.lambdas    or list(sweep.lambdas)
     lrs        = args.lrs        or list(sweep.lrs)
@@ -149,18 +165,25 @@ def main() -> None:
 
     combos = list(itertools.product(lambdas, lrs, epsilons, lora_ranks))
 
+    if model_name == "bert_base_uncased" and any(r > 0 for r in lora_ranks):
+        sys.exit("ERROR: LoRA is not supported for BERT. Use --lora-ranks 0 with --model bert.")
+
     print(f"Config:    {Path(__file__).parent / 'config.yaml'}")
+    print(f"Model:     {model_name}  (max_seq_len={max_seq_len})")
+    print(f"Dataset:   {args.dataset}")
     print(f"Timestamp: {timestamp}")
     print(f"Grid:      {len(combos)} jobs")
     print(f"  lambdas={lambdas}  lrs={lrs}  epsilons={epsilons}  lora_ranks={lora_ranks}")
     print(f"  epochs={epochs}  batch={batch_size}  ckpt_every={ckpt_every}")
+    if args.mem:
+        print(f"  mem override: {args.mem}")
     if args.resume_from:
         print(f"  resume_from={args.resume_from}  (all jobs)")
     print()
     prefix = "aug_" if args.augmentation_only else ""
     print("Jobs to be submitted:")
     for lam, lr, eps, rank in combos:
-        run_id = f"{prefix}{cfg.model.name}_lam{fmt(lam)}_eps{fmt(eps)}_lr{fmt(lr)}_rank{rank}_{timestamp}"
+        run_id = f"{prefix}{model_name}_{args.dataset}_lam{fmt(lam)}_eps{fmt(eps)}_lr{fmt(lr)}_rank{rank}_{timestamp}"
         print(f"  {run_id}")
     print()
 
@@ -191,9 +214,11 @@ def main() -> None:
     succeeded, failed = [], []
 
     for lam, lr, eps, rank in combos:
-        env    = build_env(cfg.model.name, lam, lr, eps, rank, epochs, batch_size, ckpt_every, args.resume_from, timestamp, args.augmentation_only)
+        env    = build_env(model_name, max_seq_len, lam, lr, eps, rank,
+                           epochs, batch_size, ckpt_every, args.resume_from, timestamp,
+                           args.augmentation_only, dataset=args.dataset, mem=args.mem)
         prefix = "aug_" if args.augmentation_only else ""
-        run_id = f"{prefix}{cfg.model.name}_lam{fmt(lam)}_eps{fmt(eps)}_lr{fmt(lr)}_rank{rank}_{timestamp}"
+        run_id = f"{prefix}{model_name}_{args.dataset}_lam{fmt(lam)}_eps{fmt(eps)}_lr{fmt(lr)}_rank{rank}_{timestamp}"
 
         if args.interactive:
             print(f"── Running {run_id} ──")
@@ -205,12 +230,12 @@ def main() -> None:
                 print(f"  FAILED  →  {run_id}", file=sys.stderr)
                 failed.append(run_id)
         else:
-            job_id = submit(slurm_script, env)
-            if job_id:
+            job_id = submit(slurm_script, env, mem=args.mem)
+            if job_id is None:
+                failed.append(run_id)
+            else:
                 print(f"  Submitted {job_id}  →  {run_id}")
                 succeeded.append(job_id)
-            else:
-                failed.append(run_id)
             time.sleep(args.submit_delay)
 
     print()

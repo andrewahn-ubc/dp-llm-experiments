@@ -14,11 +14,14 @@
 # All paths and sweep defaults come from fact_check/config.yaml.
 # The only things injected here by sweep_fever.py are the per-job
 # hyperparameter env vars:
-#   LAMBDA, LR, EPSILON, LORA_RANK, EPOCHS, BATCH_SIZE, CKPT_EVERY_STEPS
+#   LAMBDA, LR, EPSILON, LORA_RANK, EPOCHS, BATCH_SIZE, CKPT_EVERY_STEPS,
+#   MODEL_NAME, MAX_SEQ_LEN, DATASET
 # and optionally RESUME_FROM for resuming an interrupted run.
 #
 # To submit a single run manually:
-#   LAMBDA=1.0 LR=2e-5 sbatch fact_check/train_fever.sh
+#   LAMBDA=1.0 LR=2e-5 DATASET=fever sbatch fact_check/train_fever.sh
+#
+# For Llama, pass --mem=48G to sbatch (via sweep_fever.py --mem 48G)
 # =============================================================================
 
 set -euo pipefail
@@ -48,7 +51,9 @@ SLURM_LOG_DIR="${REPO_ROOT}/output"
 : "${MODEL_NAME:?MODEL_NAME is not set}"
 RESUME_FROM="${RESUME_FROM:-}"
 AUGMENTATION_ONLY="${AUGMENTATION_ONLY:-0}"
-export AUGMENTATION_ONLY
+MAX_SEQ_LEN="${MAX_SEQ_LEN:-128}"
+DATASET="${DATASET:-fever}"
+export AUGMENTATION_ONLY MAX_SEQ_LEN DATASET
 
 # On resume, read the original timestamp from the checkpoint so the output dir
 # and run ID stay consistent with the original sweep.
@@ -61,7 +66,7 @@ fi
 
 RUN_PREFIX=""
 [ "${AUGMENTATION_ONLY}" = "1" ] && RUN_PREFIX="aug_"
-RUN_ID="${RUN_PREFIX}${MODEL_NAME}_lam${LAMBDA}_eps${EPSILON}_lr${LR}_rank${LORA_RANK}_${SWEEP_TIMESTAMP}"
+RUN_ID="${RUN_PREFIX}${MODEL_NAME}_${DATASET}_lam${LAMBDA}_eps${EPSILON}_lr${LR}_rank${LORA_RANK}_${SWEEP_TIMESTAMP}"
 OUTPUT_PATH="${OUTPUT_ROOT}/${RUN_ID}"
 mkdir -p "${SLURM_LOG_DIR}" "${OUTPUT_PATH}"
 
@@ -70,6 +75,8 @@ echo "Job:      ${SLURM_JOB_ID}"
 echo "Node:     $(hostname)"
 echo "Run ID:   ${RUN_ID}"
 echo "Output:   ${OUTPUT_PATH}"
+echo "Model:    ${MODEL_NAME}"
+echo "Dataset:  ${DATASET}"
 echo "λ=${LAMBDA}  ε=${EPSILON}  lr=${LR}  batch=${BATCH_SIZE}  epochs=${EPOCHS}"
 echo "Checkpoint every ${CKPT_EVERY_STEPS} steps"
 [ -n "${RESUME_FROM}" ] && echo "Resuming from: ${RESUME_FROM}"
@@ -87,7 +94,7 @@ _resume_hint() {
     echo "Re-submit with:"
     echo "  RESUME_FROM=\"\$(ls -td ${OUTPUT_PATH}/checkpoints/*/ | head -1)\" \\"
     echo "  LAMBDA=${LAMBDA} LR=${LR} EPSILON=${EPSILON} EPOCHS=${EPOCHS} \\"
-    echo "  BATCH_SIZE=${BATCH_SIZE} LORA_RANK=${LORA_RANK} \\"
+    echo "  BATCH_SIZE=${BATCH_SIZE} LORA_RANK=${LORA_RANK} DATASET=${DATASET} \\"
     echo "  sbatch fact_check/train_fever.sh"
     echo "==================================================================="
 }
@@ -165,6 +172,11 @@ python -m fact_check.train_fever \
     --sym-val-csv         "${TMP_DATA}/fever_symmetric.csv"       \
     --output-path         "${OUTPUT_PATH}"        \
     --run-id              "${RUN_ID}"             \
+    --model-name          "${MODEL_NAME}"         \
+    --max-seq-len         "${MAX_SEQ_LEN}"        \
+    --dataset             "${DATASET}"            \
+    --vitaminc-train-csv  "${TMP_DATA}/vitaminc_train.csv" \
+    --vitaminc-val-csv    "${TMP_DATA}/vitaminc_val.csv"   \
     --lambda-val          "${LAMBDA}"             \
     --epsilon             "${EPSILON}"            \
     --lr                  "${LR}"                \
@@ -181,4 +193,3 @@ echo "  Output:  ${OUTPUT_PATH}"
 echo "  Log:     ${OUTPUT_PATH}/${RUN_ID}.log"
 echo "  Results: ${OUTPUT_PATH}/training_log.json"
 echo "==================================================================="
-

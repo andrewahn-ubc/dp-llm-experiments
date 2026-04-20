@@ -32,7 +32,7 @@ pip install -r requirements.txt
 deactivate
 ```
 
-### 1b. Download datasets and model weights
+### 1b. Download FEVER datasets and BERT weights
 
 ```bash
 hostname   # must NOT start with "ng" (that's a compute node)
@@ -40,7 +40,8 @@ hostname   # must NOT start with "ng" (that's a compute node)
 cd /home/ammany/repos/dp-llm-experiments
 source env.sh fact-check
 
-python fact_check/setup_fever.py
+# FEVER + FeverSymmetric + BERT only (skip VitaminC/DeBERTa/Llama for now)
+python fact_check/setup_fever.py --skip-vitaminc --skip-deberta --skip-llama
 ```
 
 Downloads:
@@ -84,6 +85,39 @@ out = Path(os.environ["FC_DATA_DIR"]) / "fever_symmetric.csv"
 pd.DataFrame(rows).to_csv(out, index=False)
 print(f"Wrote {len(rows)} rows to {out}")
 PY
+```
+
+### 1c. Download VitaminC dataset (Experiments 2 & 3)
+
+```bash
+source env.sh fact-check
+python fact_check/setup_fever.py --skip-bert --skip-deberta --skip-llama --skip-data
+```
+
+Verify:
+```bash
+ls $FC_DATA_DIR/vitaminc_*.csv
+# vitaminc_train.csv  vitaminc_val.csv  vitaminc_test.csv
+
+wc -l $FC_DATA_DIR/vitaminc_train.csv
+# ~285,000 lines (SUPPORTS + REFUTES only, NEI dropped)
+```
+
+### 1d. Download DeBERTa and Llama weights (Experiments 2 & 3)
+
+```bash
+# DeBERTa (~1.5GB):
+python fact_check/setup_fever.py --skip-bert --skip-vitaminc --skip-llama --skip-data
+
+# Llama (~16GB in bf16, requires HuggingFace token with Llama access):
+huggingface-cli login   # or set HF_TOKEN env var
+python fact_check/setup_fever.py --skip-bert --skip-vitaminc --skip-deberta --skip-data
+```
+
+Verify:
+```bash
+ls $FC_MODEL_ROOT/deberta_v3_large_nli/
+ls $FC_MODEL_ROOT/llama3_1_8b_instruct/
 ```
 
 ---
@@ -228,9 +262,10 @@ Latest checkpoint: .../fact_check_models/<run_id>/checkpoints/
 
 Re-submit with:
   RESUME_FROM="$(ls -td .../checkpoints/*/ | head -1)" \
-  LAMBDA=... LR=... EPSILON=... EPOCHS=... \
-  BATCH_SIZE=... LORA_RANK=... MODEL_NAME=... \
-  sbatch fact_check/train_fever.sh
+  LAMBDA=... LR=... EPSILON=... EPOCHS=... BATCH_SIZE=... \
+  LORA_RANK=... MODEL_NAME=... MODEL_TYPE=... \
+  MAX_SEQ_LEN=... DATASET=... CKPT_EVERY_STEPS=0 \
+  sbatch fact_check/train_fever.sh   # add --mem=48G for Llama
 ===================================================================
 ```
 
@@ -238,15 +273,34 @@ Resume manually:
 ```bash
 source env.sh fact-check
 
-RUN_ID="bert_base_uncased_lam1_eps0_lr2e-05_rank0"
+RUN_ID="bert_base_uncased_fever_lam1_eps0_lr2e-05_rank0_TIMESTAMP"
 LATEST=$(ls -td $FC_OUTPUT_ROOT/$RUN_ID/checkpoints/*/ | head -1)
 echo "Resuming from: $LATEST"
 cat $LATEST/checkpoint_meta.json   # shows epoch and global_step
 
 RESUME_FROM="$LATEST" \
 LAMBDA=1.0 LR=2e-05 EPSILON=0.0 EPOCHS=3 BATCH_SIZE=16 \
-LORA_RANK=0 MODEL_NAME=bert_base_uncased \
+LORA_RANK=0 MODEL_NAME=bert_base_uncased MODEL_TYPE=encoder \
+MAX_SEQ_LEN=128 DATASET=fever CKPT_EVERY_STEPS=0 \
 sbatch fact_check/train_fever.sh
+```
+
+For DeBERTa on VitaminC:
+```bash
+RESUME_FROM="$LATEST" \
+LAMBDA=1.0 LR=2e-05 EPSILON=0.0 EPOCHS=3 BATCH_SIZE=16 \
+LORA_RANK=0 MODEL_NAME=deberta_v3_large_nli MODEL_TYPE=encoder \
+MAX_SEQ_LEN=512 DATASET=vitaminc CKPT_EVERY_STEPS=0 \
+sbatch fact_check/train_fever.sh
+```
+
+For Llama on VitaminC:
+```bash
+RESUME_FROM="$LATEST" \
+LAMBDA=1.0 LR=2e-05 EPSILON=0.0 EPOCHS=3 BATCH_SIZE=4 \
+LORA_RANK=16 MODEL_NAME=llama3_1_8b_instruct MODEL_TYPE=causal \
+MAX_SEQ_LEN=512 DATASET=vitaminc CKPT_EVERY_STEPS=0 \
+sbatch --mem=48G fact_check/train_fever.sh
 ```
 
 The resumed job picks up from the next epoch and appends to the existing
@@ -291,6 +345,53 @@ Target: `sym_acc > 65.30%` (beats PoE) with `val_acc > 85%`.
 python fact_check/sweep_fever.py
 # 12 jobs: λ ∈ {0.0, 0.1, 1.0, 5.0} × lr ∈ {1e-5, 2e-5, 5e-5}
 ```
+
+### 4h. Experiment 2 — DeBERTa on VitaminC
+
+```bash
+source env.sh fact-check
+
+# Dry run
+python fact_check/sweep_fever.py \
+    --model deberta \
+    --dataset vitaminc \
+    --lambdas 0.0 1.0 5.0 --lrs 2e-5 5e-5 --dry-run
+
+# Submit
+python fact_check/sweep_fever.py \
+    --model deberta \
+    --dataset vitaminc \
+    --lambdas 0.0 1.0 5.0 --lrs 2e-5 5e-5
+```
+
+Target: `sym_acc > 68.90%` (CrossAug baseline) with `vitaminc_val_acc > 82%`.
+`λ=0.0` run is the DeBERTa+VitaminC baseline (no regularizer).
+
+### 4i. Experiment 3 — Llama on VitaminC (LoRA, causal discriminative)
+
+```bash
+source env.sh fact-check
+
+# Dry run
+python fact_check/sweep_fever.py \
+    --model llama \
+    --dataset vitaminc \
+    --lora-ranks 16 \
+    --lambdas 0.0 1.0 5.0 --lrs 2e-5 \
+    --mem 48G --dry-run
+
+# Submit
+python fact_check/sweep_fever.py \
+    --model llama \
+    --dataset vitaminc \
+    --lora-ranks 16 \
+    --lambdas 0.0 1.0 5.0 --lrs 2e-5 \
+    --mem 48G
+```
+
+`--mem 48G` required for Llama — passed directly to sbatch, overriding the default 32G.
+`λ=0.0` run is the Llama+LoRA baseline (no regularizer).
+`sym_acc` here measures FeverSymmetric accuracy — zero-shot cross-dataset transfer.
 
 ---
 

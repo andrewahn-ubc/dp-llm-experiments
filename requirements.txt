@@ -8,3 +8,7 @@ omegaconf
 huggingface_hub
 nltk
 wandb
+accelerate
+bitsandbytes
+scipy
+sentencepiece

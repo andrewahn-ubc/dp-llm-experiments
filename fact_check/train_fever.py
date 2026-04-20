@@ -37,7 +37,7 @@ HYPERPARAMETERS (all injectable via env vars — see train_fever.sh)
   BATCH_SIZE        — examples per gradient step (default 16)
   EPOCHS            — number of training epochs (default 3)
   LORA_RANK         — LoRA rank; 0 means full fine-tuning (default 0)
-  CKPT_EVERY_STEPS  — save a mid-epoch checkpoint every N steps (default 500)
+  CKPT_EVERY_STEPS  — save a mid-epoch checkpoint every N steps (default 0 = epoch-only)
 
 =======================================================================
 CHECKPOINTING & RESUMPTION
@@ -85,6 +85,13 @@ LABEL2ID = {"SUPPORTS": 0, "REFUTES": 1}
 ID2LABEL  = {v: k for k, v in LABEL2ID.items()}
 NUM_LABELS = 2   # binary; NOT ENOUGH INFO excluded at setup stage
 
+# ---------------------------------------------------------------------------
+# Dataset helpers
+# ---------------------------------------------------------------------------
+def encode(tokenizer, claim: str, evidence: str, max_length: int):
+    return tokenizer(claim, evidence, max_length=max_length, truncation=True,
+                     padding="max_length", return_tensors="pt")
+
 
 # ---------------------------------------------------------------------------
 # Dataset
@@ -130,23 +137,13 @@ class FeverDataset(Dataset):
     def __len__(self):
         return len(self.originals)
 
-    def _encode(self, claim: str, evidence: str):
-        return self.tokenizer(
-            claim,
-            evidence,
-            max_length=self.max_length,
-            truncation=True,
-            padding="max_length",
-            return_tensors="pt",
-        )
-
     def __getitem__(self, idx):
         row   = self.originals.iloc[idx]
         claim = str(row["claim"])
         evid  = str(row["evidence"])
         label = LABEL2ID[row["label"]]
 
-        enc_clean = self._encode(claim, evid)
+        enc_clean = encode(self.tokenizer, claim, evid, self.max_length)
         item = {
             "input_ids_clean":      enc_clean["input_ids"].squeeze(0),
             "attention_mask_clean": enc_clean["attention_mask"].squeeze(0),
@@ -164,9 +161,82 @@ class FeverDataset(Dataset):
                 pert_claim = claim
                 pert_evid  = evid
 
-            enc_pert = self._encode(pert_claim, pert_evid)
+            enc_pert = encode(self.tokenizer, pert_claim, pert_evid, self.max_length)
             item["input_ids_pert"]      = enc_pert["input_ids"].squeeze(0)
             item["attention_mask_pert"] = enc_pert["attention_mask"].squeeze(0)
+
+        return item
+
+
+# ---------------------------------------------------------------------------
+# VitaminC dataset
+# ---------------------------------------------------------------------------
+class VitaminCDataset(Dataset):
+    """
+    Loads VitaminC (Schuster et al., NAACL 2021) contrastive fact-verification data.
+
+    VitaminC contains naturally contrastive claim-evidence pairs from real Wikipedia
+    revision history. Each `case_id` groups 2-4 rows sharing the same claim with
+    different evidence passages — one typically supports the claim, another refutes
+    or is insufficient. These are real neighbor pairs; no synthetic perturbation needed.
+
+    __getitem__ returns an anchor row and a randomly-selected different row from the
+    same case_id group as the "perturbed" input. This matches FeverDataset's output
+    dict keys exactly so the training loop in main() requires zero modification.
+
+    Important: anchor and neighbor may have *different* labels (SUPPORTS vs REFUTES).
+    This is intentional and correct. The symmetric regularizer penalizes the *magnitude*
+    of the gap in P(SUPPORTS) between anchor and neighbor. In the FEVER case both inputs
+    share the same label (surface perturbation, same truth value). Here the gap being
+    large is expected when labels differ — the model should be sensitive to evidence
+    changes — but the *rate* of change should still be bounded by ε. This is the
+    contrastive version of the regularizer and the point of using VitaminC.
+
+    Reference: Schuster et al. (2021) "VitaminC: Robust Fact Verification with
+    Contrastive Evidence" NAACL 2021. https://aclanthology.org/2021.naacl-main.52
+    """
+
+    def __init__(self, csv_path: str, tokenizer, max_length: int = 128):
+        df = pd.read_csv(csv_path)
+        df = df[df["label"].isin(LABEL2ID)].reset_index(drop=True)
+        self.tokenizer  = tokenizer
+        self.max_length = max_length
+
+        # Group rows by case_id; each group is a set of contrastive evidence passages.
+        self.groups: list[list[int]] = []
+        for _, grp in df.groupby("case_id"):
+            self.groups.append(grp.index.tolist())
+        self.df = df
+
+    def __len__(self):
+        return len(self.groups)
+
+    def __getitem__(self, idx):
+        idxs       = self.groups[idx]
+        anchor_pos = random.choice(range(len(idxs)))
+        anchor     = self.df.iloc[idxs[anchor_pos]]
+
+        claim = str(anchor["claim"])
+        evid  = str(anchor["evidence"])
+        label = LABEL2ID[anchor["label"]]
+
+        enc_clean = encode(self.tokenizer, claim, evid, self.max_length)
+        item = {
+            "input_ids_clean":      enc_clean["input_ids"].squeeze(0),
+            "attention_mask_clean": enc_clean["attention_mask"].squeeze(0),
+            "label":                torch.tensor(label, dtype=torch.long),
+        }
+
+        # Pick a different row from the same case_id group as the contrastive input.
+        if len(idxs) > 1:
+            other_positions = [i for i in range(len(idxs)) if i != anchor_pos]
+            pert_row = self.df.iloc[idxs[random.choice(other_positions)]]
+        else:
+            pert_row = anchor  # single-row group: stab loss will be zero
+
+        enc_pert = encode(self.tokenizer, str(pert_row["claim"]), str(pert_row["evidence"]), self.max_length)
+        item["input_ids_pert"]      = enc_pert["input_ids"].squeeze(0)
+        item["attention_mask_pert"] = enc_pert["attention_mask"].squeeze(0)
 
         return item
 
@@ -320,28 +390,26 @@ def main(args):
     if is_resume:
         log.info("Resuming — loading model weights from checkpoint: %s", ckpt_dir)
         tokenizer = AutoTokenizer.from_pretrained(ckpt_dir)
-        # No ignore_mismatched_sizes: checkpoint was trained with NUM_LABELS=2,
-        # so the head should load exactly. If it fails, that's a real mismatch.
-        base = AutoModelForSequenceClassification.from_pretrained(
-            ckpt_dir,
-            num_labels=NUM_LABELS,
-            id2label=ID2LABEL,
-            label2id=LABEL2ID,
-        )
     else:
         log.info("Fresh run — loading base model from: %s", args.model_path)
         tokenizer = AutoTokenizer.from_pretrained(args.model_path)
-        # ignore_mismatched_sizes resizes the pre-trained head (e.g. bert-base has
-        # no classification head; HF initialises one to num_labels).
-        base = AutoModelForSequenceClassification.from_pretrained(
-            args.model_path,
-            num_labels=NUM_LABELS,
-            id2label=ID2LABEL,
-            label2id=LABEL2ID,
-            ignore_mismatched_sizes=True,
-        )
+
+    # Llama (and other causal LMs) have no pad token by default.
+    if tokenizer.pad_token is None:
+        tokenizer.pad_token = tokenizer.eos_token
+
+    load_path = ckpt_dir if is_resume else args.model_path
+    base = AutoModelForSequenceClassification.from_pretrained(
+        load_path,
+        num_labels=NUM_LABELS,
+        id2label=ID2LABEL,
+        label2id=LABEL2ID,
+        ignore_mismatched_sizes=not is_resume,
+    )
 
     if args.lora_rank > 0:
+        if args.model_name == "bert_base_uncased":
+            raise ValueError("LoRA is not supported for BERT (target_modules mismatch). Use --lora-rank 0 with BERT.")
         if is_resume:
             model = PeftModel.from_pretrained(base, ckpt_dir, is_trainable=True)
             log.info("Loaded LoRA adapter from checkpoint")
@@ -351,7 +419,7 @@ def main(args):
                 r=args.lora_rank,
                 lora_alpha=16,
                 lora_dropout=0.05,
-                target_modules=["query", "value"],
+                target_modules=["q_proj", "v_proj"],
             )
             model = get_peft_model(base, lora_cfg)
             trainable, total = model.get_nb_trainable_parameters()
@@ -363,12 +431,28 @@ def main(args):
     log.info("Model loaded and moved to %s", device)
 
     # ── Datasets ─────────────────────────────────────────────────────────────
-    log.info("Loading datasets...")
-    train_dataset = FeverDataset(args.train_csv,   tokenizer)
-    val_dataset   = FeverDataset(args.val_csv,     tokenizer)
-    sym_dataset   = FeverDataset(args.sym_val_csv, tokenizer)
+    log.info("Loading datasets (dataset=%s) ...", args.dataset)
+    ds_kwargs = dict(max_length=args.max_seq_len)
+
+    if args.dataset == "vitaminc":
+        if not args.vitaminc_train_csv or not args.vitaminc_val_csv:
+            raise ValueError("--vitaminc-train-csv and --vitaminc-val-csv are required when --dataset vitaminc")
+        train_dataset = VitaminCDataset(args.vitaminc_train_csv, tokenizer, **ds_kwargs)
+        val_dataset   = FeverDataset(args.vitaminc_val_csv, tokenizer, **ds_kwargs)
+        log.info("Training on VitaminC; val on VitaminC val; FeverSymmetric as cross-dataset probe")
+    elif args.dataset == "fever":
+        if not args.train_csv or not args.val_csv:
+            raise ValueError("--train-csv and --val-csv are required when --dataset fever")
+        train_dataset = FeverDataset(args.train_csv, tokenizer, **ds_kwargs)
+        val_dataset   = FeverDataset(args.val_csv,   tokenizer, **ds_kwargs)
+    else:
+        raise ValueError(f"Unknown dataset: {args.dataset!r}. Expected 'fever' or 'vitaminc'.")
+
+    sym_dataset = FeverDataset(args.sym_val_csv, tokenizer, **ds_kwargs)
 
     if args.augmentation_only:
+        if args.dataset != "fever":
+            raise ValueError("--augmentation-only is only supported with --dataset fever")
         train_dataset = train_dataset.as_augmented()
         log.info("Mode: augmentation-only (CE on all rows, no stability loss)")
 
@@ -376,10 +460,10 @@ def main(args):
         "Dataset sizes — train: %d  val: %d  fever_sym: %d",
         len(train_dataset), len(val_dataset), len(sym_dataset),
     )
-    log.debug(
-        "Perturbation pairing: train has %d orig_groups",
-        len(train_dataset.orig_groups) if train_dataset.perturbed else 0,
-    )
+    if hasattr(train_dataset, "perturbed") and train_dataset.perturbed:
+        log.debug("Perturbation pairing: train has %d orig_groups", len(train_dataset.orig_groups))
+    elif hasattr(train_dataset, "groups"):
+        log.debug("VitaminC pairing: train has %d case_id groups", len(train_dataset.groups))
 
     train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True,  num_workers=2, pin_memory=True)
     val_loader   = DataLoader(val_dataset,   batch_size=args.batch_size, shuffle=False, num_workers=2, pin_memory=True)
@@ -433,8 +517,8 @@ def main(args):
             "batch_size":       args.batch_size,
             "epochs":           args.epochs,
             "lora_rank":        args.lora_rank,
-            "ckpt_every_steps": args.ckpt_every_steps,
-            "model_path":       args.model_path,
+            "model_name":       args.model_name,
+            "dataset":          args.dataset,
         },
         resume="allow",
     )
@@ -558,8 +642,10 @@ def main(args):
             "lr":                 args.lr,
             "lora_rank":          args.lora_rank,
             "augmentation_only":  args.augmentation_only,
-            "run_id":    args.run_id,
-            "global_step": global_step,
+            "model_name":         args.model_name,
+            "dataset":            args.dataset,
+            "run_id":             args.run_id,
+            "global_step":        global_step,
         }
         log_rows.append(epoch_record)
 
@@ -601,9 +687,12 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--model-path",    required=True)
-    parser.add_argument("--train-csv",     required=True)
-    parser.add_argument("--val-csv",       required=True)
-    parser.add_argument("--sym-val-csv",   required=True)
+    parser.add_argument("--train-csv",     default="",
+                        help="Path to fever_train_perturbed.csv (used when --dataset fever)")
+    parser.add_argument("--val-csv",       default="",
+                        help="Path to fever_val.csv (used when --dataset fever)")
+    parser.add_argument("--sym-val-csv",   required=True,
+                        help="Path to fever_symmetric.csv (always used as cross-dataset eval)")
     parser.add_argument("--output-path",   required=True)
     parser.add_argument("--run-id",        required=True)
     parser.add_argument("--lambda-val",    type=float, default=float(os.getenv("LAMBDA",            "1.0")))
@@ -612,13 +701,26 @@ if __name__ == "__main__":
     parser.add_argument("--batch-size",    type=int,   default=int(os.getenv("BATCH_SIZE",          "16")))
     parser.add_argument("--epochs",        type=int,   default=int(os.getenv("EPOCHS",              "3")))
     parser.add_argument("--lora-rank",     type=int,   default=int(os.getenv("LORA_RANK",           "0")))
-    parser.add_argument("--ckpt-every-steps", type=int, default=int(os.getenv("CKPT_EVERY_STEPS",  "500")),
+    parser.add_argument("--ckpt-every-steps", type=int, default=int(os.getenv("CKPT_EVERY_STEPS",  "0")),
                         help="Save a mid-epoch checkpoint every N steps. 0 = epoch-only checkpoints.")
     parser.add_argument("--resume-from-checkpoint", default=None,
                         help="Path to a checkpoint directory to resume from.")
     parser.add_argument("--augmentation-only", action="store_true",
                         default=os.getenv("AUGMENTATION_ONLY", "0") == "1",
                         help="Augmentation-only baseline: CE on all rows (originals + perturbations), no stability loss.")
+    parser.add_argument("--model-name",   default=os.getenv("MODEL_NAME", "bert_base_uncased"),
+                        help="Short model name (used in training_log.json for compare_runs).")
+    parser.add_argument("--max-seq-len",  type=int, default=128,
+                        help="Max tokenizer sequence length.")
+    parser.add_argument("--dataset",      choices=["fever", "vitaminc"],
+                        default=os.getenv("DATASET", "fever"),
+                        help="Training dataset. 'fever' uses fever_train_perturbed.csv with "
+                             "synthetic perturbations. 'vitaminc' uses vitaminc_train.csv with "
+                             "natural contrastive pairs grouped by case_id.")
+    parser.add_argument("--vitaminc-train-csv", default="",
+                        help="Path to vitaminc_train.csv (required when --dataset vitaminc)")
+    parser.add_argument("--vitaminc-val-csv",   default="",
+                        help="Path to vitaminc_val.csv (required when --dataset vitaminc)")
 
     args = parser.parse_args()
     main(args)

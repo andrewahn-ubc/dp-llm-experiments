@@ -25,11 +25,35 @@ slurm:
   signal_seconds: 120
   log_dir: output
 
-# ── Model ─────────────────────────────────────────────────────────────────────
+# ── VitaminC data paths (Experiments 2 & 3) ──────────────────────────────────
+vitaminc:
+  train_csv: ${oc.env:FC_DATA_DIR,/home/ammany/scratch/dp-llm-experiments/fact_check_data}/vitaminc_train.csv
+  val_csv:   ${oc.env:FC_DATA_DIR,/home/ammany/scratch/dp-llm-experiments/fact_check_data}/vitaminc_val.csv
+  test_csv:  ${oc.env:FC_DATA_DIR,/home/ammany/scratch/dp-llm-experiments/fact_check_data}/vitaminc_test.csv
+
+# ── Model (default — kept for backwards compatibility with SLURM script) ──────
 model:
   name: bert_base_uncased
   hf_repo: bert-base-uncased
   max_seq_len: 128
+
+# ── All models ────────────────────────────────────────────────────────────────
+models:
+  bert:
+    name: bert_base_uncased
+    hf_repo: bert-base-uncased
+    max_seq_len: 128
+
+  deberta:
+    name: deberta_v3_large_nli
+    hf_repo: MoritzLaurer/DeBERTa-v3-large-mnli-fever-anli-ling-wanli
+    max_seq_len: 512
+
+  llama:
+    name: llama3_1_8b_instruct
+    hf_repo: meta-llama/Llama-3.1-8B-Instruct
+    max_seq_len: 512
+    lora_rank: 16
 
 # ── Training hyperparameters ──────────────────────────────────────────────────
 training:
