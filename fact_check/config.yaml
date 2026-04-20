@@ -39,7 +39,7 @@ training:
   lambda_val: 1.0
   epsilon: 0.0
   lora_rank: 0
-  ckpt_every_steps: 500
+  ckpt_every_steps: 0
 
 # ── Hyperparameter sweep grid ─────────────────────────────────────────────────
 sweep:
