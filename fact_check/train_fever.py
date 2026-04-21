@@ -85,6 +85,11 @@ LABEL2ID = {"SUPPORTS": 0, "REFUTES": 1}
 ID2LABEL  = {v: k for k, v in LABEL2ID.items()}
 NUM_LABELS = 2   # binary; NOT ENOUGH INFO excluded at setup stage
 
+# MoritzLaurer DeBERTa-v3-large-mnli-fever-anli-ling-wanli has 3 labels:
+#   0=entailment  1=neutral  2=contradiction
+# We preserve the pretrained head and remap our binary labels onto these indices.
+DEBERTA_NLI_LABEL_MAP = {"SUPPORTS": 0, "REFUTES": 2}  # entailment / contradiction
+
 # ---------------------------------------------------------------------------
 # Dataset helpers
 # ---------------------------------------------------------------------------
@@ -104,9 +109,11 @@ class FeverDataset(Dataset):
     on the fly.
     """
 
-    def __init__(self, csv_path: str, tokenizer, max_length: int = 128):
+    def __init__(self, csv_path: str, tokenizer, max_length: int = 128,
+                 label2id: dict | None = None):
+        self.label2id = label2id or LABEL2ID
         df = pd.read_csv(csv_path)
-        df = df[df["label"].isin(LABEL2ID)].reset_index(drop=True)
+        df = df[df["label"].isin(self.label2id)].reset_index(drop=True)
         self.tokenizer  = tokenizer
         self.max_length = max_length
 
@@ -130,6 +137,7 @@ class FeverDataset(Dataset):
         clone = object.__new__(FeverDataset)
         clone.tokenizer  = self.tokenizer
         clone.max_length = self.max_length
+        clone.label2id   = self.label2id
         clone.perturbed  = False   # disables stability pairing in __getitem__
         clone.originals  = self.rows if self.perturbed else self.originals
         return clone
@@ -141,7 +149,7 @@ class FeverDataset(Dataset):
         row   = self.originals.iloc[idx]
         claim = str(row["claim"])
         evid  = str(row["evidence"])
-        label = LABEL2ID[row["label"]]
+        label = self.label2id[row["label"]]
 
         enc_clean = encode(self.tokenizer, claim, evid, self.max_length)
         item = {
@@ -196,9 +204,11 @@ class VitaminCDataset(Dataset):
     Contrastive Evidence" NAACL 2021. https://aclanthology.org/2021.naacl-main.52
     """
 
-    def __init__(self, csv_path: str, tokenizer, max_length: int = 128):
+    def __init__(self, csv_path: str, tokenizer, max_length: int = 128,
+                 label2id: dict | None = None):
+        self.label2id = label2id or LABEL2ID
         df = pd.read_csv(csv_path)
-        df = df[df["label"].isin(LABEL2ID)].reset_index(drop=True)
+        df = df[df["label"].isin(self.label2id)].reset_index(drop=True)
         self.tokenizer  = tokenizer
         self.max_length = max_length
 
@@ -218,7 +228,7 @@ class VitaminCDataset(Dataset):
 
         claim = str(anchor["claim"])
         evid  = str(anchor["evidence"])
-        label = LABEL2ID[anchor["label"]]
+        label = self.label2id[anchor["label"]]
 
         enc_clean = encode(self.tokenizer, claim, evid, self.max_length)
         item = {
@@ -244,9 +254,9 @@ class VitaminCDataset(Dataset):
 # ---------------------------------------------------------------------------
 # Stability loss
 # ---------------------------------------------------------------------------
-def supports_prob(logits: torch.Tensor) -> torch.Tensor:
+def supports_prob(logits: torch.Tensor, supports_idx: int = 0) -> torch.Tensor:
     """P(SUPPORTS) from classification logits. Shape: (B,)"""
-    return torch.softmax(logits, dim=-1)[:, LABEL2ID["SUPPORTS"]]
+    return torch.softmax(logits, dim=-1)[:, supports_idx]
 
 
 def stability_loss(
@@ -254,6 +264,7 @@ def stability_loss(
     model,
     input_ids_pert,  attention_mask_pert,
     epsilon: float,
+    supports_idx: int = 0,
 ) -> torch.Tensor:
     """
     Symmetric stability regularizer:
@@ -263,7 +274,7 @@ def stability_loss(
     the training loop already ran the model on the clean input for CE loss.
     """
     logits_pert = model(input_ids=input_ids_pert, attention_mask=attention_mask_pert).logits
-    gap = torch.abs(supports_prob(logits_clean) - supports_prob(logits_pert))
+    gap = torch.abs(supports_prob(logits_clean, supports_idx) - supports_prob(logits_pert, supports_idx))
     return torch.clamp(gap - epsilon, min=0.0).mean()
 
 
@@ -271,7 +282,12 @@ def stability_loss(
 # Evaluation
 # ---------------------------------------------------------------------------
 @torch.no_grad()
-def evaluate(model, dataloader, device, log) -> dict:
+def evaluate(model, dataloader, device, log, valid_label_indices: list[int] | None = None) -> dict:
+    """
+    valid_label_indices: for 3-class DeBERTa NLI, pass [0, 2] so argmax is taken
+    only over entailment and contradiction columns (ignoring neutral). Labels in
+    the batch are already remapped (SUPPORTS→0, REFUTES→2), so direct comparison works.
+    """
     model.eval()
     try:
         correct = total = 0
@@ -280,7 +296,13 @@ def evaluate(model, dataloader, device, log) -> dict:
             attn_mask = batch["attention_mask_clean"].to(device)
             labels    = batch["label"].to(device)
             logits = model(input_ids=input_ids, attention_mask=attn_mask).logits
-            preds  = logits.argmax(dim=-1)
+            if valid_label_indices is not None:
+                # Mask out neutral (index 1); pick argmax among valid columns only.
+                mask = torch.full(logits.shape, float("-inf"), device=device)
+                mask[:, valid_label_indices] = logits[:, valid_label_indices]
+                preds = mask.argmax(dim=-1)
+            else:
+                preds = logits.argmax(dim=-1)
             correct += (preds == labels).sum().item()
             total   += labels.size(0)
     finally:
@@ -399,13 +421,32 @@ def main(args):
         tokenizer.pad_token = tokenizer.eos_token
 
     load_path = ckpt_dir if is_resume else args.model_path
-    base = AutoModelForSequenceClassification.from_pretrained(
-        load_path,
-        num_labels=NUM_LABELS,
-        id2label=ID2LABEL,
-        label2id=LABEL2ID,
-        ignore_mismatched_sizes=not is_resume,
+
+    # DeBERTa-v3 pretrained NLI models have a 3-class head (entailment/neutral/contradiction).
+    # Overriding num_labels=2 discards the pretrained head and randomly reinitializes it,
+    # causing the model to collapse to majority-class prediction. Instead, preserve the
+    # pretrained head and remap SUPPORTS→entailment(0), REFUTES→contradiction(2) at loss time.
+    # We detect this from the saved config (works for both fresh runs and resumes).
+    import json as _json
+    _cfg_path = load_path / "config.json" if isinstance(load_path, Path) else Path(load_path) / "config.json"
+    _saved_num_labels = len(_json.load(open(_cfg_path)).get("id2label", {})) if _cfg_path.exists() else NUM_LABELS
+    is_deberta_nli = (
+        "deberta" in args.model_name.lower()
+        and _saved_num_labels == 3
     )
+    if is_deberta_nli:
+        base = AutoModelForSequenceClassification.from_pretrained(load_path)
+        log.info("DeBERTa NLI: preserving pretrained 3-class head (entailment/neutral/contradiction)")
+        log.info("Label remap: SUPPORTS→0 (entailment), REFUTES→2 (contradiction)")
+    else:
+        base = AutoModelForSequenceClassification.from_pretrained(
+            load_path,
+            num_labels=NUM_LABELS,
+            id2label=ID2LABEL,
+            label2id=LABEL2ID,
+            ignore_mismatched_sizes=not is_resume,
+        )
+    args._deberta_nli = is_deberta_nli  # propagate to loss/eval helpers
 
     if args.lora_rank > 0:
         if args.model_name == "bert_base_uncased":
@@ -430,9 +471,21 @@ def main(args):
     model.to(device)
     log.info("Model loaded and moved to %s", device)
 
+    # ── Label mapping (model-specific) ───────────────────────────────────────
+    # For DeBERTa NLI (3-class pretrained head), remap our binary labels onto
+    # entailment(0) and contradiction(2). All other models use the standard 2-class map.
+    if is_deberta_nli:
+        active_label2id      = DEBERTA_NLI_LABEL_MAP          # SUPPORTS→0, REFUTES→2
+        supports_idx         = DEBERTA_NLI_LABEL_MAP["SUPPORTS"]   # 0
+        valid_label_indices  = [0, 2]                          # ignore neutral(1) at eval
+    else:
+        active_label2id      = LABEL2ID
+        supports_idx         = LABEL2ID["SUPPORTS"]            # 0
+        valid_label_indices  = None
+
     # ── Datasets ─────────────────────────────────────────────────────────────
     log.info("Loading datasets (dataset=%s) ...", args.dataset)
-    ds_kwargs = dict(max_length=args.max_seq_len)
+    ds_kwargs = dict(max_length=args.max_seq_len, label2id=active_label2id)
 
     if args.dataset == "vitaminc":
         if not args.vitaminc_train_csv or not args.vitaminc_val_csv:
@@ -556,7 +609,7 @@ def main(args):
             if "input_ids_pert" in batch:
                 ids_p  = batch["input_ids_pert"].to(device)
                 attn_p = batch["attention_mask_pert"].to(device)
-                stab   = stability_loss(logits_clean, model, ids_p, attn_p, epsilon_val)
+                stab   = stability_loss(logits_clean, model, ids_p, attn_p, epsilon_val, supports_idx)
             else:
                 stab = torch.tensor(0.0, device=device)
 
@@ -614,8 +667,8 @@ def main(args):
                  epoch, epoch_elapsed, avg_loss, avg_ce, avg_stab)
         log.info("Running evaluation...")
 
-        val_metrics = evaluate(model, val_loader, device, log)
-        sym_metrics = evaluate(model, sym_loader, device, log)
+        val_metrics = evaluate(model, val_loader, device, log, valid_label_indices)
+        sym_metrics = evaluate(model, sym_loader, device, log, valid_label_indices)
 
         log.info(
             "Epoch %d results — val_acc=%.4f  sym_acc=%.4f",
