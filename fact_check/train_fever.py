@@ -470,7 +470,8 @@ def main(args):
     sym_loader   = DataLoader(sym_dataset,   batch_size=args.batch_size, shuffle=False, num_workers=2, pin_memory=True)
 
     # ── Optimizer + scheduler ────────────────────────────────────────────────
-    optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay=0.01)
+    # eps=1e-6 required for DeBERTa-v3 stability (default 1e-8 causes NaN)
+    optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay=0.01, eps=1e-6)
 
     total_steps  = len(train_loader) * args.epochs
     warmup_steps = int(0.06 * total_steps)
