@@ -298,7 +298,7 @@ def evaluate(model, dataloader, device, log, valid_label_indices: list[int] | No
             logits = model(input_ids=input_ids, attention_mask=attn_mask).logits
             if valid_label_indices is not None:
                 # Mask out neutral (index 1); pick argmax among valid columns only.
-                mask = torch.full(logits.shape, float("-inf"), device=device)
+                mask = torch.full(logits.shape, float("-inf"), device=device, dtype=logits.dtype)
                 mask[:, valid_label_indices] = logits[:, valid_label_indices]
                 preds = mask.argmax(dim=-1)
             else:
