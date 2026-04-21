@@ -38,24 +38,36 @@ model:
   max_seq_len: 128
 
 # ── All models ────────────────────────────────────────────────────────────────
+# Each model stanza carries its own sweep defaults. sweep_fever.py merges these
+# with the global sweep grid, with CLI flags taking highest priority.
 models:
   bert:
     name: bert_base_uncased
     hf_repo: bert-base-uncased
     max_seq_len: 128
+    sweep:
+      lrs:        [1.0e-5, 2.0e-5, 3.0e-5]
+      lora_ranks: [0]
 
   deberta:
     name: deberta_v3_large_nli
     hf_repo: MoritzLaurer/DeBERTa-v3-large-mnli-fever-anli-ling-wanli
     max_seq_len: 512
+    sweep:
+      lrs:        [5.0e-6, 1.0e-5, 2.0e-5]  # DeBERTa-v3 needs lower LR; 2e-5 causes NaN at default adam_eps
+      lora_ranks: [0]
+      batch_size: 16
 
   llama:
     name: llama3_1_8b_instruct
     hf_repo: meta-llama/Llama-3.1-8B-Instruct
     max_seq_len: 512
-    lora_rank: 16
+    sweep:
+      lrs:        [1.0e-5, 2.0e-5]
+      lora_ranks: [16]
+      batch_size: 4   # Llama 8B needs smaller batch even on L40S
 
-# ── Training hyperparameters ──────────────────────────────────────────────────
+# ── Training hyperparameters (global defaults) ────────────────────────────────
 training:
   epochs: 3
   batch_size: 16
@@ -65,9 +77,9 @@ training:
   lora_rank: 0
   ckpt_every_steps: 0
 
-# ── Hyperparameter sweep grid ─────────────────────────────────────────────────
+# ── Hyperparameter sweep grid (global defaults, overridden per model above) ───
 sweep:
   lambdas:    [0.0, 1.0, 5.0]
   lrs:        [1.0e-5, 2.0e-5, 3.0e-5]
-  epsilons:   [0.0, 0.05, 0.1, 0.5]
-  lora_ranks: [0, 8]
+  epsilons:   [0.0, 0.1, 0.5]
+  lora_ranks: [0]

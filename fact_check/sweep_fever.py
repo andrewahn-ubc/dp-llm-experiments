@@ -150,14 +150,24 @@ def main() -> None:
     model_name  = model_cfg.name
     max_seq_len = model_cfg.max_seq_len
 
-    # CLI overrides config; config is the default
+    # Per-model sweep overrides sit between global defaults and CLI flags.
+    # Priority: CLI > model.sweep > global sweep
+    model_sweep = getattr(model_cfg, "sweep", None)
+    def _model_sweep(key, global_val):
+        if model_sweep and hasattr(model_sweep, key):
+            return list(getattr(model_sweep, key))
+        return list(global_val)
+
     lambdas    = args.lambdas    or list(sweep.lambdas)
-    lrs        = args.lrs        or list(sweep.lrs)
+    lrs        = args.lrs        or _model_sweep("lrs",        sweep.lrs)
     epsilons   = args.epsilons   or list(sweep.epsilons)
-    lora_ranks = args.lora_ranks or list(sweep.lora_ranks)
-    epochs          = args.epochs          or train.epochs
-    batch_size      = args.batch_size      or train.batch_size
-    ckpt_every      = args.ckpt_every_steps or train.ckpt_every_steps
+    lora_ranks = args.lora_ranks or _model_sweep("lora_ranks", sweep.lora_ranks)
+    epochs     = args.epochs     or train.epochs
+    # batch_size: CLI > model.sweep.batch_size > training.batch_size
+    batch_size = (args.batch_size
+                  or (int(model_sweep.batch_size) if model_sweep and hasattr(model_sweep, "batch_size") else None)
+                  or train.batch_size)
+    ckpt_every = args.ckpt_every_steps or train.ckpt_every_steps
 
     slurm_script = args.slurm_script
     if not Path(slurm_script).exists():
