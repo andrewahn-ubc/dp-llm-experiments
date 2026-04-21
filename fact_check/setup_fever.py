@@ -257,11 +257,18 @@ def main() -> None:
     print("  VitaminC-trained:        ~85% VitaminC test")
     print()
     print("Next steps:")
-    print("  1. python fact_check/perturb_fever.py   (generates perturbed FEVER training data)")
-    print("  2. python fact_check/sweep_fever.py --dry-run")
-    print("  3. python fact_check/sweep_fever.py")
-    print("  4. python fact_check/sweep_fever.py --model deberta --dataset vitaminc --dry-run")
-    print("  5. python fact_check/sweep_fever.py --model llama --dataset vitaminc --lora-ranks 16 --mem 48G")
+    print("  # Experiment 1 — BERT on FEVER")
+    print("  python fact_check/perturb_fever.py   (generates perturbed training data)")
+    print("  python fact_check/sweep_fever.py --model bert --dataset fever --dry-run")
+    print("  python fact_check/sweep_fever.py --model bert --dataset fever")
+    print()
+    print("  # Experiment 2 — DeBERTa on VitaminC")
+    print("  python fact_check/sweep_fever.py --model deberta --dataset vitaminc --dry-run")
+    print("  python fact_check/sweep_fever.py --model deberta --dataset vitaminc")
+    print()
+    print("  # Experiment 3 — Llama on VitaminC (LoRA, needs 48G)")
+    print("  python fact_check/sweep_fever.py --model llama --dataset vitaminc --lora-ranks 16 --mem 48G --dry-run")
+    print("  python fact_check/sweep_fever.py --model llama --dataset vitaminc --lora-ranks 16 --mem 48G")
 
 
 if __name__ == "__main__":

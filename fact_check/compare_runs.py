@@ -92,6 +92,14 @@ def main():
         print(f"No training_log.json files found under {base}")
         return
 
+    consistency_csv = base / "consistency_eval.csv"
+    consistency_map: dict[str, dict] = {}
+    if consistency_csv.exists():
+        import pandas as pd
+        cdf = pd.read_csv(consistency_csv)
+        for _, row in cdf.iterrows():
+            consistency_map[row["run_id"]] = row.to_dict()
+
     all_entries = []
     summary_rows = []
     for log_path in logs:
@@ -105,20 +113,23 @@ def main():
     # Sort by FeverSymmetric accuracy descending
     summary_rows.sort(key=lambda r: r.get("sym_acc", 0), reverse=True)
 
+    has_consistency = bool(consistency_map)
+
     # Print table
     header = (
-        f"{'run_id':<60} {'dataset':<10} {'model':<25} {'type':<8} {'mode':<6} "
+        f"{'run_id':<60} {'dataset':<10} {'model':<25} {'mode':<6} "
         f"{'λ':>5} {'ε':>5} {'lr':>7} {'rank':>4} {'val_acc':>8} {'sym_acc':>8}"
     )
+    if has_consistency:
+        header += f" {'gap_all':>8} {'gap_wrd':>8}"
     print(header)
     print("-" * len(header))
     for r in summary_rows:
         mode = "aug" if r.get("augmentation_only") else "reg"
-        print(
+        line = (
             f"{r.get('run_id','?'):<60} "
             f"{r.get('dataset','fever'):<10} "
             f"{r.get('model_name','?'):<25} "
-            f"{r.get('model_type','encoder'):<8} "
             f"{mode:<6} "
             f"{r.get('lambda',0):>5.2f} "
             f"{r.get('epsilon',0):>5.2f} "
@@ -127,6 +138,12 @@ def main():
             f"{r.get('val_acc',0):>8.4f} "
             f"{r.get('sym_acc',0):>8.4f}"
         )
+        if has_consistency:
+            cons = consistency_map.get(r.get("run_id", ""), {})
+            gap_all = cons.get("gap_all", float("nan"))
+            gap_wrd = cons.get("gap_word_shuffle", float("nan"))
+            line += f" {gap_all:>8.4f} {gap_wrd:>8.4f}"
+        print(line)
 
     print(f"\n{len(summary_rows)} runs found.")
 
