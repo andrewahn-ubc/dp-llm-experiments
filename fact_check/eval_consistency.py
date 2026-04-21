@@ -80,19 +80,27 @@ def find_model_path(run_dir: Path) -> Path | None:
     return None
 
 
+def read_log_meta(run_dir: Path) -> dict:
+    log_path = run_dir / "training_log.json"
+    if not log_path.exists():
+        return {}
+    with open(log_path) as f:
+        entries = json.load(f)
+    return entries[-1] if entries else {}
+
+
 def load_model(run_dir: Path, device: torch.device):
     """Load tokenizer + model from a run directory. Returns (tokenizer, model)."""
     model_path = find_model_path(run_dir)
     if model_path is None:
         raise FileNotFoundError(f"No model found in {run_dir}")
 
-    log_path = run_dir / "training_log.json"
-    lora_rank = 0
-    if log_path.exists():
-        with open(log_path) as f:
-            entries = json.load(f)
-        if entries:
-            lora_rank = entries[-1].get("lora_rank", 0)
+    meta = read_log_meta(run_dir)
+    lora_rank  = meta.get("lora_rank", 0)
+    model_name = meta.get("model_name", "")
+
+    if lora_rank > 0 and model_name == "bert_base_uncased":
+        raise ValueError(f"BERT+LoRA is unsupported — run produced no valid checkpoint")
 
     tokenizer = AutoTokenizer.from_pretrained(model_path)
     if tokenizer.pad_token is None:
@@ -297,15 +305,10 @@ def main():
         print(f"\n[run {i}/{len(run_dirs)}] {run_id}", file=sys.stderr)
 
         # Read training_log.json for metadata
-        log_path = run_dir / "training_log.json"
-        if not log_path.exists():
-            print(f"  Skipping — no training_log.json", file=sys.stderr)
+        last = read_log_meta(run_dir)
+        if not last:
+            print(f"  Skipping — no training_log.json or empty", file=sys.stderr)
             continue
-        with open(log_path) as f:
-            log_entries = json.load(f)
-        if not log_entries:
-            continue
-        last = log_entries[-1]
 
         # Load model
         t0 = time.time()
