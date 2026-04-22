@@ -53,21 +53,25 @@ def build_env(model_name: str, max_seq_len: int,
               epochs: int, batch_size: int, ckpt_every_steps: int,
               resume_from: str | None, timestamp: str,
               augmentation_only: bool = False,
-              dataset: str = "fever", mem: str | None = None) -> dict[str, str]:
+              dataset: str = "fever", mem: str | None = None,
+              held_out_perturbations: list[str] | None = None,
+              loo_prefix: str = "") -> dict[str, str]:
     env = os.environ.copy()
     env.update({
-        "MODEL_NAME":        model_name,
-        "MAX_SEQ_LEN":       str(max_seq_len),
-        "LAMBDA":            fmt(lam),
-        "LR":                fmt(lr),
-        "EPSILON":           fmt(eps),
-        "LORA_RANK":         str(rank),
-        "EPOCHS":            str(epochs),
-        "BATCH_SIZE":        str(batch_size),
-        "CKPT_EVERY_STEPS":  str(ckpt_every_steps),
-        "SWEEP_TIMESTAMP":   timestamp,
-        "AUGMENTATION_ONLY": "1" if augmentation_only else "0",
-        "DATASET":           dataset,
+        "MODEL_NAME":               model_name,
+        "MAX_SEQ_LEN":              str(max_seq_len),
+        "LAMBDA":                   fmt(lam),
+        "LR":                       fmt(lr),
+        "EPSILON":                  fmt(eps),
+        "LORA_RANK":                str(rank),
+        "EPOCHS":                   str(epochs),
+        "BATCH_SIZE":               str(batch_size),
+        "CKPT_EVERY_STEPS":         str(ckpt_every_steps),
+        "SWEEP_TIMESTAMP":          timestamp,
+        "AUGMENTATION_ONLY":        "1" if augmentation_only else "0",
+        "DATASET":                  dataset,
+        "HELD_OUT_PERTURBATIONS":   " ".join(held_out_perturbations) if held_out_perturbations else "",
+        "LOO_PREFIX":               loo_prefix,
         # FC_* vars are already in os.environ (from env.sh) and forwarded
         # automatically to sbatch via os.environ.copy().
     })
@@ -126,6 +130,13 @@ def main() -> None:
     parser.add_argument("--resume-from",        default=None)
     parser.add_argument("--augmentation-only", action="store_true",
                         help="Run augmentation-only baseline (CE on all rows, λ forced to 0, no stability loss).")
+    parser.add_argument("--held-out-perturbations", nargs="*", default=[],
+                        help="Passed through to train_fever.py. Exclude these families from "
+                             "stab loss. Use --loo-sweep to run all four leave-one-out configs.")
+    parser.add_argument("--loo-sweep", action="store_true",
+                        help="Run leave-one-out sweep: submit 4 × grid jobs, one per held-out "
+                             "perturbation family. Each job trains on the other 3 families for "
+                             "the regularizer. Overrides --held-out-perturbations.")
     parser.add_argument("--slurm-script",      default="fact_check/train_fever.sh")
     parser.add_argument("--submit-delay",     type=float, default=2.0,
                         help="Seconds to wait between sbatch submissions (default: 2)")
@@ -178,11 +189,41 @@ def main() -> None:
     if model_name == "bert_base_uncased" and any(r > 0 for r in lora_ranks):
         sys.exit("ERROR: LoRA is not supported for BERT. Use --lora-ranks 0 with --model bert.")
 
+    ALL_FAMILIES = [
+        "evidence_word_shuffle",
+        "evidence_sent_shuffle",
+        "evidence_trunc",
+        "claim_synonym",
+    ]
+    LOO_SHORT_NAME = {
+        "evidence_word_shuffle": "loo_wordshuffle",
+        "evidence_sent_shuffle": "loo_sentshuffle",
+        "evidence_trunc":        "loo_trunc",
+        "claim_synonym":         "loo_synonym",
+    }
+
+    # Build list of (held_out_family_or_None, loo_prefix) configs to iterate over.
+    if args.loo_sweep:
+        loo_configs = [(f, LOO_SHORT_NAME[f]) for f in ALL_FAMILIES]
+    else:
+        held_out = args.held_out_perturbations or []
+        if held_out:
+            short = "_".join(
+                LOO_SHORT_NAME.get(f, f"loo_{f.split('_')[-1]}") for f in held_out
+            )
+            loo_configs = [(held_out, short)]
+        else:
+            loo_configs = [([], "")]
+
+    total_jobs = len(combos) * len(loo_configs)
+
     print(f"Config:    {Path(__file__).parent / 'config.yaml'}")
     print(f"Model:     {model_name}  (max_seq_len={max_seq_len})")
     print(f"Dataset:   {args.dataset}")
     print(f"Timestamp: {timestamp}")
-    print(f"Grid:      {len(combos)} jobs")
+    if args.loo_sweep:
+        print(f"Mode:      LOO sweep ({len(ALL_FAMILIES)} held-out families × {len(combos)} grid = {total_jobs} jobs)")
+    print(f"Grid:      {len(combos)} combos × {len(loo_configs)} LOO config(s) = {total_jobs} jobs")
     print(f"  lambdas={lambdas}  lrs={lrs}  epsilons={epsilons}  lora_ranks={lora_ranks}")
     print(f"  epochs={epochs}  batch={batch_size}  ckpt_every={ckpt_every}")
     if args.mem:
@@ -190,15 +231,19 @@ def main() -> None:
     if args.resume_from:
         print(f"  resume_from={args.resume_from}  (all jobs)")
     print()
-    prefix = "aug_" if args.augmentation_only else ""
+    aug_prefix = "aug_" if args.augmentation_only else ""
     print("Jobs to be submitted:")
-    for lam, lr, eps, rank in combos:
-        run_id = f"{prefix}{model_name}_{args.dataset}_lam{fmt(lam)}_eps{fmt(eps)}_lr{fmt(lr)}_rank{rank}_{timestamp}"
-        print(f"  {run_id}")
+    for held_out_val, loo_prefix in loo_configs:
+        held_out_list = [held_out_val] if isinstance(held_out_val, str) else held_out_val
+        loo_label = f"  [held-out: {held_out_val}]" if held_out_val else ""
+        for lam, lr, eps, rank in combos:
+            run_prefix = f"{loo_prefix}_" if loo_prefix else aug_prefix
+            run_id = f"{run_prefix}{model_name}_{args.dataset}_lam{fmt(lam)}_eps{fmt(eps)}_lr{fmt(lr)}_rank{rank}_{timestamp}"
+            print(f"  {run_id}{loo_label}")
     print()
 
-    if args.resume_from and len(combos) > 1:
-        sys.exit(f"ERROR: --resume-from is for a single job but grid has {len(combos)} combos. "
+    if args.resume_from and total_jobs > 1:
+        sys.exit(f"ERROR: --resume-from is for a single job but grid has {total_jobs} combos. "
                  f"Narrow the grid to exactly one lambda/lr/epsilon/rank combination.")
 
     if args.dry_run:
@@ -206,12 +251,12 @@ def main() -> None:
         return
 
     mode = "interactive (bash)" if args.interactive else "SLURM (sbatch)"
-    if args.interactive and len(combos) > 1:
-        print(f"NOTE: interactive mode runs {len(combos)} jobs sequentially in this shell.")
+    if args.interactive and total_jobs > 1:
+        print(f"NOTE: interactive mode runs {total_jobs} jobs sequentially in this shell.")
         print()
 
     try:
-        confirm = input(f"Run {len(combos)} job(s) via {mode}? [y/N] ").strip().lower()
+        confirm = input(f"Run {total_jobs} job(s) via {mode}? [y/N] ").strip().lower()
     except (EOFError, KeyboardInterrupt):
         print("\nAborted.")
         return
@@ -223,30 +268,34 @@ def main() -> None:
     print()
     succeeded, failed = [], []
 
-    for lam, lr, eps, rank in combos:
-        env    = build_env(model_name, max_seq_len, lam, lr, eps, rank,
-                           epochs, batch_size, ckpt_every, args.resume_from, timestamp,
-                           args.augmentation_only, dataset=args.dataset, mem=args.mem)
-        prefix = "aug_" if args.augmentation_only else ""
-        run_id = f"{prefix}{model_name}_{args.dataset}_lam{fmt(lam)}_eps{fmt(eps)}_lr{fmt(lr)}_rank{rank}_{timestamp}"
+    for held_out_val, loo_prefix in loo_configs:
+        held_out_list = [held_out_val] if isinstance(held_out_val, str) else held_out_val
+        for lam, lr, eps, rank in combos:
+            run_prefix = f"{loo_prefix}_" if loo_prefix else aug_prefix
+            run_id = f"{run_prefix}{model_name}_{args.dataset}_lam{fmt(lam)}_eps{fmt(eps)}_lr{fmt(lr)}_rank{rank}_{timestamp}"
+            env = build_env(model_name, max_seq_len, lam, lr, eps, rank,
+                            epochs, batch_size, ckpt_every, args.resume_from, timestamp,
+                            args.augmentation_only, dataset=args.dataset, mem=args.mem,
+                            held_out_perturbations=held_out_list,
+                            loo_prefix=loo_prefix)
 
-        if args.interactive:
-            print(f"── Running {run_id} ──")
-            ok = run_interactive(slurm_script, env)
-            if ok:
-                print(f"  Done  →  {run_id}")
-                succeeded.append(run_id)
+            if args.interactive:
+                print(f"── Running {run_id} ──")
+                ok = run_interactive(slurm_script, env)
+                if ok:
+                    print(f"  Done  →  {run_id}")
+                    succeeded.append(run_id)
+                else:
+                    print(f"  FAILED  →  {run_id}", file=sys.stderr)
+                    failed.append(run_id)
             else:
-                print(f"  FAILED  →  {run_id}", file=sys.stderr)
-                failed.append(run_id)
-        else:
-            job_id = submit(slurm_script, env, mem=args.mem)
-            if job_id is None:
-                failed.append(run_id)
-            else:
-                print(f"  Submitted {job_id}  →  {run_id}")
-                succeeded.append(job_id)
-            time.sleep(args.submit_delay)
+                job_id = submit(slurm_script, env, mem=args.mem)
+                if job_id is None:
+                    failed.append(run_id)
+                else:
+                    print(f"  Submitted {job_id}  →  {run_id}")
+                    succeeded.append(job_id)
+                time.sleep(args.submit_delay)
 
     print()
     print(f"{'Ran' if args.interactive else 'Submitted'} {len(succeeded)} / {len(combos)} jobs.")

@@ -110,12 +110,14 @@ class FeverDataset(Dataset):
     """
 
     def __init__(self, csv_path: str, tokenizer, max_length: int = 128,
-                 label2id: dict | None = None):
+                 label2id: dict | None = None,
+                 held_out_perturbations: set[str] = frozenset()):
         self.label2id = label2id or LABEL2ID
         df = pd.read_csv(csv_path)
         df = df[df["label"].isin(self.label2id)].reset_index(drop=True)
         self.tokenizer  = tokenizer
         self.max_length = max_length
+        self.held_out_perturbations = held_out_perturbations
 
         if "original_claim" in df.columns:
             self.perturbed = True
@@ -138,9 +140,13 @@ class FeverDataset(Dataset):
         clone.tokenizer  = self.tokenizer
         clone.max_length = self.max_length
         clone.label2id   = self.label2id
+        clone.held_out_perturbations = self.held_out_perturbations
         clone.perturbed  = False   # disables stability pairing in __getitem__
         clone.originals  = self.rows if self.perturbed else self.originals
         return clone
+
+    def _encode(self, claim: str, evid: str) -> dict:
+        return encode(self.tokenizer, claim, evid, self.max_length)
 
     def __len__(self):
         return len(self.originals)
@@ -151,7 +157,7 @@ class FeverDataset(Dataset):
         evid  = str(row["evidence"])
         label = self.label2id[row["label"]]
 
-        enc_clean = encode(self.tokenizer, claim, evid, self.max_length)
+        enc_clean = self._encode(claim, evid)
         item = {
             "input_ids_clean":      enc_clean["input_ids"].squeeze(0),
             "attention_mask_clean": enc_clean["attention_mask"].squeeze(0),
@@ -162,14 +168,25 @@ class FeverDataset(Dataset):
             key       = (claim, evid)   # already str() from above
             pert_idxs = self.orig_groups.get(key, [])
             if pert_idxs:
-                pert_row   = self.rows.loc[random.choice(pert_idxs)]
-                pert_claim = str(pert_row["claim"])
-                pert_evid  = str(pert_row["evidence"])
+                eligible = [
+                    i for i in pert_idxs
+                    if self.rows.loc[i, "perturbation_type"] not in self.held_out_perturbations
+                ] if self.held_out_perturbations else pert_idxs
+                if eligible:
+                    pert_row   = self.rows.loc[random.choice(eligible)]
+                    pert_claim = str(pert_row["claim"])
+                    pert_evid  = str(pert_row["evidence"])
+                else:
+                    # all neighbors are held out — use clean as its own pair (stab = 0)
+                    enc_pert = self._encode(claim, evid)
+                    item["input_ids_pert"]      = enc_pert["input_ids"].squeeze(0)
+                    item["attention_mask_pert"] = enc_pert["attention_mask"].squeeze(0)
+                    return item
             else:
                 pert_claim = claim
                 pert_evid  = evid
 
-            enc_pert = encode(self.tokenizer, pert_claim, pert_evid, self.max_length)
+            enc_pert = self._encode(pert_claim, pert_evid)
             item["input_ids_pert"]      = enc_pert["input_ids"].squeeze(0)
             item["attention_mask_pert"] = enc_pert["attention_mask"].squeeze(0)
 
@@ -485,6 +502,9 @@ def main(args):
 
     # ── Datasets ─────────────────────────────────────────────────────────────
     log.info("Loading datasets (dataset=%s) ...", args.dataset)
+    held_out = set(args.held_out_perturbations) if args.held_out_perturbations else set()
+    if held_out:
+        log.info("Held-out perturbations (excluded from stab loss): %s", sorted(held_out))
     ds_kwargs = dict(max_length=args.max_seq_len, label2id=active_label2id)
 
     if args.dataset == "vitaminc":
@@ -496,7 +516,8 @@ def main(args):
     elif args.dataset == "fever":
         if not args.train_csv or not args.val_csv:
             raise ValueError("--train-csv and --val-csv are required when --dataset fever")
-        train_dataset = FeverDataset(args.train_csv, tokenizer, **ds_kwargs)
+        train_dataset = FeverDataset(args.train_csv, tokenizer, **ds_kwargs,
+                                     held_out_perturbations=held_out)
         val_dataset   = FeverDataset(args.val_csv,   tokenizer, **ds_kwargs)
     else:
         raise ValueError(f"Unknown dataset: {args.dataset!r}. Expected 'fever' or 'vitaminc'.")
@@ -685,21 +706,22 @@ def main(args):
         })
 
         epoch_record = {
-            "epoch":              epoch,
-            "loss":               avg_loss,
-            "ce":                 avg_ce,
-            "stab":               avg_stab,
-            "val_acc":            val_metrics["accuracy"],
-            "sym_acc":            sym_metrics["accuracy"],
-            "lambda":             args.lambda_val,
-            "epsilon":            args.epsilon,
-            "lr":                 args.lr,
-            "lora_rank":          args.lora_rank,
-            "augmentation_only":  args.augmentation_only,
-            "model_name":         args.model_name,
-            "dataset":            args.dataset,
-            "run_id":             args.run_id,
-            "global_step":        global_step,
+            "epoch":                   epoch,
+            "loss":                    avg_loss,
+            "ce":                      avg_ce,
+            "stab":                    avg_stab,
+            "val_acc":                 val_metrics["accuracy"],
+            "sym_acc":                 sym_metrics["accuracy"],
+            "lambda":                  args.lambda_val,
+            "epsilon":                 args.epsilon,
+            "lr":                      args.lr,
+            "lora_rank":               args.lora_rank,
+            "augmentation_only":       args.augmentation_only,
+            "model_name":              args.model_name,
+            "dataset":                 args.dataset,
+            "run_id":                  args.run_id,
+            "global_step":             global_step,
+            "held_out_perturbations":  sorted(held_out),
         }
         log_rows.append(epoch_record)
 
@@ -775,6 +797,12 @@ if __name__ == "__main__":
                         help="Path to vitaminc_train.csv (required when --dataset vitaminc)")
     parser.add_argument("--vitaminc-val-csv",   default="",
                         help="Path to vitaminc_val.csv (required when --dataset vitaminc)")
+    parser.add_argument("--held-out-perturbations", nargs="*", default=[],
+                        help="Perturbation families to exclude from the stability loss pairing. "
+                             "These families still appear in the training CSV and contribute CE "
+                             "signal, but are never used as the (h, h') neighbor pair for the "
+                             "regularizer. Used for leave-one-out generalization eval. "
+                             "Example: --held-out-perturbations claim_synonym")
 
     args = parser.parse_args()
     main(args)

@@ -19,7 +19,10 @@ METRICS
 -------
   gap_<perturbation_type>  mean |P(SUPPORTS|clean) - P(SUPPORTS|pert)|
                            lower = more consistent = better
+  gap_indist               mean gap over in-distribution families (regularizer saw them)
+  gap_ood                  mean gap over OOD (held-out) families only
   gap_all                  mean across all perturbation families
+  ood_family               which family was held out (empty string if none / baseline run)
   val_acc                  standard FEVER dev accuracy (sanity check)
   sym_acc                  FeverSymmetric accuracy (secondary, ~50% expected
                            for Experiment 1 — reported for completeness)
@@ -28,6 +31,9 @@ USAGE
 -----
   # Evaluate all runs from a specific sweep
   python fact_check/eval_consistency.py --filter 20260420_161433
+
+  # Evaluate all LOO runs
+  python fact_check/eval_consistency.py --filter loo_ --batch-size 64 --device cuda
 
   # Evaluate specific runs
   python fact_check/eval_consistency.py \\
@@ -45,6 +51,7 @@ import random
 import statistics
 import sys
 import time
+from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
 
@@ -67,10 +74,8 @@ from torch.utils.data import DataLoader
 
 def find_model_path(run_dir: Path) -> Path | None:
     """Return the path to load the model from: final dir or latest epoch checkpoint."""
-    # Final saved model in run dir itself
     if (run_dir / "config.json").exists():
         return run_dir
-    # Epoch checkpoints
     ckpt_base = run_dir / "checkpoints"
     if ckpt_base.exists():
         epoch_dirs = sorted(ckpt_base.glob("epoch_*"),
@@ -171,7 +176,7 @@ def eval_consistency(
 
     Returns dict: perturbation_type -> {"mean_gap": float, "std": float, "n": int}
     """
-    claims   = val_df["claim"].astype(str).tolist()
+    claims    = val_df["claim"].astype(str).tolist()
     evidences = val_df["evidence"].astype(str).tolist()
     n = len(claims)
 
@@ -191,7 +196,6 @@ def eval_consistency(
     for ptype in perturbation_types:
         fn = PERTURBATION_FNS[ptype]
 
-        # Build perturbed inputs
         pert_claims, pert_evids, valid_indices = [], [], []
         for i, (claim, evid) in enumerate(zip(claims, evidences)):
             if ptype in CLAIM_PERTURBATIONS:
@@ -215,7 +219,6 @@ def eval_consistency(
             results[ptype] = {"mean_gap": 0.0, "std": 0.0, "n": 0}
             continue
 
-        # Get perturbed P(SUPPORTS) in batches
         pert_probs = []
         for start in range(0, len(valid_indices), batch_size):
             batch_claims = pert_claims[start:start + batch_size]
@@ -225,7 +228,7 @@ def eval_consistency(
             logits = model(input_ids=enc["input_ids"],
                            attention_mask=enc["attention_mask"]).logits
             pert_probs.append(supports_prob(logits).cpu())
-        pert_probs = torch.cat(pert_probs)  # (len(valid_indices),)
+        pert_probs = torch.cat(pert_probs)
 
         clean_subset = clean_probs[valid_indices]
         gaps = torch.abs(clean_subset - pert_probs)
@@ -304,11 +307,16 @@ def main():
         run_id = run_dir.name
         print(f"\n[run {i}/{len(run_dirs)}] {run_id}", file=sys.stderr)
 
-        # Read training_log.json for metadata
         last = read_log_meta(run_dir)
         if not last:
             print(f"  Skipping — no training_log.json or empty", file=sys.stderr)
             continue
+
+        # Read held-out perturbations from log (empty for baseline/non-LOO runs)
+        held_out = set(last.get("held_out_perturbations", []))
+        ood_family = ", ".join(sorted(held_out)) if held_out else "none"
+        if held_out:
+            print(f"  Held-out (OOD) family: {ood_family}", file=sys.stderr)
 
         # Load model
         t0 = time.time()
@@ -340,19 +348,23 @@ def main():
             args.perturbations, args.max_seq_len, args.batch_size, device, rng,
         )
 
-        gap_values = []
+        indist_gaps, ood_gaps = [], []
         for ptype, res in consistency.items():
-            print(f"    {ptype:<25}: n={res['n']:<6} mean_gap={res['mean_gap']:.4f}  std={res['std']:.4f}",
+            tag = "[OOD]  " if ptype in held_out else "[TRAIN]"
+            print(f"    {ptype:<25} {tag} : n={res['n']:<6} mean_gap={res['mean_gap']:.4f}  std={res['std']:.4f}",
                   file=sys.stderr)
-            gap_values.append(res["mean_gap"])
+            if ptype in held_out:
+                ood_gaps.append(res["mean_gap"])
+            else:
+                indist_gaps.append(res["mean_gap"])
 
-        gap_all = sum(gap_values) / len(gap_values) if gap_values else 0.0
-        all_gaps_flat = []
-        for ptype in args.perturbations:
-            res = consistency.get(ptype, {})
-            all_gaps_flat.append(res.get("mean_gap", 0.0))
-        gap_std = statistics.stdev(all_gaps_flat) if len(all_gaps_flat) > 1 else 0.0
-        print(f"    gap_all={gap_all:.4f}", file=sys.stderr)
+        gap_indist = sum(indist_gaps) / len(indist_gaps) if indist_gaps else float("nan")
+        gap_ood    = sum(ood_gaps)    / len(ood_gaps)    if ood_gaps    else float("nan")
+        all_gap_values = indist_gaps + ood_gaps
+        gap_all = sum(all_gap_values) / len(all_gap_values) if all_gap_values else 0.0
+        gap_std = statistics.stdev(all_gap_values) if len(all_gap_values) > 1 else 0.0
+        print(f"    gap_indist={gap_indist:.4f}  gap_ood={'nan' if gap_ood != gap_ood else f'{gap_ood:.4f}'}  gap_all={gap_all:.4f}",
+              file=sys.stderr)
 
         row = {
             "run_id":           run_id,
@@ -360,12 +372,15 @@ def main():
             "epsilon":          last.get("epsilon", 0),
             "lr":               last.get("lr", 0),
             "lora_rank":        last.get("lora_rank", 0),
+            "ood_family":       ood_family,
             "val_acc":          val_acc,
             "sym_acc":          sym_acc,
             "gap_word_shuffle": consistency.get("evidence_word_shuffle", {}).get("mean_gap", None),
             "gap_sent_shuffle": consistency.get("evidence_sent_shuffle", {}).get("mean_gap", None),
             "gap_trunc":        consistency.get("evidence_trunc",        {}).get("mean_gap", None),
             "gap_synonym":      consistency.get("claim_synonym",         {}).get("mean_gap", None),
+            "gap_indist":       gap_indist,
+            "gap_ood":          gap_ood,
             "gap_all":          gap_all,
             "gap_std":          gap_std,
             "model_path":       str(find_model_path(run_dir)),
@@ -390,33 +405,57 @@ def main():
     combined.to_csv(output_csv, index=False)
     print(f"\nResults written to {output_csv}", file=sys.stderr)
 
-    # Print sorted table to stdout
-    display = new_df.sort_values("gap_all")
-    cols = ["run_id", "lambda", "epsilon", "lr", "lora_rank",
-            "val_acc", "sym_acc", "gap_word_shuffle", "gap_sent_shuffle",
-            "gap_trunc", "gap_synonym", "gap_all"]
-    col_w = {
-        "run_id": 65, "lambda": 5, "epsilon": 5, "lr": 7, "lora_rank": 4,
-        "val_acc": 8, "sym_acc": 8,
-        "gap_word_shuffle": 12, "gap_sent_shuffle": 12,
-        "gap_trunc": 9, "gap_synonym": 10, "gap_all": 8,
-    }
+    # ── Per-family grouped table ─────────────────────────────────────────────
+    loo_df = new_df[new_df["ood_family"] != "none"].copy()
+    baseline_df = new_df[new_df["ood_family"] == "none"].copy()
+
+    if not baseline_df.empty:
+        print("\n── Baseline runs (no held-out family) ──────────────────────────────")
+        _print_run_table(baseline_df.sort_values("gap_all"))
+
+    if not loo_df.empty:
+        for fam in sorted(loo_df["ood_family"].unique()):
+            subset = loo_df[loo_df["ood_family"] == fam].sort_values("lambda")
+            print(f"\nOOD family: {fam}")
+            _print_run_table(subset, indent="  ")
+
+        # Generalization summary: mean gap_ood by lambda, averaged across OOD families
+        loo_df_valid = loo_df[loo_df["gap_ood"].notna()]
+        if not loo_df_valid.empty:
+            print("\nGeneralization summary (mean gap_ood by λ, averaged across all OOD families):")
+            for lam_val in sorted(loo_df_valid["lambda"].unique()):
+                sub = loo_df_valid[loo_df_valid["lambda"] == lam_val]["gap_ood"]
+                mean_v = sub.mean()
+                std_v  = sub.std() if len(sub) > 1 else 0.0
+                print(f"  λ={lam_val:<5.2f}  gap_ood={mean_v:.4f} ± {std_v:.4f}  (n={len(sub)} runs)")
+
+    print(f"\n{len(new_rows)} run(s) evaluated.")
+
+
+def _print_run_table(df: pd.DataFrame, indent: str = "") -> None:
     header = (
-        f"{'run_id':<65} {'λ':>5} {'ε':>5} {'lr':>7} {'rank':>4} "
+        f"{indent}{'run_id':<65} {'λ':>5} {'ε':>5} {'lr':>7} {'rank':>4} "
         f"{'val_acc':>8} {'sym_acc':>8} "
-        f"{'gap_wrd':>9} {'gap_snt':>9} {'gap_trn':>9} {'gap_syn':>9} {'gap_all':>8}"
+        f"{'gap_wrd':>9} {'gap_snt':>9} {'gap_trn':>9} {'gap_syn':>9} "
+        f"{'gap_in':>8} {'gap_ood':>8} {'gap_all':>8}"
     )
     print(header)
-    print("-" * len(header))
-    for _, r in display.iterrows():
+    print(indent + "-" * (len(header) - len(indent)))
+
+    def _fmt(v) -> str:
+        if v is None or (isinstance(v, float) and v != v):
+            return f"{'nan':>8}"
+        return f"{v:>8.4f}"
+
+    for _, r in df.iterrows():
         print(
-            f"{r['run_id']:<65} "
+            f"{indent}{r['run_id']:<65} "
             f"{r['lambda']:>5.2f} {r['epsilon']:>5.2f} {r['lr']:>7.0e} {int(r['lora_rank']):>4} "
             f"{r['val_acc']:>8.4f} {r['sym_acc']:>8.4f} "
-            f"{r['gap_word_shuffle']:>9.4f} {r['gap_sent_shuffle']:>9.4f} "
-            f"{r['gap_trunc']:>9.4f} {r['gap_synonym']:>9.4f} {r['gap_all']:>8.4f}"
+            f"{_fmt(r.get('gap_word_shuffle'))} {_fmt(r.get('gap_sent_shuffle'))} "
+            f"{_fmt(r.get('gap_trunc'))} {_fmt(r.get('gap_synonym'))} "
+            f"{_fmt(r.get('gap_indist'))} {_fmt(r.get('gap_ood'))} {r['gap_all']:>8.4f}"
         )
-    print(f"\n{len(new_rows)} run(s) evaluated.")
 
 
 if __name__ == "__main__":

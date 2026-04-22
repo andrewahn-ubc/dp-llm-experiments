@@ -16,10 +16,18 @@
 # hyperparameter env vars:
 #   LAMBDA, LR, EPSILON, LORA_RANK, EPOCHS, BATCH_SIZE, CKPT_EVERY_STEPS,
 #   MODEL_NAME, MAX_SEQ_LEN, DATASET
-# and optionally RESUME_FROM for resuming an interrupted run.
+# and optionally:
+#   RESUME_FROM              — path to checkpoint dir for resuming an interrupted run
+#   HELD_OUT_PERTURBATIONS   — space-separated families excluded from stab loss
+#                              (e.g. "claim_synonym" or "evidence_trunc claim_synonym")
+#   LOO_PREFIX               — short prefix for leave-one-out run IDs (e.g. "loo_synonym")
 #
 # To submit a single run manually:
 #   LAMBDA=1.0 LR=2e-5 DATASET=fever sbatch fact_check/train_fever.sh
+#
+# To submit a LOO run manually:
+#   LAMBDA=1.0 LR=2e-5 LOO_PREFIX=loo_synonym \
+#   HELD_OUT_PERTURBATIONS="claim_synonym" sbatch fact_check/train_fever.sh
 #
 # For Llama, pass --mem=48G to sbatch (via sweep_fever.py --mem 48G)
 # =============================================================================
@@ -53,7 +61,9 @@ RESUME_FROM="${RESUME_FROM:-}"
 AUGMENTATION_ONLY="${AUGMENTATION_ONLY:-0}"
 MAX_SEQ_LEN="${MAX_SEQ_LEN:-128}"
 DATASET="${DATASET:-fever}"
-export AUGMENTATION_ONLY MAX_SEQ_LEN DATASET
+HELD_OUT_PERTURBATIONS="${HELD_OUT_PERTURBATIONS:-}"
+LOO_PREFIX="${LOO_PREFIX:-}"
+export AUGMENTATION_ONLY MAX_SEQ_LEN DATASET HELD_OUT_PERTURBATIONS LOO_PREFIX
 
 # On resume, read the original timestamp from the checkpoint so the output dir
 # and run ID stay consistent with the original sweep.
@@ -66,6 +76,7 @@ fi
 
 RUN_PREFIX=""
 [ "${AUGMENTATION_ONLY}" = "1" ] && RUN_PREFIX="aug_"
+[ -n "${LOO_PREFIX}" ] && RUN_PREFIX="${LOO_PREFIX}_"
 RUN_ID="${RUN_PREFIX}${MODEL_NAME}_${DATASET}_lam${LAMBDA}_eps${EPSILON}_lr${LR}_rank${LORA_RANK}_${SWEEP_TIMESTAMP}"
 OUTPUT_PATH="${OUTPUT_ROOT}/${RUN_ID}"
 mkdir -p "${SLURM_LOG_DIR}" "${OUTPUT_PATH}"
@@ -159,8 +170,15 @@ echo "[env] CUDA_VISIBLE_DEVICES=${CUDA_VISIBLE_DEVICES}"
 python -c "import torch; print('[env] GPU:', torch.cuda.get_device_name(0))"
 
 # ── Build resume flag ─────────────────────────────────────────────────────────
-RESUME_FLAG=""
-[ -n "${RESUME_FROM}" ] && RESUME_FLAG="--resume-from-checkpoint ${RESUME_FROM}"
+RESUME_FLAG=()
+[ -n "${RESUME_FROM}" ] && RESUME_FLAG=(--resume-from-checkpoint "${RESUME_FROM}")
+
+# ── Build held-out-perturbations flag (space-separated string → array of args) ──
+HELD_OUT_FLAG=()
+if [ -n "${HELD_OUT_PERTURBATIONS}" ]; then
+    read -ra _HELD_OUT_ARRAY <<< "${HELD_OUT_PERTURBATIONS}"
+    HELD_OUT_FLAG=(--held-out-perturbations "${_HELD_OUT_ARRAY[@]}")
+fi
 
 # ── Run ───────────────────────────────────────────────────────────────────────
 cd "${TMP_REPO}"
@@ -184,7 +202,8 @@ python -m fact_check.train_fever \
     --epochs              "${EPOCHS}"             \
     --lora-rank           "${LORA_RANK}"          \
     --ckpt-every-steps    "${CKPT_EVERY_STEPS}"   \
-    ${RESUME_FLAG}
+    "${RESUME_FLAG[@]}"   \
+    "${HELD_OUT_FLAG[@]}"
 
 echo ""
 echo "==================================================================="
