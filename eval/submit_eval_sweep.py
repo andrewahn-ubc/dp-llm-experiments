@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 """
-Submit SLURM evaluation jobs for the 75-config training sweep.
+Submit SLURM evaluation jobs for the training sweep.
 
-Each SLURM job runs `eval_sweep.py` three times — once for epoch 1, 3, and 5 —
-against the checkpoints produced by the corresponding training job. With the
-default --epochs, this totals 75 jobs × 3 eval passes = 225 evaluated
-checkpoints.
+Each SLURM job runs `eval_sweep.py` once per epoch in --epochs against the
+checkpoints produced by the corresponding training job. The hyperparameter
+grid is kept in sync with train/submit_wandb_sweep.py; with the current
+follow-up sweep (1 × 3 × 3 = 9 configs) and default --epochs (1, 3, 5),
+this totals 9 jobs × 3 eval passes = 27 evaluated checkpoints.
 
 The hyperparameter grid is intentionally kept in sync with
 `train/submit_wandb_sweep.py` so the slugs match exactly and we can look up the
@@ -36,10 +37,14 @@ import sys
 import uuid
 from pathlib import Path
 
-# Keep in sync with train/submit_wandb_sweep.py (3 × 5 × 5 = 75 configs)
-LEARNING_RATES = (1e-6, 1e-5, 2e-5)
-LAMBDAS = (0.1, 0.3, 1.0, 3.0, 10.0)
-EPSILONS = (-1.0, -0.5, 0.0, 0.5, 1.0)
+# Keep in sync with train/submit_wandb_sweep.py (follow-up sweep: 1 × 3 × 3 = 9 configs)
+# Previous sweep:
+# LEARNING_RATES = (1e-6, 1e-5, 2e-5)
+# LAMBDAS = (0.1, 0.3, 1.0, 3.0, 10.0)
+# EPSILONS = (-1.0, -0.5, 0.0, 0.5, 1.0)
+LEARNING_RATES = (1e-5,)
+LAMBDAS = (10.0, 20.0, 30.0)
+EPSILONS = (1.0, 1.5, 2.0)
 
 DEFAULT_EVAL_EPOCHS = (1, 3, 5)
 
