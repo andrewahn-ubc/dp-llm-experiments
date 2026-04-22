@@ -24,6 +24,14 @@ from pathlib import Path
 
 import pandas as pd
 
+# Default location is alongside this script (eval/), so the aggregator works
+# out-of-the-box when run on a local laptop after copying CSVs down from the
+# cluster. Pass --summary-file / --eval-output-root / --out-dir to override.
+_HERE = Path(__file__).resolve().parent
+DEFAULT_SUMMARY = _HERE / "summary.tsv"
+DEFAULT_EVAL_ROOT = _HERE
+DEFAULT_OUT_DIR = _HERE
+
 HARMFUL_RE = re.compile(r"(?P<slug>.+)_epoch(?P<epoch>\d+)_harmful\.csv$")
 BENIGN_RE = re.compile(r"(?P<slug>.+)_epoch(?P<epoch>\d+)_benign\.csv$")
 
@@ -101,18 +109,20 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument(
         "--summary-file",
-        default=os.path.expandvars("$SCRATCH/dp-llm-eval/summary.tsv"),
-        help="TSV produced by eval_sweep.py (append-only).",
+        default=str(DEFAULT_SUMMARY),
+        help="TSV produced by eval_sweep.py (append-only). "
+             f"Default: {DEFAULT_SUMMARY}",
     )
     ap.add_argument(
         "--eval-output-root",
-        default=os.path.expandvars("$SCRATCH/dp-llm-eval"),
-        help="Directory containing *_harmful.csv / *_benign.csv (used if summary is missing).",
+        default=str(DEFAULT_EVAL_ROOT),
+        help="Directory containing *_harmful.csv / *_benign.csv (used if summary is missing). "
+             f"Default: {DEFAULT_EVAL_ROOT}",
     )
     ap.add_argument(
         "--out-dir",
-        default=os.path.expandvars("$SCRATCH/dp-llm-eval"),
-        help="Where aggregated CSVs are written.",
+        default=str(DEFAULT_OUT_DIR),
+        help=f"Where aggregated CSVs are written. Default: {DEFAULT_OUT_DIR}",
     )
     args = ap.parse_args()
 
@@ -167,22 +177,45 @@ def main() -> None:
             pvt.to_csv(out_dir / f"eval_pivot_{fam}_asr.csv")
             print(f"Wrote {fam} ASR pivot: {out_dir / f'eval_pivot_{fam}_asr.csv'}")
 
-    # Top-10 best & worst by mean_asr at the latest available epoch
+    # Top-10 best & worst by mean_asr at every evaluated epoch
     if "mean_asr" in df.columns:
-        last_epoch = int(df["epoch"].max())
-        last = df[df["epoch"] == last_epoch].sort_values("mean_asr")
-        print(f"\nBest 10 configs at epoch {last_epoch} (lowest mean_asr):")
-        print(
-            last.head(10)[
-                ["slug", "mean_asr", "gcg_asr", "autodan_asr", "pair_asr", "refusal_rate"]
-            ].to_string(index=False)
-        )
-        print(f"\nWorst 10 configs at epoch {last_epoch} (highest mean_asr):")
-        print(
-            last.tail(10)[
-                ["slug", "mean_asr", "gcg_asr", "autodan_asr", "pair_asr", "refusal_rate"]
-            ].to_string(index=False)
-        )
+        display_cols = [
+            "slug",
+            "mean_asr",
+            "gcg_asr",
+            "autodan_asr",
+            "pair_asr",
+            "refusal_rate",
+        ]
+        epochs = sorted(int(e) for e in df["epoch"].dropna().unique())
+        leaderboard_rows: list[pd.DataFrame] = []
+        for ep in epochs:
+            sub = df[df["epoch"] == ep].copy()
+            if sub.empty or sub["mean_asr"].isna().all():
+                print(f"\nEpoch {ep}: no mean_asr values available, skipping leaderboard")
+                continue
+            sub = sub.sort_values("mean_asr", na_position="last")
+            best = sub.head(10)
+            worst = sub.dropna(subset=["mean_asr"]).tail(10).iloc[::-1]
+
+            print(f"\nBest 10 configs at epoch {ep} (lowest mean_asr):")
+            print(best[display_cols].to_string(index=False))
+            print(f"\nWorst 10 configs at epoch {ep} (highest mean_asr):")
+            print(worst[display_cols].to_string(index=False))
+
+            best_lb = best[display_cols].assign(epoch=ep, rank_type="best")
+            worst_lb = worst[display_cols].assign(epoch=ep, rank_type="worst")
+            leaderboard_rows.append(best_lb)
+            leaderboard_rows.append(worst_lb)
+
+        if leaderboard_rows:
+            leaderboard = pd.concat(leaderboard_rows, ignore_index=True)
+            leaderboard = leaderboard[
+                ["epoch", "rank_type"] + display_cols
+            ]
+            lb_path = out_dir / "eval_leaderboard.csv"
+            leaderboard.to_csv(lb_path, index=False)
+            print(f"\nWrote per-epoch best/worst leaderboard: {lb_path}")
 
 
 if __name__ == "__main__":

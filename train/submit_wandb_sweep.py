@@ -31,10 +31,14 @@ import sys
 import uuid
 from pathlib import Path
 
-# Grid from your sweep spec (Cartesian product = 3 * 5 * 5 = 75 jobs)
-LEARNING_RATES = (1e-6, 1e-5, 2e-5)
-LAMBDAS = (0.1, 0.3, 1.0, 3.0, 10.0)
-EPSILONS = (-1.0, -0.5, 0.0, 0.5, 1.0)
+# Follow-up sweep (Cartesian product = 1 * 3 * 3 = 9 jobs)
+# Previous sweep:
+# LEARNING_RATES = (1e-6, 1e-5, 2e-5)
+# LAMBDAS = (0.1, 0.3, 1.0, 3.0, 10.0)
+# EPSILONS = (-1.0, -0.5, 0.0, 0.5, 1.0)
+LEARNING_RATES = (1e-5,)
+LAMBDAS = (10.0, 20.0, 30.0)
+EPSILONS = (1.0, 1.5, 2.0)
 
 
 def make_run_slug(lr: float, lam: float, eps: float) -> str:
