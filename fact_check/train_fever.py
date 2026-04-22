@@ -284,15 +284,32 @@ def stability_loss(
     supports_idx: int = 0,
 ) -> torch.Tensor:
     """
-    Symmetric stability regularizer:
-        max(0, |P_SUPPORTS(clean) - P_SUPPORTS(pert)| - epsilon)
+    Symmetric stability regularizer matching the paper's formulation.
+
+    The safety training code (train.py) implements the asymmetric hinge:
+        [C_pert - exp(ε) * C_clean]+
+
+    For fact-checking there is no safe anchor — both inputs are valid surface
+    forms of the same fact — so we use the two-sided (symmetric) version:
+        [p_clean - exp(ε) * p_pert]+  +  [p_pert - exp(ε) * p_clean]+
+
+    This penalizes whenever either direction of the ratio is violated, i.e.
+    when p_clean / p_pert > exp(ε)  OR  p_pert / p_clean > exp(ε).
+    At ε=0, exp(ε)=1 and this reduces to |p_clean - p_pert|, matching the
+    previous additive behaviour exactly.
 
     Takes pre-computed clean logits to avoid a redundant forward pass —
     the training loop already ran the model on the clean input for CE loss.
     """
     logits_pert = model(input_ids=input_ids_pert, attention_mask=attention_mask_pert).logits
-    gap = torch.abs(supports_prob(logits_clean, supports_idx) - supports_prob(logits_pert, supports_idx))
-    return torch.clamp(gap - epsilon, min=0.0).mean()
+    p_clean = supports_prob(logits_clean, supports_idx)
+    p_pert  = supports_prob(logits_pert,  supports_idx)
+    exp_eps = torch.exp(torch.tensor(epsilon, device=p_clean.device, dtype=p_clean.dtype))
+    violation = (
+        torch.clamp(p_clean - exp_eps * p_pert, min=0.0) +
+        torch.clamp(p_pert  - exp_eps * p_clean, min=0.0)
+    )
+    return violation.mean()
 
 
 # ---------------------------------------------------------------------------
