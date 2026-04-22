@@ -96,16 +96,16 @@ def read_log_meta(run_dir: Path) -> dict:
 
 def load_model(run_dir: Path, device: torch.device):
     """Load tokenizer + model from a run directory. Returns (tokenizer, model)."""
-    model_path = find_model_path(run_dir)
-    if model_path is None:
-        raise FileNotFoundError(f"No model found in {run_dir}")
-
     meta = read_log_meta(run_dir)
     lora_rank  = meta.get("lora_rank", 0)
     model_name = meta.get("model_name", "")
 
     if lora_rank > 0 and model_name == "bert_base_uncased":
-        raise ValueError(f"BERT+LoRA is unsupported — run produced no valid checkpoint")
+        raise ValueError("BERT+LoRA is unsupported — skipping")
+
+    model_path = find_model_path(run_dir)
+    if model_path is None:
+        raise FileNotFoundError(f"No model found in {run_dir}")
 
     tokenizer = AutoTokenizer.from_pretrained(model_path)
     if tokenizer.pad_token is None:
@@ -137,7 +137,7 @@ def load_model(run_dir: Path, device: torch.device):
 def eval_accuracy(model, csv_path: str, tokenizer, max_seq_len: int,
                   batch_size: int, device: torch.device) -> float:
     ds = FeverDataset(csv_path, tokenizer, max_length=max_seq_len)
-    loader = DataLoader(ds, batch_size=batch_size, shuffle=False, num_workers=2)
+    loader = DataLoader(ds, batch_size=batch_size, shuffle=False, num_workers=1)
     correct = total = 0
     for batch in loader:
         ids  = batch["input_ids_clean"].to(device)
