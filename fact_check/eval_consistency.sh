@@ -72,6 +72,8 @@ echo "[stage] data ready"
 module purge
 module load StdEnv/2023 gcc python/3.11 arrow/21.0.0
 
+export LD_LIBRARY_PATH="${LD_LIBRARY_PATH:-}"
+
 TMP_VENV="${SLURM_TMPDIR}/venv"
 echo "[env] rsyncing venv ${VENV} → ${TMP_VENV}"
 rsync -a "${VENV}/" "${TMP_VENV}/"
