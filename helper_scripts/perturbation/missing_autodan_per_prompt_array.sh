@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name=missing_autodan_per_prompt
 #SBATCH --account=rrg-mijungp
-#SBATCH --array=0-36%8
+#SBATCH --array=0-36
 #SBATCH --gres=gpu:1
 #SBATCH --cpus-per-task=6
 #SBATCH --mem=40G
