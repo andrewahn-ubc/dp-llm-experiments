@@ -39,6 +39,46 @@ echo "Evaluating held-out family models for epoch $EPOCH"
 echo "Harmful test set: $HARMFUL_DATA"
 echo "Benign test set (FRR): $BENIGN_DATA"
 
+BENIGN_DATA_FOR_EVAL="$BENIGN_DATA"
+BENIGN_TMP="${SLURM_TMPDIR}/frr_eval_input_heldout_epoch${EPOCH}.csv"
+# eval.py expects an "Original Prompt" column for FRR.
+python - "$BENIGN_DATA" "$BENIGN_TMP" <<'PY'
+import sys
+import pandas as pd
+
+src, dst = sys.argv[1:3]
+df = pd.read_csv(src)
+
+if "Original Prompt" in df.columns:
+    df.to_csv(dst, index=False)
+    print(f"[heldout_family_eval] benign data already has 'Original Prompt' -> {dst}")
+    sys.exit(0)
+
+candidates = [
+    "adversarial",
+    "Adversarial",
+    "goal",
+    "Goal",
+    "prompt",
+    "Prompt",
+    "original_prompt",
+    "instruction",
+    "Instruction",
+]
+src_col = next((c for c in candidates if c in df.columns), None)
+if src_col is None:
+    raise ValueError(
+        "Could not build 'Original Prompt' column for FRR input. "
+        f"Columns found: {list(df.columns)}"
+    )
+
+df = df.copy()
+df["Original Prompt"] = df[src_col].astype(str)
+df.to_csv(dst, index=False)
+print(f"[heldout_family_eval] mapped '{src_col}' -> 'Original Prompt' -> {dst}")
+PY
+BENIGN_DATA_FOR_EVAL="$BENIGN_TMP"
+
 for FAMILY in "${FAMILIES[@]}"; do
   MODEL_BASE_VAR="HELDOUT_${FAMILY^^}_MODEL_BASE"
   DEFAULT_MODEL_BASE="$SCRATCH/heldout_${FAMILY}_lr1e5_lam10_eps1_finetuned_llm"
@@ -57,7 +97,7 @@ for FAMILY in "${FAMILIES[@]}"; do
     --unseen-family "$FAMILY" \
     --resume-from "$MODEL_PATH" \
     --validation-data "$HARMFUL_DATA" \
-    --benign-validation-data "$BENIGN_DATA" \
+    --benign-validation-data "$BENIGN_DATA_FOR_EVAL" \
     --harmful-output-file "$HARMFUL_OUT" \
     --benign-output-file "$BENIGN_OUT"
 done
