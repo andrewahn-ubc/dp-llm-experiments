@@ -176,8 +176,8 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--refusal-judge-path",
-        default = "/home/taegyoem/scratch/llama_3_8b",
-        help = "path to refusal LLM"
+        default = "/home/taegyoem/scratch/mistral_7b_instruct",
+        help = "path to refusal LLM (Mistral-7B-Instruct-v0.2 by default; matches eval_sweep.py)"
     )
     parser.add_argument(
         "--validation-data",
