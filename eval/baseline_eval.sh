@@ -30,18 +30,50 @@ OUT_DIR="${OUT_DIR:-$SCRATCH/dp-llm-eval/final_eval}"
 RUN_TAG="baseline"
 mkdir -p "$OUT_DIR"
 
-HARMFUL_OUT="${OUT_DIR}/${RUN_TAG}_harmful.csv"
-BENIGN_OUT="${OUT_DIR}/${RUN_TAG}_benign.csv"
+# NOTE: eval.py appends ".csv" to --harmful-output-file / --benign-output-file,
+# so we keep these as stems (no extension) and resolve the actual file path
+# below, supporting both the correct "stem.csv" form and the legacy
+# "stem.csv.csv" form left over from earlier runs.
+HARMFUL_OUT_STEM="${OUT_DIR}/${RUN_TAG}_harmful"
+BENIGN_OUT_STEM="${OUT_DIR}/${RUN_TAG}_benign"
 METRICS_OUT="${OUT_DIR}/${RUN_TAG}_metrics.tsv"
+
+resolve_output() {
+  local stem="$1"
+  if [[ -f "${stem}.csv" ]]; then
+    echo "${stem}.csv"
+  elif [[ -f "${stem}.csv.csv" ]]; then
+    echo "${stem}.csv.csv"
+  else
+    echo ""
+  fi
+}
 
 echo "Evaluating baseline model (no LoRA adapter)"
 echo "Harmful test set: $HARMFUL_DATA"
 echo "Benign test set (FRR): $BENIGN_DATA"
 
-BENIGN_DATA_FOR_EVAL="$BENIGN_DATA"
-BENIGN_TMP="${SLURM_TMPDIR}/frr_eval_input_baseline.csv"
-# eval.py expects an "Original Prompt" column for FRR.
-python - "$BENIGN_DATA" "$BENIGN_TMP" <<'PY'
+# If the eval.py outputs already exist (from a previous run), reuse them and
+# skip straight to the metrics step. Otherwise run eval.py.
+HARMFUL_OUT="$(resolve_output "$HARMFUL_OUT_STEM")"
+BENIGN_OUT="$(resolve_output "$BENIGN_OUT_STEM")"
+
+if [[ -n "$HARMFUL_OUT" && -n "$BENIGN_OUT" ]]; then
+  echo "Found existing eval outputs; skipping eval.py:"
+  echo "  $HARMFUL_OUT"
+  echo "  $BENIGN_OUT"
+  SKIP_EVAL=1
+else
+  SKIP_EVAL=0
+  HARMFUL_OUT="${HARMFUL_OUT_STEM}.csv"
+  BENIGN_OUT="${BENIGN_OUT_STEM}.csv"
+fi
+
+if [[ "$SKIP_EVAL" -eq 0 ]]; then
+  BENIGN_DATA_FOR_EVAL="$BENIGN_DATA"
+  BENIGN_TMP="${SLURM_TMPDIR}/frr_eval_input_baseline.csv"
+  # eval.py expects an "Original Prompt" column for FRR.
+  python - "$BENIGN_DATA" "$BENIGN_TMP" <<'PY'
 import sys
 import pandas as pd
 
@@ -76,15 +108,17 @@ df["Original Prompt"] = df[src_col].astype(str)
 df.to_csv(dst, index=False)
 print(f"[baseline_eval] mapped '{src_col}' -> 'Original Prompt' -> {dst}")
 PY
-BENIGN_DATA_FOR_EVAL="$BENIGN_TMP"
+  BENIGN_DATA_FOR_EVAL="$BENIGN_TMP"
 
-# Note: no --resume-from flag, so eval.py loads the bare base model (baseline).
-python "$SCRATCH/dp-llm-experiments/eval/eval.py" \
-  --eval-mode "seen-family" \
-  --validation-data "$HARMFUL_DATA" \
-  --benign-validation-data "$BENIGN_DATA_FOR_EVAL" \
-  --harmful-output-file "$HARMFUL_OUT" \
-  --benign-output-file "$BENIGN_OUT"
+  # Note: no --resume-from flag, so eval.py loads the bare base model (baseline).
+  # Pass the stems (without .csv); eval.py appends ".csv" itself.
+  python "$SCRATCH/dp-llm-experiments/eval/eval.py" \
+    --eval-mode "seen-family" \
+    --validation-data "$HARMFUL_DATA" \
+    --benign-validation-data "$BENIGN_DATA_FOR_EVAL" \
+    --harmful-output-file "$HARMFUL_OUT_STEM" \
+    --benign-output-file "$BENIGN_OUT_STEM"
+fi
 
 # Compute per-family ASR, mean ASR (3 variants), and FRR.
 python - "$HARMFUL_OUT" "$BENIGN_OUT" "$METRICS_OUT" <<'PY'
