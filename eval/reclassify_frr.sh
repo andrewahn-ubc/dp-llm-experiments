@@ -41,23 +41,44 @@ JUDGE_PATH="${JUDGE_PATH:-$SCRATCH/mistral_7b_instruct}"
 BATCH_SIZE="${BATCH_SIZE:-8}"
 DRY_RUN="${DRY_RUN:-0}"
 
-# Resolve script location so this works from any CWD.
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PY_SCRIPT="${SCRIPT_DIR}/reclassify_frr.py"
+# Robustly locate reclassify_frr.py. NOTE: sbatch stages a *copy* of this .sh
+# file under /localscratch/spool/slurmd/job*/, so ${BASH_SOURCE[0]} points at
+# the staged copy, not at the repo. We instead look in the submit dir, then
+# fall back to $SCRATCH/dp-llm-experiments (matching seen_family_eval.sh).
+PY_SCRIPT="${PY_SCRIPT:-}"
+if [[ -z "$PY_SCRIPT" ]]; then
+    for cand in \
+        "${SLURM_SUBMIT_DIR:-.}/eval/reclassify_frr.py" \
+        "${SLURM_SUBMIT_DIR:-.}/reclassify_frr.py" \
+        "${SCRATCH:-/nonexistent}/dp-llm-experiments/eval/reclassify_frr.py" \
+        "$(pwd)/eval/reclassify_frr.py"; do
+        if [[ -f "$cand" ]]; then
+            PY_SCRIPT="$cand"
+            break
+        fi
+    done
+fi
 
 if [[ ! -d "$RESULTS_DIR" ]]; then
     echo "RESULTS_DIR does not exist: $RESULTS_DIR" >&2
     exit 1
 fi
-if [[ ! -f "$PY_SCRIPT" ]]; then
-    echo "reclassify_frr.py not found at: $PY_SCRIPT" >&2
+if [[ -z "$PY_SCRIPT" || ! -f "$PY_SCRIPT" ]]; then
+    echo "Could not locate reclassify_frr.py. Tried:" >&2
+    echo "  ${SLURM_SUBMIT_DIR:-.}/eval/reclassify_frr.py" >&2
+    echo "  ${SLURM_SUBMIT_DIR:-.}/reclassify_frr.py" >&2
+    echo "  ${SCRATCH:-/nonexistent}/dp-llm-experiments/eval/reclassify_frr.py" >&2
+    echo "  $(pwd)/eval/reclassify_frr.py" >&2
+    echo "Override with: --export=ALL,PY_SCRIPT=/abs/path/to/reclassify_frr.py" >&2
     exit 1
 fi
 
-echo "RESULTS_DIR = $RESULTS_DIR"
-echo "JUDGE_PATH  = $JUDGE_PATH"
-echo "BATCH_SIZE  = $BATCH_SIZE"
-echo "DRY_RUN     = $DRY_RUN"
+echo "SLURM_SUBMIT_DIR = ${SLURM_SUBMIT_DIR:-<unset>}"
+echo "PY_SCRIPT        = $PY_SCRIPT"
+echo "RESULTS_DIR      = $RESULTS_DIR"
+echo "JUDGE_PATH       = $JUDGE_PATH"
+echo "BATCH_SIZE       = $BATCH_SIZE"
+echo "DRY_RUN          = $DRY_RUN"
 echo
 echo "Benign CSVs to re-judge:"
 ls -1 "$RESULTS_DIR"/*_benign.csv* 2>/dev/null || {
