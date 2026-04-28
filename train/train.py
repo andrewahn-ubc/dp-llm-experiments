@@ -86,6 +86,19 @@ neighbour_names = {
     "pair": ["PAIR Variant", "PAIR Response"]
 }
 
+# Llama-2-Chat's recommended defensive system prompt. SYSTEM_PROMPT is mutated
+# at startup by main() based on --system-prompt-mode; setting it to None drops
+# the system role entirely (Protocol-Undefended; matches eval/eval_helpers.py).
+DEFAULT_SYSTEM_PROMPT = (
+    "You are a helpful, respectful and honest assistant. "
+    "Always answer as helpfully as possible, while being safe. "
+    "Your answers should not include any harmful, unethical, racist, sexist, toxic, dangerous, or illegal content. "
+    "Please ensure that your responses are socially unbiased and positive in nature. "
+    "If a question does not make any sense, or is not factually coherent, explain why instead of answering something not correct. "
+    "If you don't know the answer to a question, please don't share false information."
+)
+SYSTEM_PROMPT = DEFAULT_SYSTEM_PROMPT
+
 def load_model(LLM_NAME, lora_rank, resume_from=None):
     # Load Main LLM with LoRA
     tokenizer = AutoTokenizer.from_pretrained(LLM_NAME)
@@ -160,20 +173,16 @@ def load_guard(GUARD_NAME):
     return guard_model, guard_tokenizer
 
 def format_prompt(tokenizer, prompt):
-    messages = [
-        {
-            "role": "system",
-            "content": (
-                "You are a helpful, respectful and honest assistant. "
-                "Always answer as helpfully as possible, while being safe. "
-                "Your answers should not include any harmful, unethical, racist, sexist, toxic, dangerous, or illegal content. "
-                "Please ensure that your responses are socially unbiased and positive in nature. "
-                "If a question does not make any sense, or is not factually coherent, explain why instead of answering something not correct. "
-                "If you don't know the answer to a question, please don't share false information."
-            ),
-        },
-        {"role": "user", "content": prompt},
-    ]
+    # SYSTEM_PROMPT is set in main() from --system-prompt-mode. None means
+    # omit the system role entirely so the chat template emits
+    # "[INST] <user> [/INST]" with no <<SYS>> block.
+    if SYSTEM_PROMPT is None:
+        messages = [{"role": "user", "content": prompt}]
+    else:
+        messages = [
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": prompt},
+        ]
     return tokenizer.apply_chat_template(
         messages,
         tokenize=False,
@@ -322,6 +331,13 @@ def training_step(model, tokenizer, guard_model, guard_tokenizer, batch, GUARD_H
 
 # REQUIREMENT: unseen_family must be one of {"gcg", "pair", and "autodan"}
 def main(args):
+    global SYSTEM_PROMPT
+    SYSTEM_PROMPT = DEFAULT_SYSTEM_PROMPT if args.system_prompt_mode == "default" else None
+    print(
+        f"[train] system_prompt_mode={args.system_prompt_mode!r} "
+        f"(SYSTEM_PROMPT={'<DEFENDED>' if SYSTEM_PROMPT else '<UNDEFENDED / no system role>'})",
+        flush=True,
+    )
     wandb_on = _wandb_init(args)
     try:
         _main_train(args, wandb_on)
@@ -543,6 +559,17 @@ if __name__ == "__main__":
         default = 5,
         type=int,
         help = "Number of outer epochs (each is a separate process that saves its own adapter folder).",
+    )
+    parser.add_argument(
+        "--system-prompt-mode",
+        default="default",
+        choices=["default", "empty"],
+        help=(
+            "Chat-template system prompt mode (applies to training-time and "
+            "any commented-in eval-time generation). 'default' uses Llama-2-"
+            "Chat's helpful/safe system prompt. 'empty' omits the system role "
+            "entirely (Protocol-Undefended)."
+        ),
     )
     parser.add_argument("--resume-from", default=None)
     parser.add_argument("--start-epoch", default=1, type=int)
