@@ -9,7 +9,13 @@ import pandas as pd
 import time
 import random
 import argparse
-from eval_helpers import generate_all_jb_responses, classify_all_jb_safety, generate_original_responses, classify_refusal
+from eval_helpers import (
+    generate_all_jb_responses,
+    classify_all_jb_safety,
+    generate_original_responses,
+    classify_refusal,
+    DEFAULT_SYSTEM_PROMPT,
+)
 import os
 import gc
 import psutil, torch
@@ -115,6 +121,16 @@ def main(args):
     model, tokenizer = load_model("/home/taegyoem/scratch/llama2_7b_chat_hf", resume_from=args.resume_from)
     guard_model, guard_tokenizer = load_guard("/home/taegyoem/scratch/llama_guard_2")
 
+    # Resolve system-prompt mode: 'default' uses Llama-2's helpful/safe prompt,
+    # 'empty' omits the system role entirely (Protocol-Undefended; for measuring
+    # intrinsic model robustness without safety scaffolding).
+    system_prompt = {
+        "default": DEFAULT_SYSTEM_PROMPT,
+        "empty": None,
+    }[args.system_prompt_mode]
+    print(f"[eval] system_prompt_mode={args.system_prompt_mode!r} "
+          f"(system_prompt={'<DEFENDED>' if system_prompt else '<UNDEFENDED / no system role>'})")
+
     # Compute ASR on harmful prompts
     val_df = pd.read_csv(args.validation_data)
     end_of_epoch_asr_path = f"{args.harmful_output_file}.csv"
@@ -124,7 +140,8 @@ def main(args):
                             finetuned_model=model, 
                             tokenizer=tokenizer, 
                             testing_mode=args.eval_mode, 
-                            unseen_family=args.unseen_family)
+                            unseen_family=args.unseen_family,
+                            system_prompt=system_prompt)
     classify_all_jb_safety(df_with_jb_responses, 
                         batch_size = 8, 
                         guard_model=guard_model, 
@@ -138,7 +155,8 @@ def main(args):
     df_with_regular_responses = generate_original_responses(frr_val_df, 
                                 batch_size=8, 
                                 finetuned_model=model, 
-                                tokenizer=tokenizer)
+                                tokenizer=tokenizer,
+                                system_prompt=system_prompt)
     model.eval()
     gc.collect()
     torch.cuda.empty_cache()
@@ -198,6 +216,18 @@ if __name__ == "__main__":
         "--benign-output-file",
         default = "benign_output",
         help = "path to csv output that looks the same as frr_validation.csv but with responses and safety labels"
+    )
+    parser.add_argument(
+        "--system-prompt-mode",
+        default="default",
+        choices=["default", "empty"],
+        help=(
+            "System prompt mode for generation. 'default' uses Llama-2's "
+            "recommended helpful/safe system prompt (Protocol-Defended). "
+            "'empty' omits the system role entirely (Protocol-Undefended); "
+            "use this to isolate the contribution of fine-tuning to the "
+            "model's intrinsic robustness, independent of scaffolding."
+        ),
     )
     parser.add_argument("--resume-from", default=None) # this is the model you load at the start
 
