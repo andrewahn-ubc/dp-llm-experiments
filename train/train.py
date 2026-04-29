@@ -58,6 +58,11 @@ def _wandb_init(args):
     if run_id:
         init_kwargs["id"] = run_id
     init_kwargs["resume"] = "must" if args.start_epoch > 1 else "allow"
+    # Default init_timeout is 90 s; raise it for slow shared filesystems (e.g. Narval
+    # Lustre) where the wandb service handshake occasionally exceeds the default.
+    # WANDB_DIR is expected to point at $SLURM_TMPDIR/wandb (set in sbatch script);
+    # this is a belt-and-suspenders bump on top of that.
+    init_kwargs["settings"] = wandb.Settings(init_timeout=300)
     wandb.init(**init_kwargs)
     return True
 

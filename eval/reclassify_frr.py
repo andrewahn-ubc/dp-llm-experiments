@@ -17,7 +17,8 @@ Why this exists:
          not literally containing ``"yes"``.
     This script re-runs only the judging step (no LLM regeneration needed) on
     the saved ``Original Response`` text, using Mistral with left-padding,
-    [INST] formatting, ``max_new_tokens=8``, and a symmetric parser.
+    [INST] formatting, ``max_new_tokens=32`` (room for a short preamble before
+    the verdict), and a symmetric parser.
 """
 
 from __future__ import annotations
@@ -68,7 +69,7 @@ def load_judge(judge_path: str):
     return model, tok
 
 
-def _judge_batch(model, tok, formatted_prompts, max_new_tokens: int = 8) -> list[str]:
+def _judge_batch(model, tok, formatted_prompts, max_new_tokens: int = 32) -> list[str]:
     inputs = tok(
         formatted_prompts,
         return_tensors="pt",

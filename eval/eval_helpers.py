@@ -290,7 +290,7 @@ def classify_batch(guard_model, guard_tokenizer, batch, column, classification_m
         with torch.no_grad():
             outputs = guard_model.generate(
                 **inputs,
-                max_new_tokens=8, # leave headroom for a leading newline / "Answer:" prefix
+                max_new_tokens=32, # room for a short preamble + a yes/no verdict; parser scans full decode
                 temperature=None,
                 top_p=None,
                 do_sample=False,

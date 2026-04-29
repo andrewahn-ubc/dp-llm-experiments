@@ -153,7 +153,7 @@ def unload(model, tokenizer=None):
 # ---------------------------------------------------------------------------
 # Judging (HarmBench + refusal) with a single shared Mistral judge
 # ---------------------------------------------------------------------------
-def _judge_batch(model, tok, formatted_prompts, max_new_tokens: int = 8) -> list[str]:
+def _judge_batch(model, tok, formatted_prompts, max_new_tokens: int = 32) -> list[str]:
     inputs = tok(
         formatted_prompts,
         return_tensors="pt",
