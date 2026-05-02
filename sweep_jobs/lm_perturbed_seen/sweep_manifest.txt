@@ -1,0 +1,2 @@
+# slug	lr	lambda	epsilon	lm_loss_input	system_prompt_mode	held_out_family	wandb_run_id	finetuned_base	job_script
+run_lr2e-05_lam0_eps-1_pertlm	2e-05	0.0	-1.0	perturbed	empty		c4c481502a654ba98e5209456c547921	$SCRATCH/dp-llm-sweep/run_lr2e-05_lam0_eps-1_pertlm_finetuned_llm	/Users/andrewahn/Desktop/DP-LLM-Safety Research/dp-llm-experiments/sweep_jobs/lm_perturbed_seen/run_lr2e-05_lam0_eps-1_pertlm.sh
