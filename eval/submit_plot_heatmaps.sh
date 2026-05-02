@@ -26,6 +26,6 @@ CHECKPOINT_ROOT="${CHECKPOINT_ROOT:-${SCRATCH}/dp-llm-sweep}"
 METRICS_DIR="${METRICS_DIR:-${CHECKPOINT_ROOT}/test_eval_outputs}"
 OUT_DIR="${HEATMAP_OUT_DIR:-${METRICS_DIR}/heatmaps}"
 
-python "${REPO_ROOT}/official/plot_hyperparameter_heatmaps.py" \
+python "${REPO_ROOT}/eval/plot_hyperparameter_heatmaps.py" \
     --metrics-dir "${METRICS_DIR}" \
     --output-dir "${OUT_DIR}"
