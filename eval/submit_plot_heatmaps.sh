@@ -1,10 +1,13 @@
 #!/bin/bash
 #SBATCH --job-name=plot_hm
-#SBATCH --account=rrg-mijungp
+#SBATCH --account=def-mijungp
 #SBATCH --cpus-per-task=2
 #SBATCH --mem=8G
 #SBATCH --time=0:30:00
 #SBATCH --output=output/plot_heatmaps_%j.out
+#
+# Default account is RAS (def-mijungp). If you use RAC instead, submit with:
+#   sbatch --account=rrg-mijungp eval/submit_plot_heatmaps.sh
 #
 # CPU-only: aggregate test_eval_matrix metrics TSVs into 8 λ×ε heatmaps (PNG).
 # Submit from repo root after eval finishes, or chain via run_final_pipeline.py.
