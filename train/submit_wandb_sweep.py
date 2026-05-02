@@ -17,6 +17,10 @@ After jobs finish, sync from a machine with internet, from the same WANDB_DIR:
 
 Or: wandb sync --sync-all (see https://docs.wandb.ai/guides/track/public-api-guide/#syncing-offline-runs)
 
+After jobs finish, aggregate eval TSVs (see train/aggregate_sweep_metrics.py):
+
+  python train/aggregate_sweep_metrics.py --eval-output-dir $SCRATCH/dp-llm-sweep/eval_outputs
+
 Requires: pip install wandb (in the same venv you use for training.)
 """
 
@@ -36,9 +40,18 @@ LAMBDAS = (0.1, 0.3, 1.0, 3.0, 10.0, 20.0, 30.0)
 EPSILONS = (-1.0, -0.5, 0.0, 0.5, 1.0, 1.5, 2.0)
 
 
-def make_run_slug(lr: float, lam: float, eps: float) -> str:
-    """Stable, filesystem-friendly id that encodes the three hyperparameters."""
-    return f"run_lr{lr:g}_lam{lam:g}_eps{eps:g}".replace(" ", "_")
+def make_run_slug(lr: float, lam: float, eps: float, lm_loss_input: str = "clean") -> str:
+    """Stable, filesystem-friendly id that encodes the hyperparameters.
+
+    The default lm_loss_input ("clean") produces the original slug format so
+    pre-existing checkpoints/eval outputs are reused as-is. Any non-default
+    LM-loss-input gets a short suffix (e.g. "_pertlm") so the two variants do
+    not clobber each other when the sweep is run twice.
+    """
+    base = f"run_lr{lr:g}_lam{lam:g}_eps{eps:g}".replace(" ", "_")
+    if lm_loss_input == "perturbed":
+        return f"{base}_pertlm"
+    return base
 
 
 def _render_eval_block(
@@ -50,6 +63,7 @@ def _render_eval_block(
     eps: float,
     validation_csv: str,
     system_prompt_mode: str,
+    lm_loss_input: str,
 ) -> list[str]:
     """Lines that evaluate ${FINETUNED_BASE}_epoch{ep} via $EVAL_PY.
 
@@ -76,17 +90,18 @@ def _render_eval_block(
         "",
         f"# Aggregate per-family ASR + FRR for epoch {ep} into a single TSV.",
         f'python - "${{HARMFUL_OUT_STEM_EP{ep}}}.csv" "${{BENIGN_OUT_STEM_EP{ep}}}.csv" "$METRICS_OUT_EP{ep}" \\',
-        f'    "{slug}" "{lr}" "{lam}" "{eps}" "{system_prompt_mode}" "{ep}" <<\'PY\'',
+        f'    "{slug}" "{lr}" "{lam}" "{eps}" "{system_prompt_mode}" "{lm_loss_input}" "{ep}" <<\'PY\'',
         "import sys",
         "import pandas as pd",
-        "harmful_csv, benign_csv, metrics_tsv, slug, lr, lam, eps, mode, epoch = sys.argv[1:10]",
+        "harmful_csv, benign_csv, metrics_tsv, slug, lr, lam, eps, mode, lm_loss_input, epoch = sys.argv[1:11]",
         "h = pd.read_csv(harmful_csv); b = pd.read_csv(benign_csv)",
         "def mu(df, col): return float((df[col].astype(str).str.lower()=='unsafe').mean()) if col in df.columns else None",
         "gcg = mu(h, 'GCG Safety'); ad = mu(h, 'AutoDAN Safety'); pa = mu(h, 'PAIR Safety')",
         "vals = [v for v in (gcg, ad, pa) if v is not None]",
         "mean_asr = sum(vals)/len(vals) if vals else None",
         "frr = float((b['Original Safety'].astype(str).str.lower()=='refusal').mean()) if 'Original Safety' in b.columns else None",
-        "rows = [('slug',slug),('epoch',epoch),('lr',lr),('lambda',lam),('epsilon',eps),('system_prompt_mode',mode),",
+        "rows = [('slug',slug),('epoch',epoch),('lr',lr),('lambda',lam),('epsilon',eps),",
+        "        ('system_prompt_mode',mode),('lm_loss_input',lm_loss_input),",
         "        ('gcg_asr',gcg),('autodan_asr',ad),('pair_asr',pa),('mean_asr',mean_asr),('frr',frr),",
         "        ('n_harmful',len(h)),('n_benign',len(b))]",
         "with open(metrics_tsv,'w',encoding='utf-8') as f:",
@@ -125,6 +140,7 @@ def render_job_script(
     venv_activate: str,
     total_epochs: int,
     system_prompt_mode: str,
+    lm_loss_input: str,
     eval_epochs: list[int],
 ) -> str:
     # W&B run display name (visible after sync)
@@ -219,6 +235,7 @@ def render_job_script(
         lines.append('python "$TRAIN_PY" \\')
         lines.append('    --eval-mode "seen-family" \\')
         lines.append(f'    --system-prompt-mode "{system_prompt_mode}" \\')
+        lines.append(f'    --lm-loss-input "{lm_loss_input}" \\')
         lines.append('    --finetuned-llm-path "$FINETUNED_BASE" \\')
         lines.append(f'    --training-data "{training_csv}" \\')
         lines.append(f"    --lr {lr} \\")
@@ -240,6 +257,7 @@ def render_job_script(
                 eps=eps,
                 validation_csv=validation_csv,
                 system_prompt_mode=system_prompt_mode,
+                lm_loss_input=lm_loss_input,
             )
 
     eval_eps_str = ",".join(str(e) for e in sorted(eval_eps_set))
@@ -297,6 +315,24 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
             "eval-time (in eval.py). 'default' uses Llama-2-Chat's helpful/safe "
             "system prompt; 'empty' omits the system role entirely "
             "(Protocol-Undefended). Defaults to 'empty' for this sweep."
+        ),
+    )
+    p.add_argument(
+        "--lm-loss-input",
+        default="clean",
+        choices=["clean", "perturbed"],
+        help=(
+            "Which prompt the language-modelling cross-entropy in train.py is "
+            "conditioned on. 'clean' (default) uses the unperturbed Original "
+            "Prompt — the original method as written; refusal behavior on "
+            "attacks is transferred only via the stability regularizer. "
+            "'perturbed' uses the GCG/AutoDAN/PAIR-perturbed prompt "
+            "(R2D2-style adversarial SFT). Combine with --lambda-val 0 in your "
+            "lambda grid to obtain a pure adversarial-SFT baseline; combine "
+            "with lambda>0 to obtain adversarial SFT + stability regularizer "
+            "(the strict-superset variant of the original method). When set to "
+            "'perturbed' the per-run slug gets a '_pertlm' suffix so artifacts "
+            "do not collide with the 'clean' variant."
         ),
     )
     p.add_argument(
@@ -428,10 +464,13 @@ def main(argv: list[str]) -> int:
     submitted: list[str] = []
 
     with manifest.open("w", encoding="utf-8") as mf:
-        mf.write("# slug\tlr\tlambda\tepsilon\twandb_run_id\tfinetuned_base\tjob_script\n")
+        mf.write(
+            "# slug\tlr\tlambda\tepsilon\tlm_loss_input\tsystem_prompt_mode"
+            "\twandb_run_id\tfinetuned_base\tjob_script\n"
+        )
 
         for lr, lam, eps in combos:
-            slug = make_run_slug(lr, lam, eps)
+            slug = make_run_slug(lr, lam, eps, lm_loss_input=args.lm_loss_input)
             run_id = uuid.uuid4().hex
             finetuned_base = f"{args.checkpoint_root.rstrip('/')}/{slug}_finetuned_llm"
 
@@ -463,6 +502,7 @@ def main(argv: list[str]) -> int:
                 venv_activate=args.venv_activate,
                 total_epochs=args.total_epochs,
                 system_prompt_mode=args.system_prompt_mode,
+                lm_loss_input=args.lm_loss_input,
                 eval_epochs=args.eval_epochs_list,
             )
 
@@ -471,7 +511,8 @@ def main(argv: list[str]) -> int:
             os.chmod(sh_path, 0o755)
 
             mf.write(
-                f"{slug}\t{lr}\t{lam}\t{eps}\t{run_id}\t{finetuned_base}\t{sh_path}\n"
+                f"{slug}\t{lr}\t{lam}\t{eps}\t{args.lm_loss_input}"
+                f"\t{args.system_prompt_mode}\t{run_id}\t{finetuned_base}\t{sh_path}\n"
             )
 
             cmd = ["sbatch", str(sh_path)]

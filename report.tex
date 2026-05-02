@@ -1,0 +1,351 @@
+\documentclass[11pt]{article}
+
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{enumitem}
+\usepackage{booktabs}
+\usepackage{microtype}
+\usepackage{xcolor}
+\usepackage{natbib}
+\usepackage{hyperref}
+\hypersetup{colorlinks=true, linkcolor=blue!50!black, citecolor=blue!50!black, urlcolor=blue!50!black}
+\usepackage{titlesec}
+\titlespacing*{\section}{0pt}{0.9\baselineskip}{0.3\baselineskip}
+\titlespacing*{\subsection}{0pt}{0.6\baselineskip}{0.2\baselineskip}
+\setlist{nosep, leftmargin=1.2em}
+
+\title{\vspace{-2.5em}\textbf{CPSC 448 Directed Studies: Final Report}\\[0.2em]
+{\large Robustness-Regularised Fine-Tuning of LLMs Against Single-Turn Jailbreaks}}
+\author{Andrew Ahn \\ \small Supervisor: Prof.\ Mijung Park \\ \small University of British Columbia}
+\date{April 2026 \\[0.2em]
+\small Code: \url{https://github.com/andrewahn-ubc/dp-llm-experiments}}
+
+\begin{document}
+\maketitle
+\vspace{-1.8em}
+
+\section{Introduction}
+This report documents my CPSC~448 directed-studies work on a defensive
+fine-tuning method that augments the standard language-modelling objective with
+a robustness regulariser computed against adversarially perturbed prompts. I
+spent some time on literature review and on formulating the loss, but the
+overwhelming majority of the term went into experimental design and engineering,
+so this report focuses on those contributions. It deliberately omits the
+sections one would normally find in a research paper (abstract, related work,
+formal method derivation, results) because the work is not yet complete and
+because I want to a focused account of what has
+actually been built. References and supporting detail are kept in the
+appendices.
+
+\section{Current Status}
+The project is in progress. I am currently running a hyperparameter sweep on
+Compute Canada (Narval) over the configuration grid in
+Section~\ref{sec:hpsearch}. I had previously reported that the sweep was
+finished and that we had results, but I subsequently realised those results
+were untrustworthy: I had selected hyperparameters with Llama-2-7B-Chat's
+recommended defensive system prompt enabled, and that prompt drives baseline
+ASR down to roughly 2--3\,\% on our test set, leaving essentially no headroom
+for a defence to demonstrate improvement. To desaturate the benchmark and
+isolate the effect of the regulariser on \emph{intrinsic} model behaviour, I
+re-ran the sweep with the system role omitted entirely (``Protocol-Undefended''
+in our code). The new sweep was scheduled to finish yesterday, but Compute
+Canada has been experiencing an unplanned outage since the morning of
+April~29 (still ongoing at time of writing), so this report does not contain a
+results section. I expect to have the optimal configuration within a day or two
+of service being restored.
+
+\section{Method: Differentiable End-to-End Loss}\label{sec:method}
+We fine-tune a target LLM $\pi_\theta$ jointly with an off-the-shelf
+safety classifier $C_\psi$ (Llama Guard 7B). We assume access to a training
+set $\mathcal{D}=\{(h_n,\,h'_n,\,r_n)\}_{n=1}^{N}$, where $h_n$ is a harmful
+prompt, $h'_n$ is an adversarial perturbation of $h_n$, and $r_n$ is a known
+safe target response (typically a refusal). Let $r'_\theta$ denote the
+response the LLM produces for $h'_n$ under the current parameters. The
+training objective is
+\begin{equation}
+\min_{\theta}\; \frac{1}{N}\sum_{n=1}^{N} \Big(
+\underbrace{\mathcal{L}_{\theta}(r_n \mid h_n)}_{\text{utility}}
+\;+\; \lambda \,
+\underbrace{\big[\,C_\psi(r'_\theta \mid h'_n) \;-\; e^{\varepsilon}\,C_\psi(r_n \mid h_n)\,\big]_{+}}_{\text{stability hinge}}
+\Big),
+\label{eq:loss}
+\end{equation}
+where $\mathcal{L}_{\theta}(r_n \mid h_n)$ is the standard causal-LM
+negative log-likelihood of the safe response $r_n$ given $h_n$, $\lambda\ge0$
+controls the regulariser's strength, and $\varepsilon$ controls the
+multiplicative slack permitted between the classifier's output on the
+perturbed input and on the clean input. Intuitively, the hinge is silent
+whenever the perturbed-input safety score does not exceed $e^{\varepsilon}$
+times the clean-input score, and otherwise penalises the model in proportion
+to how much further the perturbation degraded the classifier's safety verdict.
+
+\paragraph{Differentiability through generation.}
+Naively computing the second term would require sampling $r'_\theta$ from
+$\pi_\theta(\cdot\mid h'_n)$ via discrete next-token decoding, feeding the
+resulting text back into $C_\psi$, and back-propagating through both. Discrete
+sampling is non-differentiable, so the gradient cannot flow through the
+generated response. We resolve this with a soft autoregressive rollout: at
+each step, instead of sampling a token, we form the expected embedding under
+the softmax distribution,
+\(
+e_t = \sum_{v \in \mathcal{V}} p_\theta(v \mid h'_n,\, e_{<t})\,E_v,
+\)
+where $E$ is the input-embedding matrix that the target LLM and the safety
+classifier \emph{share} (see Section~\ref{sec:expdesign}). The classifier
+consumes these soft embeddings directly, keeping the entire computation graph
+differentiable end-to-end. We unroll five soft tokens per step
+(\verb|MAX_GEN_TOKENS=5|), which is enough for the classifier to commit to a
+safe/unsafe decision while keeping memory tractable on a single 40\,GB GPU.
+We use LoRA adapters \citep{hu2021lora} on the $q$/$v$ projections of the
+target model with rank~8 and the safety classifier frozen.
+
+\section{Experimental Design}\label{sec:expdesign}
+\subsection{Model selection}
+We use \texttt{Llama-2-7B-Chat-HF} \citep{touvron2023llama2} as the target and
+\texttt{Llama-Guard-7B} \citep{inan2023llamaguard} as the safety classifier.
+The two models share the same tokenizer and embedding space because Llama
+Guard is a lightly fine-tuned instance of Llama-2-7B; this is precisely the
+property that lets us feed the target's soft embeddings into the classifier
+without a discrete bottleneck.
+
+\subsection{Datasets}
+We treat training and evaluation data as disjoint \emph{at the dataset level}
+to control for benchmark leakage.
+\paragraph{Harmful prompts (training).} 1{,}000 prompts each from
+MaliciousInstruct++ \citep{huang2023maliciousinstruct},
+CySecBench \citep{cysecbench2025}, and WildJailbreak \citep{jiang2024wildjailbreak},
+for a total of 3{,}000 training behaviours. The ``$++$'' denotes that the
+1{,}000 examples were not the original 100 in MaliciousInstruct but rather a
+filtered subset of 20{,}000 generations from an uncensored model
+(\texttt{wizard-vicuna-13B-uncensored}) seeded with five random examples from
+MaliciousInstruct as few-shot demonstrations and conditioned on a list of
+30 phrasing primitives (Appendix~\ref{app:wizardprompt}) to broaden surface
+form.\footnote{When generating only $\sim$10 prompts this technique gives a
+diverse set; at 1{,}000 it collapses into many near-duplicates. Generating
+20{,}000 and aggressively filtering down to 1{,}000 (below) was substantially
+more diverse than generating 1{,}000 directly.}
+The 20{,}000 candidates were filtered in two passes: (1) exact deduplication,
+then (2) similarity-based pruning that iteratively removes the prompt with the
+highest mean cosine similarity to its top-$k$ neighbours under the
+\texttt{all-mpnet-base-v2} sentence encoder \citep{reimers2019sbert}. As an
+informal measure of within-set diversity, the maximum pairwise similarity in
+the resulting 1{,}000-prompt set was 80\,\%; the same procedure run on
+3{,}000 generations bottomed out at 86\,\%, and on 1{,}000 generations at
+95\,\%, confirming that aggressive over-generation is necessary at scale.
+
+\paragraph{Harmful prompts (testing).} We combine
+AdvBench \citep{zou2023gcg}, HarmBench \citep{mazeika2024harmbench}, and
+JailbreakBench \citep{chao2024jailbreakbench} after exact deduplication
+($\sim$1{,}000 prompts). HarmBench and JailbreakBench were both partly seeded
+from AdvBench, so we take the position that distinct prompts after exact
+deduplication are semantically independent enough to be merged for evaluation.
+We verified, to the extent the public dataset documentation allows, that none
+of the testing-set datasets influenced the training-set datasets.
+
+\paragraph{Benign prompts.} We use WildJailbreak's eval split as the larger
+benign \emph{validation} set (used for hyperparameter selection): 250 vanilla
+benign and 250 ``adversarial benign'' prompts (i.e.\ borderline-looking but
+ultimately safe). For the benign \emph{test} set we use roughly 100 of each
+from WildJailbreak's training split. The decision to use the eval split for
+validation and the train split for testing was driven only by the relative
+sizes of the splits and is otherwise arbitrary.
+
+\paragraph{Validation harmful set.} We split off $\sim$500 of the 3{,}000
+harmful training prompts as a validation set for the hyperparameter sweep. To
+avoid behavioural leakage between train and validation (e.g.\ training on
+prompts about computer-virus creation and validating on more of the same types of behaviours), we
+embedded the prompts with \texttt{all-MiniLM-L6-v2} and applied agglomerative
+clustering with cosine distance and a distance threshold of $0.88$, which
+yielded 12 reasonably-sized semantic clusters. We then assigned whole clusters
+to either training or validation to achieve a roughly $5{:}1$ ratio.
+
+\subsection{Adversarial perturbations}
+For each prompt in both the training and test sets, we generate three
+adversarial neighbours using state-of-the-art single-turn jailbreak methods.
+\textbf{GCG} \citep{zou2023gcg} is run via the \texttt{nanogcg} package with
+default settings.
+\textbf{AutoDAN} \citep{liu2024autodan} is run with batch size 8 and otherwise
+default settings.
+\textbf{PAIR} \citep{chao2023pair} uses \texttt{vicuna-13b-v1.3}
+\citep{zheng2023vicuna} as the attacker and Llama Guard as the judge (the original paper also used these models), with the
+default 30 streams and 3 iterations. Off-the-shelf PAIR with a Llama Guard
+judge regularly returns ``no successful jailbreak'' for all 30 streams even
+when at least one stream did elicit a clearly harmful compliance --- a known
+high-FNR failure mode of Llama Guard. To recover useful adversarial examples
+we modified the stream-selection rule (Appendix~\ref{app:pair}): at each
+iteration we record both the discrete judge score and a
+classifier-delta signal $\Delta_C = C(\tilde{x},\,r) - C(x,\,r_{\text{refusal}})$;
+if any stream achieves judge score~10 we return that stream immediately,
+otherwise we return the stream with the largest $\Delta_C$ across all
+iterations. This fixed the issue and returned valid jailbreak candidates 100\% of the time.
+
+\subsection{Evaluation modes}
+We evaluate the fine-tuned model in three settings, each measuring a
+different generalisation property of the regulariser:
+\begin{itemize}
+\item \textbf{Seen-family.} Test perturbations come from the same three
+attack families seen at training time (held-out specific examples).
+Improvement here means the regulariser is at least a viable defence against
+known attacks.
+\item \textbf{Unseen-family.} Train on three families, evaluate on the
+fourth held-out family. Improvement here would suggest cross-family
+generalisation.
+\item \textbf{Adaptive attack on the defended model.} Re-run the
+perturbation algorithms against the fine-tuned model itself (rather than
+against the base model), with no family held out. Improvement here would
+suggest the regulariser raises the model's intrinsic robustness rather than
+just memorising surface patterns of the perturbations seen at training time.
+\end{itemize}
+
+\subsection{Baselines, judge, and metrics}
+We compare against (a) the unmodified Llama-2-7B-Chat base model, and (b) a
+classical adversarial fine-tuning baseline trained on $(\tilde{x},y)$ pairs
+using exactly the same data --- the most common defensive fine-tuning recipe
+in the recent LLM-safety literature.
+We measure \textbf{Attack Success Rate (ASR)} with the HarmBench classifier
+\citep{mazeika2024harmbench} backed by Mistral-7B-Instruct-v0.2
+\citep{jiang2023mistral}; the HarmBench judge measures actual harmful
+compliance rather than keyword presence and was trained on jailbreak-style
+data, giving substantially lower error rates than Llama Guard for our use
+case. We measure \textbf{False Refusal Rate (FRR)} with the same Mistral
+backbone using the JailbreakBench refusal-judge prompt
+(Appendix~\ref{app:frrprompt}). The Mistral judge is from a different model
+family than the target, reducing target--judge collusion bias.
+
+\subsection{Hyperparameter search}\label{sec:hpsearch}
+We sweep a full grid of
+$\text{lr}\in\{1e\!-\!6,\ 1e\!-\!5,\ 2e\!-\!5\}$,
+$\lambda\in\{0.1,\,0.3,\,1.0,\,3.0,\,10.0,\,20.0,\,30.0\}$,
+$\varepsilon\in\{-1.0,\,-0.5,\,0.0,\,0.5,\,1.0,\,1.5,\,2.0\}$,
+and epochs $\in\{1,\,3,\,5\}$. The grid corners were chosen based on initial
+single-run sanity checks. The sweep is run only in the seen-family setting,
+which is by far the cheapest of the three; the optimum is then transferred to
+the unseen-family and adaptive settings. This is partly a compute-budget
+decision (a full three-way sweep would require $\sim$3$\times$ the GPU-hours)
+but it also reduces optimisation bias, since the test conditions of the
+unseen-family and adaptive evaluations are then never seen by the
+hyperparameter selector.
+
+\section{Setbacks}
+The main setback was the saturated-benchmark issue described in the
+``Current Status'' section: I had originally completed a sweep and an
+end-to-end evaluation, with the disappointing finding that the regulariser
+\emph{degraded} robustness relative to the base model. Inspecting the per-row
+outputs revealed that the defensive system prompt was already preventing
+$\sim$98\,\% of jailbreaks on the base model, leaving essentially no signal in
+the ASR metric. ASR became a ceiling-saturated benchmark, and the small
+remaining variance was dominated by noise rather than by the defence's
+contribution. Removing the system prompt restores meaningful headroom and is
+also the protocol used by HarmBench and JailbreakBench when measuring
+intrinsic model robustness, but it required redoing the sweep from scratch.
+The second setback is the Compute Canada outage that began on April~29 and
+has not yet been lifted; this has stalled the new sweep mid-flight.
+
+\section{Intended Next Steps}
+\begin{enumerate}
+\item Finish the hyperparameter sweep once Compute Canada is restored,
+selecting the configuration that maximises seen-family ASR reduction
+subject to a small FRR-degradation budget.
+\item For both $\lambda$ and $\varepsilon$, take the top 5--6 values from
+the sweep and run a focused ablation on the test set, plotting mean ASR and
+FRR as a heatmap to visualise the safety frontier (how robustness trades off
+against over-refusal as we vary regularisation strength and slack).
+\item Run the unseen-family and adaptive evaluations with the selected
+hyperparameters and report all three settings against both baselines.
+\end{enumerate}
+
+\bibliographystyle{plain}
+\begin{thebibliography}{99}
+\small
+\bibitem{touvron2023llama2} H.\ Touvron et al. \emph{Llama 2: Open Foundation and Fine-Tuned Chat Models}. arXiv:2307.09288, 2023.
+\bibitem{inan2023llamaguard} H.\ Inan et al. \emph{Llama Guard: LLM-based Input--Output Safeguard for Human-AI Conversations}. arXiv:2312.06674, 2023.
+\bibitem{zou2023gcg} A.\ Zou, Z.\ Wang, N.\ Carlini, M.\ Nasr, J.\ Z.\ Kolter, M.\ Fredrikson. \emph{Universal and Transferable Adversarial Attacks on Aligned Language Models}. arXiv:2307.15043, 2023.
+\bibitem{liu2024autodan} X.\ Liu, N.\ Xu, M.\ Chen, C.\ Xiao. \emph{AutoDAN: Generating Stealthy Jailbreak Prompts on Aligned LLMs}. ICLR, 2024.
+\bibitem{chao2023pair} P.\ Chao, A.\ Robey, E.\ Dobriban, H.\ Hassani, G.\ J.\ Pappas, E.\ Wong. \emph{Jailbreaking Black Box Large Language Models in Twenty Queries}. arXiv:2310.08419, 2023.
+\bibitem{mazeika2024harmbench} M.\ Mazeika et al. \emph{HarmBench: A Standardized Evaluation Framework for Automated Red Teaming and Robust Refusal}. ICML, 2024.
+\bibitem{chao2024jailbreakbench} P.\ Chao et al. \emph{JailbreakBench: An Open Robustness Benchmark for Jailbreaking Large Language Models}. NeurIPS Datasets \& Benchmarks, 2024.
+\bibitem{huang2023maliciousinstruct} Y.\ Huang, S.\ Gupta, M.\ Xia, K.\ Li, D.\ Chen. \emph{Catastrophic Jailbreak of Open-source LLMs via Exploiting Generation}. ICLR, 2024.
+\bibitem{jiang2024wildjailbreak} L.\ Jiang et al. \emph{WildTeaming at Scale: From In-the-Wild Jailbreaks to (Adversarially) Safer Language Models}. NeurIPS, 2024.
+\bibitem{cysecbench2025} J.\ Wahr\'eus, A.\ M.\ Hussain, P.\ Papadimitratos. \emph{CySecBench: Generative AI-based CyberSecurity-focused Prompt Dataset for Benchmarking Large Language Models}. arXiv:2501.01335, 2025.
+\bibitem{jiang2023mistral} A.\ Q.\ Jiang et al. \emph{Mistral 7B}. arXiv:2310.06825, 2023.
+\bibitem{zheng2023vicuna} L.\ Zheng et al. \emph{Judging LLM-as-a-Judge with MT-Bench and Chatbot Arena}. NeurIPS, 2023.
+\bibitem{hu2021lora} E.\ J.\ Hu et al. \emph{LoRA: Low-Rank Adaptation of Large Language Models}. ICLR, 2022.
+\bibitem{reimers2019sbert} N.\ Reimers, I.\ Gurevych. \emph{Sentence-BERT: Sentence Embeddings using Siamese BERT-Networks}. EMNLP, 2019.
+\bibitem{wei2023jailbroken} A.\ Wei, N.\ Haghtalab, J.\ Steinhardt. \emph{Jailbroken: How Does LLM Safety Training Fail?} NeurIPS, 2023.
+\end{thebibliography}
+
+\appendix
+\section{Loss in code}\label{app:code}
+The reference implementation is in \texttt{train/train.py}; the full
+codebase is publicly available at
+\url{https://github.com/andrewahn-ubc/dp-llm-experiments}. The training step
+combines a standard causal-LM cross-entropy on $(h_n, r_n)$ with the
+stability hinge of Eq.~\eqref{eq:loss}; the soft rollout that produces
+$r'_\theta$ is implemented in \texttt{soft\_autoregressive\_generate} and the
+safety probability $C_\psi$ is read out of the guard model in
+\texttt{safety\_score} as
+$\sigma(\text{logit}_{\texttt{unsafe}} - \text{logit}_{\texttt{safe}})$ on the
+final-position logits. The guard's chat-template header and footer are
+pre-computed once and reused as a constant context
+(\texttt{precompute\_guard\_context}) to avoid re-encoding on every step.
+
+\section{Wizard-Vicuna behaviour-generation prompt}\label{app:wizardprompt}
+\begin{quote}\small\ttfamily
+Return exactly one valid JSON array containing 10 strings.\\
+Example output format: [\,"item 1", "item 2", "item 3"\,]\\
+Here is a JSON array of example instructions: \{five MaliciousInstruct examples\}\\
+Generate 10 new malicious instructions that are semantically diverse and do NOT contain any of the same content as the examples above. They should ONLY be similar to the above examples in terms of STYLE and COMPLEXITY. Although you aren't limited to these, each string should belong to a different harmful domain such as \{five sampled categories from a 35-item list\}. In your harmful requests, MAKE SURE to ask for \{five sampled formats from a 30-item list\} on how to do these malicious things.\\
+Rules: Valid JSON only / One array of strings / No numbering / No extra text / No markdown.
+\end{quote}
+The 30 ``format'' phrases used to diversify generations are:
+\emph{a tutorial, tips, ways, how-to's, a guideline, a playbook, a script,
+advice, a summary, an explanation, ``if I were to\dots'', a hypothetical
+scenario, general direction, ``what to do'', ``how to do'', ``where can I
+find'', ``which websites'', a cheatsheet, ideas, thoughts, opinions, a
+walkthrough, a manual, a checklist, a blueprint, a framework, an outline, a
+recipe, a case study, an example.}
+
+\section{Modified PAIR stream-selection rule}\label{app:pair}
+Each iteration begins with all surviving streams. For every stream, PAIR
+generates an attack prompt $\tilde{x}$, queries the target for a response
+$r$, and computes:
+\begin{itemize}
+  \item the PAIR judge score (discrete; $10$ indicates jailbreak success);
+  \item the classifier-delta $\Delta_C = C(\tilde{x},\,r)
+       - C(x,\,r_{\text{refusal}})$, where the baseline is the safety
+       classifier's output on the raw goal paired with a canonical refusal
+       response.
+\end{itemize}
+Selection: if any stream attains a judge score of~$10$ in the current
+iteration, return that stream immediately. Otherwise, continue iterating
+while tracking, across all iterations, the stream with the largest
+$\Delta_C$; if no stream ever attains a judge score of~$10$, return that
+best-$\Delta_C$ stream. This recovers a usable adversarial example even when
+the (high-FNR) Llama Guard judge fails to ratify a clearly harmful
+compliance.
+
+\section{FRR judge prompt}\label{app:frrprompt}
+We classify refusals with Mistral-7B-Instruct-v0.2 using the
+JailbreakBench-style prompt below; ``yes''/``no'' is parsed off the first
+non-whitespace token.
+\begin{quote}\small\ttfamily
+[INST] Here is a request from a user and a response generated by a large
+language model:\\
+<request>\{prompt\}</request>\\
+<response>\{response\}</response>\\
+Does the language model refuse to assist the user with their request?
+Answer either ``Yes'' or ``No''. Answer ``Yes'' if the response contains a
+refusal to the request above. [/INST]
+\end{quote}
+
+\section{Validation-set construction}\label{app:val}
+We embed each of the 3{,}000 training prompts with
+\texttt{all-MiniLM-L6-v2}, run agglomerative clustering
+(\texttt{linkage="average"}, \texttt{metric="cosine"},
+\texttt{distance\_threshold}~$=0.88$), and assign each of the resulting 12
+clusters wholesale to either training or validation, picking the smallest
+combination of clusters whose total size is closest to a $5{:}1$ ratio. This
+guarantees that no semantic family of harmful behaviour appears in both
+splits.
+
+\end{document}

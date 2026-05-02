@@ -51,6 +51,8 @@ def _wandb_init(args):
             "total_epochs": args.total_epochs,
             "eval_mode": args.eval_mode,
             "unseen_family": args.unseen_family,
+            "system_prompt_mode": getattr(args, "system_prompt_mode", "default"),
+            "lm_loss_input": getattr(args, "lm_loss_input", "clean"),
         },
     }
     if run_name:
@@ -311,11 +313,19 @@ def lm_loss(model, tokenizer, prompts, targets):
     return outputs.loss
 
 # Full Training Step
-def training_step(model, tokenizer, guard_model, guard_tokenizer, batch, GUARD_HEADER_EMBEDS, GUARD_FOOTER_EMBEDS, epsilon_term, LAMBDA):
+def training_step(model, tokenizer, guard_model, guard_tokenizer, batch, GUARD_HEADER_EMBEDS, GUARD_FOOTER_EMBEDS, epsilon_term, LAMBDA, lm_loss_input="clean"):
     h, r, h_p = batch
 
     # LM loss
-    lm_loss_term = lm_loss(model, tokenizer, h, r)
+    # "clean": condition CE on (clean prompt -> safe response). Refusal behavior on
+    #         attacks is transferred only via the stability regularizer below.
+    # "perturbed": condition CE on (perturbed prompt -> safe response) — the canonical
+    #         adversarial-SFT recipe (a la R2D2). With LAMBDA=0 this is pure adv-SFT;
+    #         with LAMBDA>0 it is "adv-SFT + stability regularizer" (Variant D).
+    if lm_loss_input == "perturbed":
+        lm_loss_term = lm_loss(model, tokenizer, h_p, r)
+    else:
+        lm_loss_term = lm_loss(model, tokenizer, h, r)
 
     # Safety scores
     hard_embeddings_clean_of_conversation = hard_response_embeddings_for_guard(model=model, tokenizer=tokenizer, prompts=h, responses=r)
@@ -343,6 +353,12 @@ def main(args):
         f"(SYSTEM_PROMPT={'<DEFENDED>' if SYSTEM_PROMPT else '<UNDEFENDED / no system role>'})",
         flush=True,
     )
+    print(
+        f"[train] lm_loss_input={args.lm_loss_input!r} "
+        f"(CE conditions on {'PERTURBED prompt (adv-SFT-style)' if args.lm_loss_input == 'perturbed' else 'CLEAN prompt'}; "
+        f"lambda={args.lambda_val})",
+        flush=True,
+    )
     wandb_on = _wandb_init(args)
     try:
         _main_train(args, wandb_on)
@@ -355,7 +371,7 @@ def _main_train(args, wandb_on):
 
     # Load LLMs
     model, tokenizer = load_model("/home/taegyoem/scratch/llama2_7b_chat_hf", args.lora_rank, resume_from=args.resume_from)
-    guard_model, guard_tokenizer = load_guard("/home/taegyoem/scratch/llama_guard_2")
+    guard_model, guard_tokenizer = load_guard("/home/taegyoem/scratch/llama_guard_7b")
     GUARD_HEADER_EMBEDS, GUARD_FOOTER_EMBEDS = precompute_guard_context(guard_model, guard_tokenizer)
 
     # Load data
@@ -405,8 +421,9 @@ def _main_train(args, wandb_on):
         )
 
         model.train()
-        loss, lm_loss_val, stability_val = training_step(model, tokenizer, guard_model, guard_tokenizer, batch, 
-                                           GUARD_HEADER_EMBEDS, GUARD_FOOTER_EMBEDS, epsilon_term, args.lambda_val)
+        loss, lm_loss_val, stability_val = training_step(model, tokenizer, guard_model, guard_tokenizer, batch,
+                                           GUARD_HEADER_EMBEDS, GUARD_FOOTER_EMBEDS, epsilon_term, args.lambda_val,
+                                           lm_loss_input=args.lm_loss_input)
         if i % 10 == 0:
             print(f"Step {i}: total={loss.item():.4f}, lm={lm_loss_val.item():.4f}, stab={stability_val.item():.4f}", flush=True)
             if wandb_on:
@@ -574,6 +591,21 @@ if __name__ == "__main__":
             "any commented-in eval-time generation). 'default' uses Llama-2-"
             "Chat's helpful/safe system prompt. 'empty' omits the system role "
             "entirely (Protocol-Undefended)."
+        ),
+    )
+    parser.add_argument(
+        "--lm-loss-input",
+        default="clean",
+        choices=["clean", "perturbed"],
+        help=(
+            "Which prompt to condition the language-modelling cross-entropy on. "
+            "'clean' (default) uses the unperturbed Original Prompt; refusal "
+            "behavior on attacks is then transferred only via the stability "
+            "regularizer (the original method as written). 'perturbed' uses the "
+            "GCG/AutoDAN/PAIR-perturbed prompt (a.k.a. R2D2-style adversarial "
+            "SFT). Set --lambda-val 0 with --lm-loss-input perturbed for a pure "
+            "adversarial-SFT baseline; set --lambda-val >0 for adversarial SFT "
+            "+ stability regularizer (the strict-superset variant)."
         ),
     )
     parser.add_argument("--resume-from", default=None)
