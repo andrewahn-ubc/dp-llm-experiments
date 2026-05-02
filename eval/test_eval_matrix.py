@@ -9,7 +9,8 @@ Checkpoint naming matches train/submit_wandb_sweep.py:
 
 where slug = make_run_slug(lr, lam, eps, lm_loss_input).
 
-Default grid matches ``submit_wandb_sweep.py``: **6 λ × 7 ε**, fixed ``lr=2e-5``,
+Default grid matches ``submit_wandb_sweep.py``: **7 λ × 5 ε** with **λ=0** collapsed to a
+single ε (``0.0`` when present), fixed ``lr=2e-5``,
 ``epoch=5``. Paths default to ``official_data/combined_test_dataset.csv`` and
 ``official_data/frr_test.csv`` under ``--repo-root``.
 ``submit_wandb_sweep.py`` after training on **your** chosen train CSV):
@@ -20,8 +21,9 @@ Default grid matches ``submit_wandb_sweep.py``: **6 λ × 7 ε**, fixed ``lr=2e-
   pert_reg  — lm_loss_input=perturbed. λ=0 is **pure adversarial SFT** (ε in the folder
               name only; no gradient from the regularizer). λ>0 is adv-SFT + stability.
 
-Include λ=0 in ``--lambdas`` for the adv-SFT row/column in your paper grid; there is
-no separate one-off task — it is just ``pert_reg`` with λ=0 × each ε.
+Include λ=0 in ``--lambdas`` for the adv-SFT baseline row; when λ=0 only **one** ε is
+trained/evaluated (same as ``submit_wandb_sweep.lambda_epsilon_pairs``), since ε does not
+affect training at λ=0.
 
 Seen-family:    eval.py --eval-mode seen-family
 Unseen-family:  eval.py --eval-mode unseen-family --unseen-family {gcg|autodan|pair}
@@ -64,11 +66,14 @@ from typing import Any
 
 import pandas as pd
 
+_REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+from train.submit_wandb_sweep import lambda_epsilon_pairs  # noqa: E402
+
 # ---------------------------------------------------------------------------
 # Slug helper (must stay in sync with train/submit_wandb_sweep.py::make_run_slug)
 # ---------------------------------------------------------------------------
-
-
 def make_run_slug(lr: float, lam: float, eps: float, lm_loss_input: str = "clean") -> str:
     base = f"run_lr{lr:g}_lam{lam:g}_eps{eps:g}".replace(" ", "_")
     if lm_loss_input == "perturbed":
@@ -87,9 +92,9 @@ def expand_path(p: str) -> str:
 
 DEFAULT_LR = 2e-5
 DEFAULT_EPOCH = 5
-# 6 λ × 7 ε per mode (clean_reg + pert_reg): 84 tasks total (must match train/submit_wandb_sweep.py).
-DEFAULT_LAMBDAS = (0.0, 0.3, 1.0, 3.0, 10.0, 30.0)
-DEFAULT_EPSILONS = (-1.0, -0.5, 0.0, 0.5, 1.0, 1.5, 2.0)
+# Default grid matches submit_wandb_sweep (λ=0 uses one ε only): 31 pairs × 2 modes = 62 tasks.
+DEFAULT_LAMBDAS = (0.0, 0.1, 0.3, 1.0, 3.0, 10.0, 30.0)
+DEFAULT_EPSILONS = (-1.0, -0.5, 0.0, 0.5, 1.0)
 
 FAMILIES = ("gcg", "autodan", "pair")
 
@@ -177,18 +182,15 @@ def build_tasks(
 ) -> list[Task]:
     tasks: list[Task] = []
     tid = 0
+    pairs = lambda_epsilon_pairs(lambdas, epsilons)
 
-    # (1) Clean LM (+ stability when λ>0; λ=0 is vanilla SFT on clean prompts)
-    for lam in lambdas:
-        for eps in epsilons:
-            tasks.append(Task(tid, "clean_reg", lr, lam, eps, "clean"))
-            tid += 1
+    for lam, eps in pairs:
+        tasks.append(Task(tid, "clean_reg", lr, lam, eps, "clean"))
+        tid += 1
 
-    # (2) Perturbed LM (λ=0 = adversarial SFT; λ>0 = adv-SFT + stability)
-    for lam in lambdas:
-        for eps in epsilons:
-            tasks.append(Task(tid, "pert_reg", lr, lam, eps, "perturbed"))
-            tid += 1
+    for lam, eps in pairs:
+        tasks.append(Task(tid, "pert_reg", lr, lam, eps, "perturbed"))
+        tid += 1
 
     return tasks
 
@@ -416,13 +418,13 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--lambdas",
         type=str,
         default=",".join(str(x) for x in DEFAULT_LAMBDAS),
-        help="Comma-separated λ grid for clean_reg and pert_reg (default 6 values; must match training sweep).",
+        help="Comma-separated λ grid for clean_reg and pert_reg (default 7 values; must match training sweep).",
     )
     p.add_argument(
         "--epsilons",
         type=str,
         default=",".join(str(x) for x in DEFAULT_EPSILONS),
-        help="Comma-separated ε grid (default 7 values; must match training sweep).",
+        help="Comma-separated ε grid (default 5 values; must match training sweep).",
     )
 
     p.add_argument(

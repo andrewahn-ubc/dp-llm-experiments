@@ -5,7 +5,7 @@
 #SBATCH --cpus-per-task=6
 #SBATCH --mem=48G
 #SBATCH --time=24:00:00
-#SBATCH --array=0-83
+#SBATCH --array=0-61
 #SBATCH --output=output/test_eval_matrix_%A_%a.out
 #
 # Submit from repo root (where eval/ lives):
@@ -13,7 +13,7 @@
 #
 # One array task = one (mode, λ, ε) from eval/test_eval_matrix.py, running
 #   1× seen-family eval + 3× unseen-family eval (gcg, autodan, pair).
-# Default task_count=84 = 6×7 clean_reg + 6×7 pert_reg (same λ×ε grid as submit_wandb_sweep).
+# Default task_count=62 = 31 clean_reg + 31 pert_reg (λ=0 uses one ε only; same grid as submit_wandb_sweep).
 #   pert_reg with λ=0 is adversarial SFT—train with --lm-loss-input perturbed and
 #   the same (λ,ε) in submit_wandb_sweep (λ=0 is in LAMBDAS there).
 #

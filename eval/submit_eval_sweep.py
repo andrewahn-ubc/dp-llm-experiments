@@ -1,24 +1,21 @@
 #!/usr/bin/env python3
 """
-Submit SLURM evaluation jobs for the training sweep.
+Submit SLURM evaluation jobs against checkpoints produced by ``train/submit_wandb_sweep.py``.
 
-Each SLURM job runs `eval_sweep.py` once per epoch in --epochs against the
-checkpoints produced by the corresponding training job. The hyperparameter
-grid is kept in sync with train/submit_wandb_sweep.py; with the current
-follow-up sweep (1 × 3 × 3 = 9 configs) and default --epochs (1, 3, 5),
-this totals 9 jobs × 3 eval passes = 27 evaluated checkpoints.
-
-The hyperparameter grid is intentionally kept in sync with
-`train/submit_wandb_sweep.py` so the slugs match exactly and we can look up the
-adapter paths that training produced:
+The **λ × ε grid** is imported from ``train.submit_wandb_sweep`` (``LAMBDAS``, ``EPSILONS``,
+``sweep_lr_lambda_epsilon_combos``), including the **λ=0 → single ε** convention so slugs
+match training outputs exactly:
 
     {checkpoint_root}/{slug}_finetuned_llm_epoch{N}
 
-Each eval job generates model responses on validation.csv (GCG, AutoDAN, PAIR)
-and frr_validation.csv (benign), then judges them with a single shared
-Mistral-7B-Instruct-v0.2 instance (HarmBench prompt for jailbreaks, refusal
-prompt for benign), writing enriched CSVs + one summary row to an append-only
-TSV.
+Default learning rate is ``2e-5`` (same as the training sweep; override with ``--learning-rates``).
+
+Each SLURM job runs ``eval_sweep.py`` once per epoch in ``--epochs`` against the
+corresponding checkpoints. With default ``--epochs 1 3 5``, each config evaluates three
+epoch checkpoints in one job.
+
+Each eval job generates model responses on validation CSVs and judges them (see
+``eval_sweep.py``), writing enriched CSVs + summary rows.
 
 Weights & Biases is run in offline mode on compute nodes (same pattern as
 training); sync from a node with internet afterwards:
@@ -29,7 +26,6 @@ training); sync from a node with internet afterwards:
 from __future__ import annotations
 
 import argparse
-import itertools
 import os
 import re
 import subprocess
@@ -37,14 +33,15 @@ import sys
 import uuid
 from pathlib import Path
 
-# Keep in sync with train/submit_wandb_sweep.py (follow-up sweep: 1 × 3 × 3 = 9 configs)
-# Previous sweep:
-# LEARNING_RATES = (1e-6, 1e-5, 2e-5)
-# LAMBDAS = (0.1, 0.3, 1.0, 3.0, 10.0)
-# EPSILONS = (-1.0, -0.5, 0.0, 0.5, 1.0)
-LEARNING_RATES = (1e-5,)
-LAMBDAS = (10.0, 20.0, 30.0)
-EPSILONS = (1.0, 1.5, 2.0)
+_REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+
+from train.submit_wandb_sweep import (  # noqa: E402
+    EPSILONS,
+    LAMBDAS,
+    sweep_lr_lambda_epsilon_combos,
+)
 
 DEFAULT_EVAL_EPOCHS = (1, 3, 5)
 
@@ -206,6 +203,14 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         default="$SCRATCH/dp-llm-experiments/official_data/frr_validation.csv",
     )
     p.add_argument(
+        "--learning-rates",
+        default="2e-5",
+        help=(
+            "Comma-separated learning rates (default: 2e-5, matching submit_wandb_sweep). "
+            "Must match the LR used when training each checkpoint."
+        ),
+    )
+    p.add_argument(
         "--epochs",
         type=int,
         nargs="+",
@@ -235,6 +240,12 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     p.add_argument("--overwrite", action="store_true", help="Regenerate even if outputs exist.")
 
     args = p.parse_args(argv)
+
+    lr_parts = [float(x.strip()) for x in args.learning_rates.split(",") if x.strip()]
+    if not lr_parts:
+        raise SystemExit("--learning-rates must list at least one value")
+    args.learning_rates_tuple = tuple(lr_parts)
+
     if args.time_limit is None:
         total_h = args.hours_per_epoch * len(args.epochs) + 1
         args.time_limit = f"{total_h}:00:00"
@@ -244,7 +255,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
 def main(argv: list[str]) -> int:
     args = parse_args(argv)
     epochs = tuple(args.epochs)
-    combos = list(itertools.product(LEARNING_RATES, LAMBDAS, EPSILONS))
+    combos = sweep_lr_lambda_epsilon_combos(args.learning_rates_tuple, LAMBDAS, EPSILONS)
     if args.limit is not None:
         combos = combos[: args.limit]
 

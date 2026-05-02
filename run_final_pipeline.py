@@ -15,7 +15,10 @@ Single entry point for the **final** experiment on Narval:
   4. Same **held-out** grid for **perturbed** LM.
 
   5. Submit the SLURM array for ``test_eval_matrix.py`` (1× seen-family + 3× unseen-family
-     eval per cell): 6×7 × 2 LM modes = 84 tasks.
+     eval per cell): **62** tasks (31 λ×ε cells × 2 LM modes; λ=0 uses one ε only).
+
+  6. Submit a short **CPU** job that builds **8 λ×ε heatmaps** (PNG) from
+     ``test_eval_outputs/*_metrics.tsv``, chained after the eval array finishes.
 
 By default the eval array is submitted with a SLURM dependency so it starts **after all
 training jobs have terminated** (``--dependency=after:<ids>`` — success or failure).
@@ -43,12 +46,14 @@ Launcher-only flags (before ``--``)::
   --skip-training          Skip all ``submit_wandb_sweep`` calls (only sbatch eval array).
   --skip-held-out-training Submit seen-family sweeps only (no held-out training jobs).
   --skip-eval              Submit training only (no ``submit_test_eval_matrix.sh``).
+  --skip-heatmaps          Do not submit ``eval/submit_plot_heatmaps.sh`` after eval.
   --parallel-eval          Submit eval immediately; do not wait for training jobs to finish.
 """
 
 from __future__ import annotations
 
 import argparse
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -66,19 +71,39 @@ def _read_job_ids(path: Path) -> list[str]:
     ]
 
 
+def _submit_sbatch(repo: Path, cmd: list[str]) -> str | None:
+    """Run sbatch from repo cwd; print stdout/stderr; return job id if parsed."""
+    proc = subprocess.run(cmd, cwd=str(repo), text=True, capture_output=True, check=True)
+    if proc.stdout:
+        print(proc.stdout, end="", flush=True)
+    if proc.stderr:
+        print(proc.stderr, end="", file=sys.stderr, flush=True)
+    combined = (proc.stdout or "") + (proc.stderr or "")
+    m = re.search(r"Submitted batch job (\d+)", combined)
+    return m.group(1) if m else None
+
+
 def _submit_eval_array(
     *,
     repo: Path,
     eval_sh: Path,
     dependency_job_ids: list[str] | None,
-) -> None:
+) -> str | None:
     """Submit eval SLURM script; optionally wait until all listed training jobs finish."""
     cmd: list[str] = ["sbatch"]
     if dependency_job_ids:
         cmd.append(f"--dependency=after:{':'.join(dependency_job_ids)}")
     cmd.append(str(eval_sh))
     print(" ", " ".join(cmd), flush=True)
-    subprocess.run(cmd, cwd=str(repo), check=True)
+    return _submit_sbatch(repo, cmd)
+
+
+def _submit_heatmap_job(*, repo: Path, heatmap_sh: Path, after_job_id: str) -> None:
+    cmd = ["sbatch", f"--dependency=after:{after_job_id}", str(heatmap_sh)]
+    print(" ", " ".join(cmd), flush=True)
+    jid = _submit_sbatch(repo, cmd)
+    if jid is None:
+        print("[WARN] Could not parse heatmap batch job id from sbatch output.", flush=True)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -108,6 +133,11 @@ def main(argv: list[str] | None = None) -> int:
         help="Only run training sweep submissions (skip sbatch test matrix).",
     )
     lp.add_argument(
+        "--skip-heatmaps",
+        action="store_true",
+        help="Do not sbatch eval/submit_plot_heatmaps.sh after the eval array.",
+    )
+    lp.add_argument(
         "--parallel-eval",
         action="store_true",
         help=(
@@ -129,11 +159,16 @@ def main(argv: list[str] | None = None) -> int:
     sweep_root.mkdir(parents=True, exist_ok=True)
     job_ids_path = sweep_root / "training_job_ids.txt"
 
+    heatmap_sh = repo / "eval" / "submit_plot_heatmaps.sh"
+
     if not submit_py.is_file():
         print(f"ERROR: missing {submit_py}", file=sys.stderr)
         return 2
     if not eval_sh.is_file():
         print(f"ERROR: missing {eval_sh}", file=sys.stderr)
+        return 2
+    if not args.skip_eval and not args.skip_heatmaps and not heatmap_sh.is_file():
+        print(f"ERROR: missing {heatmap_sh} (use --skip-heatmaps if you do not want plots)", file=sys.stderr)
         return 2
 
     seen_sweeps = [
@@ -194,13 +229,29 @@ def main(argv: list[str] | None = None) -> int:
             )
 
         print("\n=== sbatch test_eval_matrix array (seen + unseen × 3 families) ===", flush=True)
-        _submit_eval_array(
+        eval_job_id = _submit_eval_array(
             repo=repo,
             eval_sh=eval_sh,
             dependency_job_ids=train_ids if use_dep else None,
         )
 
-    print("\nDone. Check sweep_jobs/*/ manifests, sweep_jobs/training_job_ids.txt, and SLURM queue.", flush=True)
+        if not args.skip_heatmaps:
+            if eval_job_id is None:
+                print(
+                    "[WARN] Could not parse eval job id; skipping heatmap submission. "
+                    "Run manually: sbatch eval/submit_plot_heatmaps.sh",
+                    flush=True,
+                )
+            else:
+                print("\n=== sbatch plot hyperparameter heatmaps (after eval array) ===", flush=True)
+                _submit_heatmap_job(repo=repo, heatmap_sh=heatmap_sh, after_job_id=eval_job_id)
+
+    print(
+        "\nDone. Check sweep_jobs/*/ manifests and SLURM queue. "
+        "PNG heatmaps default to CHECKPOINT_ROOT/test_eval_outputs/heatmaps "
+        "(override METRICS_DIR / HEATMAP_OUT_DIR in eval/submit_plot_heatmaps.sh).",
+        flush=True,
+    )
     return 0
 
 

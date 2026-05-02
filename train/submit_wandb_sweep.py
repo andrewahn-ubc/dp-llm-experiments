@@ -5,7 +5,9 @@ Submit a grid of SLURM training jobs (Narval / Compute Canada friendly).
 Defaults target **final** runs (not train/val hyperparameter search):
 
   • Learning rates: ``2e-5`` only (override via ``--learning-rates``).
-  • λ × ε grid: **6 × 7** (see ``LAMBDAS`` / ``EPSILONS`` below).
+  • λ × ε grid: **7 × 5** full factorial except **λ=0** uses a single representative ε
+    (see ``lambda_epsilon_pairs``): fewer jobs than 7×5×LR because ε does not affect
+    training when λ=0.
   • Training CSV: ``official_data/train_plus_validation.csv``.
   • Embedded ``eval.py`` after training uses **test** files:
     ``combined_test_dataset.csv`` + ``frr_test.csv``.
@@ -36,7 +38,6 @@ Requires: pip install wandb (in the same venv you use for training.)
 from __future__ import annotations
 
 import argparse
-import itertools
 import os
 import re
 import subprocess
@@ -45,7 +46,41 @@ import uuid
 from pathlib import Path
 
 LAMBDAS = (0.0, 0.1, 0.3, 1.0, 3.0, 10.0, 30.0)
-EPSILONS = (-1.0, -0.5, 0.0, 0.5, 1.0, 1.5)
+EPSILONS = (-1.0, -0.5, 0.0, 0.5, 1.0)
+
+
+def lambda_epsilon_pairs(
+    lambdas: tuple[float, ...],
+    epsilons: tuple[float, ...],
+) -> list[tuple[float, float]]:
+    """Enumerate (λ, ε) sweep cells.
+
+    When λ=0 the stability term does not contribute, so ε is unused in training; only
+    one representative ε is scheduled (``0.0`` if it appears in ``epsilons``, else the
+    middle ε value) to reduce redundant jobs while keeping slugs consistent with the grid.
+    """
+    if not epsilons:
+        raise ValueError("epsilons must be non-empty")
+    has_zero_eps = any(abs(float(e)) < 1e-15 for e in epsilons)
+    eps_at_lambda_zero = 0.0 if has_zero_eps else float(epsilons[len(epsilons) // 2])
+    out: list[tuple[float, float]] = []
+    for lam in lambdas:
+        lam_f = float(lam)
+        if abs(lam_f) < 1e-12:
+            out.append((lam_f, eps_at_lambda_zero))
+        else:
+            for eps in epsilons:
+                out.append((lam_f, float(eps)))
+    return out
+
+
+def sweep_lr_lambda_epsilon_combos(
+    learning_rates: tuple[float, ...],
+    lambdas: tuple[float, ...],
+    epsilons: tuple[float, ...],
+) -> list[tuple[float, float, float]]:
+    pairs = lambda_epsilon_pairs(lambdas, epsilons)
+    return [(lr, lam, eps) for lr in learning_rates for lam, eps in pairs]
 
 
 def make_run_slug(lr: float, lam: float, eps: float, lm_loss_input: str = "clean") -> str:
@@ -520,7 +555,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
 
 def main(argv: list[str]) -> int:
     args = parse_args(argv)
-    combos = list(itertools.product(args.learning_rates_tuple, LAMBDAS, EPSILONS))
+    combos = sweep_lr_lambda_epsilon_combos(args.learning_rates_tuple, LAMBDAS, EPSILONS)
     if args.limit is not None:
         combos = combos[: args.limit]
 
