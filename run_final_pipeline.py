@@ -73,11 +73,18 @@ def _read_job_ids(path: Path) -> list[str]:
 
 def _submit_sbatch(repo: Path, cmd: list[str]) -> str | None:
     """Run sbatch from repo cwd; print stdout/stderr; return job id if parsed."""
-    proc = subprocess.run(cmd, cwd=str(repo), text=True, capture_output=True, check=True)
+    proc = subprocess.run(cmd, cwd=str(repo), text=True, capture_output=True)
     if proc.stdout:
         print(proc.stdout, end="", flush=True)
     if proc.stderr:
         print(proc.stderr, end="", file=sys.stderr, flush=True)
+    if proc.returncode != 0:
+        print(
+            f"[ERROR] sbatch failed (exit {proc.returncode}): {' '.join(cmd)}",
+            file=sys.stderr,
+            flush=True,
+        )
+        return None
     combined = (proc.stdout or "") + (proc.stderr or "")
     m = re.search(r"Submitted batch job (\d+)", combined)
     return m.group(1) if m else None
@@ -99,11 +106,30 @@ def _submit_eval_array(
 
 
 def _submit_heatmap_job(*, repo: Path, heatmap_sh: Path, after_job_id: str) -> None:
-    cmd = ["sbatch", f"--dependency=after:{after_job_id}", str(heatmap_sh)]
-    print(" ", " ".join(cmd), flush=True)
-    jid = _submit_sbatch(repo, cmd)
-    if jid is None:
-        print("[WARN] Could not parse heatmap batch job id from sbatch output.", flush=True)
+    """Chain heatmap CPU job after the eval array.
+
+    Try ``afterok`` first (typical on Compute Canada / job arrays: run after all tasks
+    exit 0). Some Slurm builds reject ``after:`` or behave oddly with arrays; fall back
+    to ``afterany`` then ``after``.
+    """
+    dep_styles = (
+        f"afterok:{after_job_id}",
+        f"afterany:{after_job_id}",
+        f"after:{after_job_id}",
+    )
+    for dep in dep_styles:
+        cmd = ["sbatch", f"--dependency={dep}", str(heatmap_sh)]
+        print(" ", " ".join(cmd), flush=True)
+        jid = _submit_sbatch(repo, cmd)
+        if jid is not None:
+            return
+        print(f"[WARN] Heatmap sbatch with --dependency={dep} failed; trying next...", flush=True)
+    print(
+        "[WARN] Could not submit heatmap job (dependency or sbatch error). "
+        "After eval finishes, run manually:\n"
+        f"  sbatch {heatmap_sh}",
+        flush=True,
+    )
 
 
 def main(argv: list[str] | None = None) -> int:
