@@ -8,19 +8,34 @@
 #SBATCH --array=0-61
 #SBATCH --output=output/test_eval_matrix_%A_%a.out
 #
-# Submit from repo root (where eval/ lives):
+# ---------------------------------------------------------------------------
+# How to submit (no extra wrappers — one Slurm job file only)
+# ---------------------------------------------------------------------------
+#
+# Slurm resolves #SBATCH --output relative to the directory you were in when you ran
+# sbatch. Always run sbatch from your repo root so logs land in repo output/:
+#
+#   cd /path/to/dp-llm-experiments
+#   mkdir -p output
 #   sbatch eval/submit_test_eval_matrix.sh
 #
-# Rerun only some array indices (CLI --array overrides this file’s default 0-61), e.g.:
-#   sbatch --array=7,12,18,29-61 eval/submit_test_eval_matrix.sh
-# Or use the helper (same default subset):
-#   ./eval/submit_test_eval_matrix_rerun.sh
+# Rerun only some array tasks (CLI --array replaces the default 0-61 above), e.g.:
+#
+#   cd /path/to/dp-llm-experiments && mkdir -p output && sbatch --array=7,12,18,29-61 eval/submit_test_eval_matrix.sh
+#
+# If your repo is not ${SCRATCH}/dp-llm-experiments, set REPO_ROOT before sbatch:
+#
+#   export REPO_ROOT=/lustre07/scratch/you/dp-llm-experiments
+#   cd "$REPO_ROOT" && mkdir -p output && sbatch --array=7,12,18,29-61 eval/submit_test_eval_matrix.sh
+#
+# Heatmaps after this eval array finishes (use the Job ID sbatch prints):
+#   sbatch --dependency=afterok:<JOBID> eval/submit_plot_heatmaps.sh
+#
+# ---------------------------------------------------------------------------
 #
 # One array task = one (mode, λ, ε) from eval/test_eval_matrix.py, running
-#   1× seen-family eval + 3× unseen-family eval (gcg, autodan, pair).
+# 1× seen-family eval + 3× unseen-family eval (gcg, autodan, pair).
 # Default task_count=62 = 31 clean_reg + 31 pert_reg (λ=0 uses one ε only; same grid as submit_wandb_sweep).
-#   pert_reg with λ=0 is adversarial SFT—train with --lm-loss-input perturbed and
-#   the same (λ,ε) in submit_wandb_sweep (λ=0 is in LAMBDAS there).
 #
 # Prerequisites:
 #   • Seen checkpoints under CHECKPOINT_ROOT (same as submit_wandb_sweep):
@@ -34,7 +49,14 @@
 # Time / memory: raise --time or --mem if a single task OOMs or times out (4 full eval runs).
 
 set -euo pipefail
-cd "${SLURM_SUBMIT_DIR:-.}"
+
+REPO_ROOT="${REPO_ROOT:-${SCRATCH}/dp-llm-experiments}"
+if [[ ! -d "${REPO_ROOT}" ]]; then
+  echo "ERROR: REPO_ROOT is not a directory: ${REPO_ROOT}" >&2
+  echo "Fix: export REPO_ROOT=/absolute/path/to/dp-llm-experiments" >&2
+  exit 2
+fi
+cd "${REPO_ROOT}"
 mkdir -p output
 
 module load StdEnv/2023 python/3.11
@@ -44,7 +66,6 @@ export TRANSFORMERS_CACHE="${SLURM_TMPDIR}/hf_cache"
 export HF_HOME="${SLURM_TMPDIR}/hf_home"
 mkdir -p "$TRANSFORMERS_CACHE" "$HF_HOME"
 
-REPO_ROOT="${REPO_ROOT:-${SCRATCH}/dp-llm-experiments}"
 CHECKPOINT_ROOT="${CHECKPOINT_ROOT:-${SCRATCH}/dp-llm-sweep}"
 
 python "${REPO_ROOT}/eval/test_eval_matrix.py" \

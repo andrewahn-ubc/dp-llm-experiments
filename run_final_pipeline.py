@@ -53,6 +53,7 @@ Launcher-only flags (before ``--``)::
 from __future__ import annotations
 
 import argparse
+import os
 import re
 import subprocess
 import sys
@@ -71,9 +72,17 @@ def _read_job_ids(path: Path) -> list[str]:
     ]
 
 
-def _submit_sbatch(repo: Path, cmd: list[str]) -> str | None:
+def _submit_sbatch(
+    repo: Path,
+    cmd: list[str],
+    *,
+    env: dict[str, str] | None = None,
+) -> str | None:
     """Run sbatch from repo cwd; print stdout/stderr; return job id if parsed."""
-    proc = subprocess.run(cmd, cwd=str(repo), text=True, capture_output=True)
+    run_env = os.environ.copy()
+    if env:
+        run_env.update(env)
+    proc = subprocess.run(cmd, cwd=str(repo), text=True, capture_output=True, env=run_env)
     if proc.stdout:
         print(proc.stdout, end="", flush=True)
     if proc.stderr:
@@ -102,7 +111,7 @@ def _submit_eval_array(
         cmd.append(f"--dependency=after:{':'.join(dependency_job_ids)}")
     cmd.append(str(eval_sh))
     print(" ", " ".join(cmd), flush=True)
-    return _submit_sbatch(repo, cmd)
+    return _submit_sbatch(repo, cmd, env={"REPO_ROOT": str(repo.resolve())})
 
 
 def _submit_heatmap_job(*, repo: Path, heatmap_sh: Path, after_job_id: str) -> None:
@@ -120,7 +129,7 @@ def _submit_heatmap_job(*, repo: Path, heatmap_sh: Path, after_job_id: str) -> N
     for dep in dep_styles:
         cmd = ["sbatch", f"--dependency={dep}", str(heatmap_sh)]
         print(" ", " ".join(cmd), flush=True)
-        jid = _submit_sbatch(repo, cmd)
+        jid = _submit_sbatch(repo, cmd, env={"REPO_ROOT": str(repo.resolve())})
         if jid is not None:
             return
         print(f"[WARN] Heatmap sbatch with --dependency={dep} failed; trying next...", flush=True)
