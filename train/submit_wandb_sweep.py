@@ -423,20 +423,20 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     p.add_argument(
         "--hours-per-epoch",
         type=int,
-        default=2,
+        default=1,
         help=(
             "Budget per epoch (hours); used to set default --time as "
             "hours-per-epoch × total-epochs + eval-hours × len(eval-epochs). "
-            "Default 2 gives 12h with total-epochs=5, eval-epochs=5 only "
-            "(2×5 + 2×1)."
+            "Default 1 with default eval-hours and total-epochs=5, eval-epochs=5 only "
+            "gives 9h (1×5 + 4×1)."
         ),
     )
     p.add_argument(
         "--eval-hours",
         type=int,
-        default=2,
+        default=4,
         help=(
-            "Hours added to wall time PER eval epoch (default: 2). Total eval "
+            "Hours added to wall time PER eval epoch (default: 4). Total eval "
             "budget = eval-hours × len(eval-epochs)."
         ),
     )
