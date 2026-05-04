@@ -224,6 +224,7 @@ def render_job_script(
         "# show up after the 30s poll timeout under load, killing the job at wandb.init.",
         "# We sync the offline run folder to a persistent dir at the end of the job.",
         "export WANDB_MODE=offline",
+        "export WANDB_DISABLE_SERVICE=true",
         f'export WANDB_PROJECT="{wandb_project}"',
         f'export WANDB_DIR_PERSISTENT="{wandb_dir}"',
         'export WANDB_DIR="$SLURM_TMPDIR/wandb"',

@@ -29,19 +29,22 @@ def _wandb_enabled():
 def _wandb_init(args):
     if not _wandb_enabled():
         return False
+    mode = os.environ.get("WANDB_MODE", "online")
+    # Offline runs do not need wandb's sidecar service; on Lustre/NFS the service-port
+    # handshake often hits ServicePollForTokenError (~30s) before init_timeout applies.
+    if str(mode).lower() == "offline":
+        os.environ.setdefault("WANDB_DISABLE_SERVICE", "true")
     try:
         import wandb
     except ImportError:
         print("WANDB_PROJECT is set but wandb is not installed; skipping Weights & Biases logging.")
         return False
-    mode = os.environ.get("WANDB_MODE", "online")
-    wandb_dir = os.environ.get("WANDB_DIR", ".")
     run_id = os.environ.get("WANDB_RUN_ID")
     run_name = os.environ.get("WANDB_RUN_NAME")
     init_kwargs = {
         "project": os.environ["WANDB_PROJECT"],
         "mode": mode,
-        "dir": wandb_dir,
+        "dir": os.environ.get("WANDB_DIR", "."),
         "config": {
             "lr": args.lr,
             "lambda_val": args.lambda_val,
