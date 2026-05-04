@@ -370,10 +370,18 @@ def main(args):
 
 
 def _main_train(args, wandb_on):
-    epsilon_term = torch.exp(torch.tensor(args.epsilon)).to(DEVICE)
+    # Load the trainable model before allocating CUDA tensors for the loss. On some
+    # Slurm + wandb.offline setups the first bare ``.to("cuda")`` before ``load_model``
+    # intermittently raises cudaErrorDevicesUnavailable; anchoring on the model device
+    # after weights are mapped avoids that ordering hazard.
+    model, tokenizer = load_model(
+        "/home/taegyoem/scratch/llama2_7b_chat_hf",
+        args.lora_rank,
+        resume_from=args.resume_from,
+    )
+    train_dev = next(model.parameters()).device
+    epsilon_term = torch.exp(torch.tensor(args.epsilon, dtype=torch.float32, device=train_dev))
 
-    # Load LLMs
-    model, tokenizer = load_model("/home/taegyoem/scratch/llama2_7b_chat_hf", args.lora_rank, resume_from=args.resume_from)
     guard_model, guard_tokenizer = load_guard("/home/taegyoem/scratch/llama_guard_7b")
     GUARD_HEADER_EMBEDS, GUARD_FOOTER_EMBEDS = precompute_guard_context(guard_model, guard_tokenizer)
 
