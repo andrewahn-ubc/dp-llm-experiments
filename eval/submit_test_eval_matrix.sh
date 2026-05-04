@@ -4,12 +4,17 @@
 #SBATCH --gres=gpu:1
 #SBATCH --cpus-per-task=6
 #SBATCH --mem=48G
-#SBATCH --time=24:00:00
+#SBATCH --time=2:15:00
 #SBATCH --array=0-61
 #SBATCH --output=output/test_eval_matrix_%A_%a.out
 #
 # Submit from repo root (where eval/ lives):
 #   sbatch eval/submit_test_eval_matrix.sh
+#
+# Rerun only some array indices (CLI --array overrides this file’s default 0-61), e.g.:
+#   sbatch --array=7,12,18,29-61 eval/submit_test_eval_matrix.sh
+# Or use the helper (same default subset):
+#   ./eval/submit_test_eval_matrix_rerun.sh
 #
 # One array task = one (mode, λ, ε) from eval/test_eval_matrix.py, running
 #   1× seen-family eval + 3× unseen-family eval (gcg, autodan, pair).
@@ -26,7 +31,7 @@
 # If you only have seen-family adapters, set before sbatch:
 #   export EXTRA_ARGS="--seen-only"
 #
-# Time / memory: increase if a single task OOMs or times out (4 full eval runs).
+# Time / memory: raise --time or --mem if a single task OOMs or times out (4 full eval runs).
 
 set -euo pipefail
 cd "${SLURM_SUBMIT_DIR:-.}"
