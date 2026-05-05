@@ -10,20 +10,26 @@ Checkpoint naming matches train/submit_wandb_sweep.py:
 where slug = make_run_slug(lr, lam, eps, lm_loss_input).
 
 Default grid matches ``submit_wandb_sweep.py``: **7 λ × 5 ε** with **λ=0** collapsed to a
-single ε (``0.0`` when present), fixed ``lr=2e-5``,
-``epoch=5``. Paths default to ``official_data/combined_test_dataset.csv`` and
-``official_data/frr_test.csv`` under ``--repo-root``.
-``submit_wandb_sweep.py`` after training on **your** chosen train CSV):
+single ε (``0.0`` when present), fixed ``lr=2e-5``, ``epoch=5``.
+
+Default test CSVs under ``--repo-root``: ``official_data/combined_test_dataset.csv`` and
+``official_data/frr_test.csv`` (cluster layout: ``$SCRATCH/dp-llm-experiments/official_data/``).
+
+Metrics TSVs record artifact paths **relative to ``--out-dir``** when outputs live there, so
+post-hoc plotting (``plot_hyperparameter_heatmaps.py``) can always open CSVs next to the TSVs.
+
+Modes:
 
   clean_reg — lm_loss_input=clean. λ=0 is vanilla refusal SFT (no stability term);
               λ>0 is your stability-regularized method.
 
-  pert_reg  — lm_loss_input=perturbed. λ=0 is **pure adversarial SFT** (ε in the folder
-              name only; no gradient from the regularizer). λ>0 is adv-SFT + stability.
+  pert_reg  — lm_loss_input=perturbed. With default ``--perturbed-reg-subset lambda0_only``,
+              a **single** λ=0 checkpoint (representative ε, same rule as clean λ=0) matches
+              ``--perturbed-sweep-subset lambda0_only`` training. Use ``--perturbed-reg-subset full``
+              for the legacy full perturbed λ×ε grid (62 tasks total).
 
-Include λ=0 in ``--lambdas`` for the adv-SFT baseline row; when λ=0 only **one** ε is
-trained/evaluated (same as ``submit_wandb_sweep.lambda_epsilon_pairs``), since ε does not
-affect training at λ=0.
+For **clean** LM, when λ=0 only **one** ε is used (``lambda_epsilon_pairs``). The same
+representative ε is used for the lone **perturbed** λ=0 run when using ``lambda0_only``.
 
 Seen-family:    eval.py --eval-mode seen-family
 Unseen-family:  eval.py --eval-mode unseen-family --unseen-family {gcg|autodan|pair}
@@ -39,7 +45,7 @@ saved folder names differ, symlink or rename to match.
 If you only have seen checkpoints, pass ``--seen-only``.
 
 Usage (Narval):
-  # List tasks (0 .. N-1)
+  # List tasks (0 .. N-1); default N=32 (clean full grid + one perturbed @λ=0)
   python eval/test_eval_matrix.py --list-tasks
 
   # Dry-run task 0
@@ -48,7 +54,7 @@ Usage (Narval):
   # Run task 0 for real
   python eval/test_eval_matrix.py --task-id 0
 
-  # submit_test_eval_matrix.sh uses SLURM_ARRAY_TASK_ID
+  # submit_test_eval_matrix.sh uses SLURM_ARRAY_TASK_ID (default 32 tasks)
 
 Outputs under --out-dir:
   per-task metrics TSV + optional master summary rows.
@@ -69,18 +75,16 @@ import pandas as pd
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
+from train.model_profiles import (  # noqa: E402
+    DEFAULT_MODEL_PROFILE,
+    MODEL_PROFILE_CHOICES,
+    make_run_slug,
+)
 from train.submit_wandb_sweep import lambda_epsilon_pairs  # noqa: E402
 
 # ---------------------------------------------------------------------------
-# Slug helper (must stay in sync with train/submit_wandb_sweep.py::make_run_slug)
+# Slug helper (delegates to train.model_profiles.make_run_slug; must match sweep)
 # ---------------------------------------------------------------------------
-def make_run_slug(lr: float, lam: float, eps: float, lm_loss_input: str = "clean") -> str:
-    base = f"run_lr{lr:g}_lam{lam:g}_eps{eps:g}".replace(" ", "_")
-    if lm_loss_input == "perturbed":
-        return f"{base}_pertlm"
-    return base
-
-
 def expand_path(p: str) -> str:
     """Expand $SCRATCH / $HOME style tokens for defaults."""
     return os.path.expandvars(os.path.expanduser(p))
@@ -92,7 +96,8 @@ def expand_path(p: str) -> str:
 
 DEFAULT_LR = 2e-5
 DEFAULT_EPOCH = 5
-# Default grid matches submit_wandb_sweep (λ=0 uses one ε only): 31 pairs × 2 modes = 62 tasks.
+# Default grid: 31 clean_reg + 1 pert_reg at λ=0 (representative ε) = 32 tasks (--perturbed-reg-subset lambda0_only).
+# Use --perturbed-reg-subset full for 62 tasks (legacy), or none for 31 (clean only).
 DEFAULT_LAMBDAS = (0.0, 0.1, 0.3, 1.0, 3.0, 10.0, 30.0)
 DEFAULT_EPSILONS = (-1.0, -0.5, 0.0, 0.5, 1.0)
 
@@ -113,6 +118,14 @@ def resolve_output(stem: Path) -> Path | None:
     if p2.is_file():
         return p2
     return None
+
+
+def _artifact_relpath(out_dir: Path, artifact: Path) -> str:
+    """Store paths relative to eval out_dir so heatmaps work when METRICS_DIR == out_dir."""
+    try:
+        return str(artifact.resolve().relative_to(out_dir.resolve()))
+    except ValueError:
+        return str(artifact)
 
 
 def prep_benign_csv(src: Path, dst: Path) -> None:
@@ -178,29 +191,44 @@ class Task:
     lam: float
     eps: float
     lm_loss_input: str
+    model_profile: str
 
     def slug(self) -> str:
-        return make_run_slug(self.lr, self.lam, self.eps, self.lm_loss_input)
+        return make_run_slug(
+            self.lr, self.lam, self.eps, self.lm_loss_input, model_profile=self.model_profile
+        )
 
 
 def build_tasks(
     lr: float,
     lambdas: tuple[float, ...],
     epsilons: tuple[float, ...],
+    model_profile: str,
+    *,
+    perturbed_reg_subset: str = "lambda0_only",
 ) -> list[Task]:
+    """perturbed_reg_subset: 'none' | 'lambda0_only' | 'full' (must match training sweep)."""
     tasks: list[Task] = []
     tid = 0
     pairs = lambda_epsilon_pairs(lambdas, epsilons)
 
     for lam, eps in pairs:
-        tasks.append(Task(tid, "clean_reg", lr, lam, eps, "clean"))
+        tasks.append(Task(tid, "clean_reg", lr, lam, eps, "clean", model_profile))
         tid += 1
 
-    for lam, eps in pairs:
-        tasks.append(Task(tid, "pert_reg", lr, lam, eps, "perturbed"))
+    if perturbed_reg_subset == "none":
+        return tasks
+    if perturbed_reg_subset == "full":
+        for lam, eps in pairs:
+            tasks.append(Task(tid, "pert_reg", lr, lam, eps, "perturbed", model_profile))
+            tid += 1
+        return tasks
+    if perturbed_reg_subset == "lambda0_only":
+        lam, eps = lambda_epsilon_pairs((0.0,), epsilons)[0]
+        tasks.append(Task(tid, "pert_reg", lr, lam, eps, "perturbed", model_profile))
         tid += 1
-
-    return tasks
+        return tasks
+    raise ValueError(f"Unknown perturbed_reg_subset: {perturbed_reg_subset!r}")
 
 
 def seen_ckpt(root: Path, task: Task, epoch: int) -> Path:
@@ -225,6 +253,7 @@ def run_eval_py(
     harmful_stem: Path,
     benign_stem: Path,
     system_prompt_mode: str,
+    model_profile: str,
 ) -> None:
     cmd = [
         sys.executable,
@@ -233,6 +262,8 @@ def run_eval_py(
         eval_mode,
         "--system-prompt-mode",
         system_prompt_mode,
+        "--model-profile",
+        model_profile,
         "--resume-from",
         str(resume_from),
         "--validation-data",
@@ -270,6 +301,7 @@ def run_one_task(
     benign_test: Path,
     out_dir: Path,
     system_prompt_mode: str,
+    model_profile: str,
     tmp_benign: Path,
     dry_run: bool,
     skip_missing: bool,
@@ -315,6 +347,7 @@ def run_one_task(
             harmful_stem=seen_h_stem,
             benign_stem=seen_b_stem,
             system_prompt_mode=system_prompt_mode,
+            model_profile=model_profile,
         )
 
     # --- Unseen each family ---
@@ -345,6 +378,7 @@ def run_one_task(
             harmful_stem=h_stem,
             benign_stem=b_stem,
             system_prompt_mode=system_prompt_mode,
+            model_profile=model_profile,
         )
 
         hf = resolve_output(h_stem)
@@ -361,8 +395,8 @@ def run_one_task(
             [
                 (f"{fam}_heldout_asr", asr_f),
                 (f"{fam}_model_frr", frr_f),
-                (f"{fam}_harmful_csv", str(hf)),
-                (f"{fam}_benign_csv", str(bf)),
+                (f"{fam}_harmful_csv", _artifact_relpath(out_dir, hf)),
+                (f"{fam}_benign_csv", _artifact_relpath(out_dir, bf)),
             ]
         )
 
@@ -386,12 +420,13 @@ def run_one_task(
             ("epsilon", task.eps),
             ("epoch", epoch),
             ("slug", slug),
+            ("model_profile", model_profile),
             ("lm_loss_input", task.lm_loss_input),
             ("system_prompt_mode", system_prompt_mode),
             ("seen_mean_asr", seen_mean),
             ("seen_frr", seen_frr),
-            ("seen_harmful_csv", str(sh)),
-            ("seen_benign_csv", str(sb)),
+            ("seen_harmful_csv", _artifact_relpath(out_dir, sh)),
+            ("seen_benign_csv", _artifact_relpath(out_dir, sb)),
         ]
         for fam in FAMILIES:
             v = seen_asr_one_family(h_seen, fam)
@@ -420,6 +455,17 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         action="store_true",
         help="Only run seen-family eval (skip unseen/held-out; only require seen checkpoint).",
     )
+    p.add_argument(
+        "--perturbed-reg-subset",
+        dest="perturbed_reg_subset",
+        default="lambda0_only",
+        choices=("none", "lambda0_only", "full"),
+        help=(
+            "Which perturbed-LM checkpoints to evaluate. 'lambda0_only' (default): one "
+            "task at λ=0 with the same representative ε as clean λ=0. 'full': same λ×ε as "
+            "clean (62 tasks). 'none': clean grid only (31)."
+        ),
+    )
     p.add_argument("--skip-missing", action="store_true", default=True, help="Skip task if any checkpoint is missing (default: on).")
     p.add_argument("--no-skip-missing", action="store_false", dest="skip_missing", help="Fail if a checkpoint is missing.")
 
@@ -429,7 +475,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--lambdas",
         type=str,
         default=",".join(str(x) for x in DEFAULT_LAMBDAS),
-        help="Comma-separated λ grid for clean_reg and pert_reg (default 7 values; must match training sweep).",
+        help="Comma-separated λ grid (default 7 values; must match training sweep).",
     )
     p.add_argument(
         "--epsilons",
@@ -480,6 +526,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default="empty",
         help="Must match training/eval protocol (default empty = nosys, same as your sweep).",
     )
+    p.add_argument(
+        "--model-profile",
+        default=os.environ.get("MODEL_PROFILE", DEFAULT_MODEL_PROFILE),
+        choices=list(MODEL_PROFILE_CHOICES),
+        help="Must match train/submit_wandb_sweep.py --model-profile for checkpoint slugs.",
+    )
     args = p.parse_args(argv)
 
     repo = expand_path(args.repo_root)
@@ -502,13 +554,19 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
 
-    tasks = build_tasks(args.lr, args.lambdas_tuple, args.epsilons_tuple)
+    tasks = build_tasks(
+        args.lr,
+        args.lambdas_tuple,
+        args.epsilons_tuple,
+        args.model_profile,
+        perturbed_reg_subset=args.perturbed_reg_subset,
+    )
 
     if args.list_tasks:
         print(f"task_count={len(tasks)}")
         for t in tasks:
             slug = t.slug()
-            print(f"  {t.task_id}\t{t.mode}\tlam={t.lam}\teps={t.eps}\t{slug}")
+            print(f"  {t.task_id}\t{t.mode}\tprofile={t.model_profile}\tlam={t.lam}\teps={t.eps}\t{slug}")
         return 0
 
     # SLURM array index or explicit --task-id
@@ -544,6 +602,7 @@ def main(argv: list[str] | None = None) -> int:
         benign_test=benign_test,
         out_dir=out_dir,
         system_prompt_mode=args.system_prompt_mode,
+        model_profile=args.model_profile,
         tmp_benign=tmp_benign,
         dry_run=args.dry_run,
         skip_missing=args.skip_missing,

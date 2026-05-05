@@ -4,8 +4,8 @@
 # the same aggregation logic as eval/heldout_family_eval_nosys.sh, but omits
 # --resume-from so load_model uses the base weights only.
 #
-# Default protocol matches the nosys sweep: --system-prompt-mode empty.
-# For Meta's defensive system prompt instead:
+# Default protocol: --system-prompt-mode empty (no system role).
+# To use a profile-defined system string instead (if you set one in model_profiles):
 #   SYSTEM_PROMPT_MODE=default sbatch eval/baseline_heldout_family_eval.sh
 #
 #SBATCH --job-name=baseline_heldout

@@ -22,10 +22,15 @@ possible (attack ASR), else fall back to scalar fields in the TSV.
   * **FRR** panels are **identical** to aggregate (the benign FRR set is not split by
     harmful benchmark); files are duplicated into each folder for a self-contained figure set.
 
+Artifact paths in each ``*_metrics.tsv`` are stored **relative to the eval output directory**
+when possible; the plotter also falls back to ``<metrics-dir>/<basename>`` so copies that
+keep TSVs and CSVs together still work.
+
 Grid axes match ``train/submit_wandb_sweep.py`` (``LAMBDAS`` × ``EPSILONS``). For **λ=0**,
 heatmaps repeat the measured value across every ε column in that row.
 
-Requires **pandas** (same as other eval utilities).
+Requires **pandas** (same as other eval utilities). You do **not** need to export
+``MODEL_PROFILE`` or ``LR``: the default output folder is inferred from ``*_metrics.tsv``.
 """
 
 from __future__ import annotations
@@ -62,6 +67,23 @@ def expand_path(p: str) -> str:
     return os.path.expandvars(os.path.expanduser(p))
 
 
+def _resolve_csv_path(metrics_dir: Path, raw: str) -> Path | None:
+    """Resolve a path from metrics TSV: absolute, relative to metrics_dir, or basename fallback."""
+    raw = (raw or "").strip()
+    if not raw:
+        return None
+    p = Path(expand_path(raw))
+    if p.is_file():
+        return p
+    rel = metrics_dir / raw
+    if rel.is_file():
+        return rel
+    by_name = metrics_dir / Path(raw).name
+    if by_name.is_file():
+        return by_name
+    return None
+
+
 def _parse_metrics_tsv(path: Path) -> dict[str, str]:
     out: dict[str, str] = {}
     text = path.read_text(encoding="utf-8")
@@ -74,6 +96,19 @@ def _parse_metrics_tsv(path: Path) -> dict[str, str]:
         k, v = line.split("\t", 1)
         out[k.strip()] = v.strip()
     return out
+
+
+def _infer_model_profile_and_lr(metrics_dir: Path) -> tuple[str, str] | None:
+    """Use the first ``clean_reg`` ``*_metrics.tsv`` to name output (no env exports needed)."""
+    for path in sorted(metrics_dir.glob("*_metrics.tsv")):
+        d = _parse_metrics_tsv(path)
+        if d.get("mode", "").strip() != MODE:
+            continue
+        mp = d.get("model_profile", "").strip()
+        lr = d.get("lr", "").strip()
+        if mp and lr:
+            return mp, lr
+    return None
 
 
 def _to_float(s: str) -> float:
@@ -116,6 +151,7 @@ def _asr_family(h: pd.DataFrame, family: str) -> float:
 def _heldout_asrs_by_subset(
     metrics: dict[str, str],
     ds_mask_fn: Callable[[pd.DataFrame], pd.Series],
+    metrics_dir: Path,
 ) -> tuple[float, dict[str, float]]:
     """Returns (mean_asr_across_loaded_families, per_family_asr)."""
     per: dict[str, float] = {fam: float("nan") for fam in FAMILIES}
@@ -124,8 +160,8 @@ def _heldout_asrs_by_subset(
         key = f"{fam}_harmful_csv"
         if key not in metrics:
             continue
-        p = Path(metrics[key])
-        if not p.is_file():
+        p = _resolve_csv_path(metrics_dir, metrics[key])
+        if p is None:
             continue
         h = pd.read_csv(p)
         h = h.loc[ds_mask_fn(h)].copy()
@@ -187,8 +223,9 @@ def _collect_aggregate_rows(metrics_dir: Path) -> list[dict[str, Any]]:
         }
 
         seen_path = d.get("seen_harmful_csv", "").strip()
-        if seen_path and Path(seen_path).is_file():
-            h_seen = pd.read_csv(seen_path)
+        sp = _resolve_csv_path(metrics_dir, seen_path)
+        if sp is not None:
+            h_seen = pd.read_csv(sp)
             row["seen_mean_asr"] = _mean_asr_seen(h_seen)
             for fam in FAMILIES:
                 row[f"seen_{fam}_asr"] = _asr_family(h_seen, fam)
@@ -197,10 +234,11 @@ def _collect_aggregate_rows(metrics_dir: Path) -> list[dict[str, Any]]:
             for fam in FAMILIES:
                 row[f"seen_{fam}_asr"] = _to_float(d.get(f"seen_{fam}_asr", ""))
 
-        ho_mean, ho_per = _heldout_asrs_by_subset(d, _all_rows_mask)
+        ho_mean, ho_per = _heldout_asrs_by_subset(d, _all_rows_mask, metrics_dir)
         has_any_heldout_csv = any(
-            f"{fam}_harmful_csv" in d and Path(d[f"{fam}_harmful_csv"]).is_file()
+            _resolve_csv_path(metrics_dir, d.get(f"{fam}_harmful_csv", "")) is not None
             for fam in FAMILIES
+            if f"{fam}_harmful_csv" in d
         )
         if np.isnan(ho_mean) and not has_any_heldout_csv:
             ho_mean = _to_float(d.get("heldout_mean_asr", ""))
@@ -234,9 +272,10 @@ def _collect_per_dataset_rows(
         frr = _frr_fields_from_tsv(d)
 
         seen_path = d.get("seen_harmful_csv", "").strip()
-        if not seen_path or not Path(seen_path).is_file():
+        sp = _resolve_csv_path(metrics_dir, seen_path)
+        if sp is None:
             continue
-        h_seen = pd.read_csv(seen_path)
+        h_seen = pd.read_csv(sp)
         if any(c not in h_seen.columns for c in keycols):
             continue
 
@@ -257,7 +296,7 @@ def _collect_per_dataset_rows(
 
             h_sub = merged_seen.loc[mask_seen]
             seen_asr = _mean_asr_seen(h_sub)
-            ho_mean, ho_per = _heldout_asrs_by_subset(d, ds_mask)
+            ho_mean, ho_per = _heldout_asrs_by_subset(d, ds_mask, metrics_dir)
 
             row = {
                 "path": path,
@@ -367,9 +406,22 @@ _ASR_SPEC_KEYS = frozenset(
 )
 
 
+def _default_heatmap_dirname(metrics_dir: Path) -> str:
+    """``heatmaps_<MODEL_PROFILE>_lr<LR>/`` from env if set, else inferred from metrics TSVs."""
+    mp = os.environ.get("MODEL_PROFILE", "").strip()
+    lr = os.environ.get("LR", "").strip()
+    if mp and lr:
+        return f"heatmaps_{mp}_lr{lr}".replace("/", "_")
+    inferred = _infer_model_profile_and_lr(metrics_dir)
+    if inferred:
+        mp, lr = inferred
+        return f"heatmaps_{mp}_lr{lr}".replace("/", "_")
+    return "heatmaps"
+
+
 def main(argv: list[str] | None = None) -> int:
     scr = os.environ.get("SCRATCH", "")
-    default_labels = f"{scr}/dp-llm-experiments/official/combined_test_dataset.csv" if scr else ""
+    default_labels = f"{scr}/dp-llm-experiments/official_data/combined_test_dataset.csv" if scr else ""
 
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument(
@@ -382,13 +434,16 @@ def main(argv: list[str] | None = None) -> int:
         "--labels",
         type=Path,
         default=Path(default_labels) if default_labels else None,
-        help="CSV with goal, target, dataset for per-benchmark splits (optional).",
+        help="CSV with goal, target, dataset (default: $SCRATCH/.../official_data/combined_test_dataset.csv).",
     )
     p.add_argument(
         "--output-dir",
         type=Path,
         default=None,
-        help="Root output directory (default: <metrics-dir>/heatmaps).",
+        help=(
+            "Root output directory (default: <metrics-dir>/heatmaps_<model>_lr<rate> from "
+            "the first clean_reg *_metrics.tsv, or MODEL_PROFILE+LR env if both set)."
+        ),
     )
     p.add_argument(
         "--dry-run",
@@ -402,7 +457,13 @@ def main(argv: list[str] | None = None) -> int:
         print(f"ERROR: metrics directory not found: {mdir}", file=sys.stderr)
         return 2
 
-    out_root = Path(expand_path(str(args.output_dir))) if args.output_dir else mdir / "heatmaps"
+    out_root = (
+        Path(expand_path(str(args.output_dir)))
+        if args.output_dir
+        else mdir / _default_heatmap_dirname(mdir)
+    )
+    if not args.dry_run:
+        print(f"[plot_hyperparameter_heatmaps] output root: {out_root}", flush=True)
     agg_dir = out_root / "aggregate"
     by_ds_root = out_root / "by_dataset"
 
@@ -442,6 +503,7 @@ def main(argv: list[str] | None = None) -> int:
                 for _c, _t, fname in asr_specs + frr_specs:
                     print(f"    {fname}")
         print(f"Total aggregate: {len(AGGREGATE_SPECS)}")
+        print(f"Output root: {out_root}")
         return 0
 
     def write_specs(rows: list[dict[str, Any]], out_dir: Path, title_suffix: str) -> None:

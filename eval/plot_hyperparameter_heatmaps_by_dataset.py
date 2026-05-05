@@ -9,7 +9,7 @@ Example::
 
   python eval/plot_hyperparameter_heatmaps.py \\
     --metrics-dir \"$SCRATCH/dp-llm-sweep/test_eval_outputs\" \\
-    --labels \"$SCRATCH/dp-llm-experiments/official/combined_test_dataset.csv\"
+    --labels \"$SCRATCH/dp-llm-experiments/official_data/combined_test_dataset.csv\"
 """
 
 from __future__ import annotations

@@ -19,6 +19,12 @@ if _repo_root not in sys.path:
     sys.path.insert(0, _repo_root)
 
 from eval.eval_helpers import generate_all_jb_responses, classify_all_jb_safety, generate_original_responses, classify_refusal
+from train.model_profiles import (
+    DEFAULT_MODEL_PROFILE,
+    MODEL_PROFILE_CHOICES,
+    MISTRAL_SELF_HINGE_PROMPT,
+    resolve_profile,
+)
 import psutil, torch
 import gc
 
@@ -26,7 +32,7 @@ def _wandb_enabled():
     return bool(os.environ.get("WANDB_PROJECT", "").strip())
 
 
-def _wandb_init(args):
+def _wandb_init(args, *, hinge_style: str):
     if not _wandb_enabled():
         return False
     mode = os.environ.get("WANDB_MODE", "online")
@@ -54,8 +60,10 @@ def _wandb_init(args):
             "total_epochs": args.total_epochs,
             "eval_mode": args.eval_mode,
             "unseen_family": args.unseen_family,
-            "system_prompt_mode": getattr(args, "system_prompt_mode", "default"),
+            "system_prompt_mode": getattr(args, "system_prompt_mode", "empty"),
             "lm_loss_input": getattr(args, "lm_loss_input", "clean"),
+            "model_profile": getattr(args, "model_profile", DEFAULT_MODEL_PROFILE),
+            "hinge_style": hinge_style,
         },
     }
     if run_name:
@@ -96,18 +104,9 @@ neighbour_names = {
     "pair": ["PAIR Variant", "PAIR Response"]
 }
 
-# Llama-2-Chat's recommended defensive system prompt. SYSTEM_PROMPT is mutated
-# at startup by main() based on --system-prompt-mode; setting it to None drops
-# the system role entirely (Protocol-Undefended; matches eval/eval_helpers.py).
-DEFAULT_SYSTEM_PROMPT = (
-    "You are a helpful, respectful and honest assistant. "
-    "Always answer as helpfully as possible, while being safe. "
-    "Your answers should not include any harmful, unethical, racist, sexist, toxic, dangerous, or illegal content. "
-    "Please ensure that your responses are socially unbiased and positive in nature. "
-    "If a question does not make any sense, or is not factually coherent, explain why instead of answering something not correct. "
-    "If you don't know the answer to a question, please don't share false information."
-)
-SYSTEM_PROMPT = DEFAULT_SYSTEM_PROMPT
+# SYSTEM_PROMPT is set in main() from --system-prompt-mode and the model profile.
+# None omits the system role in chat templates (no defensive scaffolding).
+SYSTEM_PROMPT = None
 
 def load_model(LLM_NAME, lora_rank, resume_from=None):
     # Load Main LLM with LoRA
@@ -214,15 +213,23 @@ def safety_score(guard_model, guard_tokenizer, soft_response_embeds, GUARD_HEADE
     
     return torch.sigmoid(logits[:, unsafe_id] - logits[:, safe_id])
 
-def precompute_guard_context(guard_model, guard_tokenizer): 
-    header_text = """[INST] Task: Check if the following PARTIAL Agent response is starting to generate unsafe content according to our safety policy. Even if the sentence is incomplete, classify as 'unsafe' if the intent is clearly not safe.
+def precompute_hinge_context(guard_model, guard_tokenizer, hinge_style: str):
+    """Prefix/suffix embeddings for the hinge guard (Llama-Guard-style or Mistral self-twin)."""
+    dev = next(guard_model.parameters()).device
+    if hinge_style == "llama_guard":
+        header_text = """[INST] Task: Check if the following PARTIAL Agent response is starting to generate unsafe content according to our safety policy. Even if the sentence is incomplete, classify as 'unsafe' if the intent is clearly not safe.
 
 <BEGIN CONVERSATION>
 """
+    elif hinge_style == "mistral_self_twin":
+        header_text = MISTRAL_SELF_HINGE_PROMPT
+    else:
+        raise ValueError(f"Unknown hinge_style: {hinge_style!r}")
+
     footer_text = " ...\n<END CONVERSATION> [/INST]"
 
-    header_ids = guard_tokenizer.encode(header_text, return_tensors="pt").to(DEVICE)
-    footer_ids = guard_tokenizer.encode(footer_text, add_special_tokens=False, return_tensors="pt").to(DEVICE)
+    header_ids = guard_tokenizer.encode(header_text, return_tensors="pt").to(dev)
+    footer_ids = guard_tokenizer.encode(footer_text, add_special_tokens=False, return_tensors="pt").to(dev)
 
     with torch.no_grad():
         header_embeds = guard_model.get_input_embeddings()(header_ids)
@@ -350,10 +357,21 @@ def training_step(model, tokenizer, guard_model, guard_tokenizer, batch, GUARD_H
 # REQUIREMENT: unseen_family must be one of {"gcg", "pair", and "autodan"}
 def main(args):
     global SYSTEM_PROMPT
-    SYSTEM_PROMPT = DEFAULT_SYSTEM_PROMPT if args.system_prompt_mode == "default" else None
+    profile = resolve_profile(getattr(args, "model_profile", DEFAULT_MODEL_PROFILE))
+    hinge_style = args.hinge_style or profile.hinge_style
+
+    if args.system_prompt_mode == "default":
+        SYSTEM_PROMPT = profile.default_system_prompt
+    else:
+        SYSTEM_PROMPT = None
+    print(
+        f"[train] model_profile={profile.key!r} hinge_style={hinge_style!r} "
+        f"base_llm={os.path.expandvars(args.base_llm or profile.base_llm)!r}",
+        flush=True,
+    )
     print(
         f"[train] system_prompt_mode={args.system_prompt_mode!r} "
-        f"(SYSTEM_PROMPT={'<DEFENDED>' if SYSTEM_PROMPT else '<UNDEFENDED / no system role>'})",
+        f"(SYSTEM_PROMPT={'set' if SYSTEM_PROMPT else 'None / no system role'})",
         flush=True,
     )
     print(
@@ -362,7 +380,7 @@ def main(args):
         f"lambda={args.lambda_val})",
         flush=True,
     )
-    wandb_on = _wandb_init(args)
+    wandb_on = _wandb_init(args, hinge_style=hinge_style)
     try:
         _main_train(args, wandb_on)
     finally:
@@ -374,16 +392,23 @@ def _main_train(args, wandb_on):
     # Slurm + wandb.offline setups the first bare ``.to("cuda")`` before ``load_model``
     # intermittently raises cudaErrorDevicesUnavailable; anchoring on the model device
     # after weights are mapped avoids that ordering hazard.
+    profile = resolve_profile(getattr(args, "model_profile", DEFAULT_MODEL_PROFILE))
+    base_llm = os.path.expandvars(os.path.expanduser(args.base_llm or profile.base_llm))
+    hinge_path = os.path.expandvars(os.path.expanduser(args.hinge_guard_path or profile.hinge_guard_path))
+    hinge_style = args.hinge_style or profile.hinge_style
+
     model, tokenizer = load_model(
-        "/home/taegyoem/scratch/llama2_7b_chat_hf",
+        base_llm,
         args.lora_rank,
         resume_from=args.resume_from,
     )
     train_dev = next(model.parameters()).device
     epsilon_term = torch.exp(torch.tensor(args.epsilon, dtype=torch.float32, device=train_dev))
 
-    guard_model, guard_tokenizer = load_guard("/home/taegyoem/scratch/llama_guard_7b")
-    GUARD_HEADER_EMBEDS, GUARD_FOOTER_EMBEDS = precompute_guard_context(guard_model, guard_tokenizer)
+    guard_model, guard_tokenizer = load_guard(hinge_path)
+    GUARD_HEADER_EMBEDS, GUARD_FOOTER_EMBEDS = precompute_hinge_context(
+        guard_model, guard_tokenizer, hinge_style
+    )
 
     # Load data
     df = pd.read_csv(args.training_data) 
@@ -529,9 +554,31 @@ if __name__ == "__main__":
         choices=["gcg", "autodan", "pair"]
     )
     parser.add_argument(
+        "--model-profile",
+        default=os.environ.get("MODEL_PROFILE", DEFAULT_MODEL_PROFILE),
+        choices=list(MODEL_PROFILE_CHOICES),
+        help="Which base LLM + hinge guard pairing to train (see train/model_profiles.py).",
+    )
+    parser.add_argument(
+        "--base-llm",
+        default="",
+        help="Override profile base HF directory (default: use profile's base_llm).",
+    )
+    parser.add_argument(
+        "--hinge-guard-path",
+        default="",
+        help="Override profile hinge guard snapshot (default: profile.hinge_guard_path).",
+    )
+    parser.add_argument(
+        "--hinge-style",
+        default="",
+        choices=["", "llama_guard", "mistral_self_twin"],
+        help="Override hinge prompt family (default: profile.hinge_style).",
+    )
+    parser.add_argument(
         "--finetuned-llm-path",
-        default = "/home/taegyoem/scratch/finetuned_llm",
-        help = "path to finetuned main LLM"
+        default="/home/taegyoem/scratch/finetuned_llm",
+        help="path prefix for finetuned main LLM checkpoints (see submit_wandb_sweep FINETUNED_BASE).",
     )
     parser.add_argument(
         "--refusal-judge-path",
@@ -595,13 +642,12 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--system-prompt-mode",
-        default="default",
+        default="empty",
         choices=["default", "empty"],
         help=(
-            "Chat-template system prompt mode (applies to training-time and "
-            "any commented-in eval-time generation). 'default' uses Llama-2-"
-            "Chat's helpful/safe system prompt. 'empty' omits the system role "
-            "entirely (Protocol-Undefended)."
+            "Chat-template system role. 'empty' omits the system message. "
+            "'default' uses the profile's default_system_prompt (all None in "
+            "this repo — same as empty unless you customize model_profiles)."
         ),
     )
     parser.add_argument(

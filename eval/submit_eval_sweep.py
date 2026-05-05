@@ -64,6 +64,7 @@ def render_job_script(
     eval_py: str,
     base_llm: str,
     judge_path: str,
+    harmbench_cls_path: str,
     validation_csv: str,
     benign_csv: str,
     eval_output_root: str,
@@ -142,6 +143,7 @@ def render_job_script(
         lines.append(f"    --epsilon {eps} \\")
         lines.append(f'    --base-llm "{base_llm}" \\')
         lines.append(f'    --resume-from "{adapter}" \\')
+        lines.append(f'    --harmbench-cls-path "{harmbench_cls_path}" \\')
         lines.append(f'    --judge-path "{judge_path}" \\')
         lines.append(f'    --validation-data "{validation_csv}" \\')
         lines.append(f'    --benign-validation-data "{benign_csv}" \\')
@@ -193,6 +195,12 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     p.add_argument(
         "--judge-path",
         default="/home/taegyoem/scratch/mistral_7b_instruct",
+        help="Mistral-7B-Instruct for FRR (refusal) judging only.",
+    )
+    p.add_argument(
+        "--harmbench-cls-path",
+        default="$SCRATCH/harmbench_mistral_val_cls",
+        help="Official HarmBench classifier: local snapshot (default) or HF id (ASR only).",
     )
     p.add_argument(
         "--validation-data",
@@ -291,6 +299,7 @@ def main(argv: list[str]) -> int:
                 eval_py=args.eval_py,
                 base_llm=args.base_llm,
                 judge_path=args.judge_path,
+                harmbench_cls_path=args.harmbench_cls_path,
                 validation_csv=args.validation_data,
                 benign_csv=args.benign_validation_data,
                 eval_output_root=args.eval_output_root,

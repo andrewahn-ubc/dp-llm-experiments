@@ -2,46 +2,48 @@
 """
 Single entry point for the **final** experiment on Narval:
 
-  1. Submit **seen-family** training sweep with **clean** LM loss
-     (``--lm-loss-input clean``): default λ × ε grid × LR, ``train_plus_validation.csv``.
+  1. Submit **seen-family** training with **clean** LM (full λ×ε grid via
+     ``lambda_epsilon_pairs``).
 
-  2. Submit **seen-family** sweep with **perturbed** LM loss
-     (``--lm-loss-input perturbed``); slugs get ``_pertlm`` suffix.
+  2. Submit **seen-family** training with **perturbed** LM only at **λ=0** (one run;
+     representative ε matches ``lambda_epsilon_pairs`` for λ=0), via
+     ``--lm-loss-input perturbed --perturbed-sweep-subset lambda0_only``; slugs use ``_pertlm``.
 
-  3. Submit **held-out** training for **clean** LM: one job per (λ, ε, held-out family)
-     for families ``gcg``, ``autodan``, ``pair`` — checkpoints under
-     ``heldout_{family}_{slug}_finetuned_llm_epoch*`` (matches ``eval/test_eval_matrix.py``).
+  3. Submit **held-out** training for **clean** LM (three families × same grid as (1)).
 
-  4. Same **held-out** grid for **perturbed** LM.
+  4. Submit **held-out** training for **perturbed** LM at λ=0 only (same as (2)).
 
-  5. Submit the SLURM array for ``test_eval_matrix.py`` (1× seen-family + 3× unseen-family
-     eval per cell): **62** tasks (31 λ×ε cells × 2 LM modes; λ=0 uses one ε only).
+  5. Submit the SLURM array for ``test_eval_matrix.py`` (default **32** tasks: 31 clean +
+     1 perturbed-at-λ=0; 1× seen + 3× unseen eval per task).
 
-  6. Submit a short **CPU** job that builds **λ×ε heatmaps** (PNG) under
-     ``test_eval_outputs/heatmaps/aggregate/`` and ``.../heatmaps/by_dataset/``, chained after the eval array.
+  6. Submit **CPU** heatmaps: **13** PNGs under ``…/heatmaps_<MODEL>_lr<LR>/aggregate/`` plus
+     ``…/heatmaps_<MODEL>_lr<LR>/by_dataset/<benchmark>/``. Folder names come from the eval
+     ``*_metrics.tsv`` files (no manual exports). Labels default to
+     ``official_data/combined_test_dataset.csv`` (must include ``dataset``). Eval artifacts live under
+     ``$CHECKPOINT_ROOT/test_eval_outputs`` (same as ``test_eval_matrix``).
 
-By default the eval array is submitted with a SLURM dependency so it starts **after all
-training jobs have terminated** (``--dependency=after:<ids>`` — success or failure).
-Use ``--parallel-eval`` to submit eval immediately (legacy behavior: overlaps with training;
-useful with ``test_eval_matrix.py --skip-missing`` while checkpoints stream in).
+By default the eval array waits on training (``--dependency=after:<ids>``). Use
+``--parallel-eval`` to overlap eval with training.
 
-Training manifests and ``.sh`` files land in separate subdirs under ``sweep_jobs/`` so
-waves do not overwrite each other. Submitted training job ids are appended to
-``sweep_jobs/training_job_ids.txt`` when using chained eval (you can inspect or reuse).
+Training manifests land under ``sweep_jobs/``; job ids append to ``sweep_jobs/training_job_ids.txt``.
 
 Run from the repo root on the cluster::
 
-  python run_final_pipeline.py
+  python run_final_pipeline.py --model llama_3_8b_instruct
+  python run_final_pipeline.py --model llama_3_8b_instruct --lr 1e-5
 
-Or::
+``--lr`` must be ``2e-5`` or ``1e-5``: passed to ``submit_wandb_sweep --learning-rates`` and
+``LR`` for ``submit_test_eval_matrix.sh``.
 
-  ./submit_full_pipeline.sh
+Forward extra arguments to ``train/submit_wandb_sweep.py`` (all **four** training passes) after ``--``::
 
-Forward extra arguments to ``train/submit_wandb_sweep.py`` (all four training sweep passes) after ``--``::
-
-  python run_final_pipeline.py -- --dry-run --limit 2
+  python run_final_pipeline.py --model mistral_7b_instruct -- --dry-run --limit 2
 
 Launcher-only flags (before ``--``)::
+
+  --model NAME             Base LLM preset (default: llama_2_7b_chat); see train/model_profiles.py.
+
+  --lr RATE                ``2e-5`` or ``1e-5`` for all training sweeps + eval array (see above).
 
   --skip-training          Skip all ``submit_wandb_sweep`` calls (only sbatch eval array).
   --skip-held-out-training Submit seen-family sweeps only (no held-out training jobs).
@@ -58,6 +60,12 @@ import re
 import subprocess
 import sys
 from pathlib import Path
+
+_REPO_ROOT = Path(__file__).resolve().parent
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+
+from train.model_profiles import DEFAULT_MODEL_PROFILE, MODEL_PROFILE_CHOICES  # noqa: E402
 
 HELD_OUT_FAMS = "gcg,autodan,pair"
 
@@ -104,6 +112,8 @@ def _submit_eval_array(
     repo: Path,
     eval_sh: Path,
     dependency_job_ids: list[str] | None,
+    model_profile: str,
+    lr: str | None = None,
 ) -> str | None:
     """Submit eval SLURM script; optionally wait until all listed training jobs finish."""
     cmd: list[str] = ["sbatch"]
@@ -111,7 +121,11 @@ def _submit_eval_array(
         cmd.append(f"--dependency=after:{':'.join(dependency_job_ids)}")
     cmd.append(str(eval_sh))
     print(" ", " ".join(cmd), flush=True)
-    return _submit_sbatch(repo, cmd, env={"REPO_ROOT": str(repo.resolve())})
+    run_env = os.environ.copy()
+    run_env["REPO_ROOT"] = str(repo.resolve())
+    run_env["MODEL_PROFILE"] = model_profile
+    run_env["LR"] = lr if lr is not None else "2e-5"
+    return _submit_sbatch(repo, cmd, env=run_env)
 
 
 def _submit_heatmap_job(*, repo: Path, heatmap_sh: Path, after_job_id: str) -> None:
@@ -120,7 +134,22 @@ def _submit_heatmap_job(*, repo: Path, heatmap_sh: Path, after_job_id: str) -> N
     Try ``afterok`` first (typical on Compute Canada / job arrays: run after all tasks
     exit 0). Some Slurm builds reject ``after:`` or behave oddly with arrays; fall back
     to ``afterany`` then ``after``.
+
+    Ensures ``METRICS_DIR`` / ``CHECKPOINT_ROOT`` match ``test_eval_matrix`` defaults
+    (``$CHECKPOINT_ROOT/test_eval_outputs``) when not already set in the parent environment,
+    so ``by_dataset/`` heatmaps resolve CSV paths next to ``*_metrics.tsv``.
+
+    Output folder name is chosen inside ``plot_hyperparameter_heatmaps.py`` from the metrics
+    TSVs (no ``MODEL_PROFILE`` / ``LR`` exports required). Set ``HEATMAP_OUT_DIR`` only to
+    force a fixed output root.
     """
+    scr = os.environ.get("SCRATCH", "")
+    heatmap_env: dict[str, str] = {"REPO_ROOT": str(repo.resolve())}
+    if "CHECKPOINT_ROOT" not in os.environ and scr:
+        heatmap_env["CHECKPOINT_ROOT"] = f"{scr}/dp-llm-sweep"
+    ck = os.environ.get("CHECKPOINT_ROOT", heatmap_env.get("CHECKPOINT_ROOT", ""))
+    if "METRICS_DIR" not in os.environ and ck:
+        heatmap_env["METRICS_DIR"] = str(Path(ck) / "test_eval_outputs")
     dep_styles = (
         f"afterok:{after_job_id}",
         f"afterany:{after_job_id}",
@@ -129,7 +158,7 @@ def _submit_heatmap_job(*, repo: Path, heatmap_sh: Path, after_job_id: str) -> N
     for dep in dep_styles:
         cmd = ["sbatch", f"--dependency={dep}", str(heatmap_sh)]
         print(" ", " ".join(cmd), flush=True)
-        jid = _submit_sbatch(repo, cmd, env={"REPO_ROOT": str(repo.resolve())})
+        jid = _submit_sbatch(repo, cmd, env=heatmap_env)
         if jid is not None:
             return
         print(f"[WARN] Heatmap sbatch with --dependency={dep} failed; trying next...", flush=True)
@@ -160,7 +189,7 @@ def main(argv: list[str] | None = None) -> int:
     lp.add_argument(
         "--skip-held-out-training",
         action="store_true",
-        help="Only submit seen-family sweeps (clean + perturbed); skip held-out training.",
+        help="Only submit seen-family sweeps (clean + perturbed@λ=0); skip held-out training.",
     )
     lp.add_argument(
         "--skip-eval",
@@ -185,6 +214,25 @@ def main(argv: list[str] | None = None) -> int:
         default="",
         help="Repo path on the cluster (default: directory containing this script).",
     )
+    lp.add_argument(
+        "--model",
+        dest="model_profile",
+        default=DEFAULT_MODEL_PROFILE,
+        choices=list(MODEL_PROFILE_CHOICES),
+        help="Which base LLM + hinge/eval preset (train/model_profiles.py). Propagates to training, eval array, and MODEL_PROFILE.",
+    )
+    lp.add_argument(
+        "--lr",
+        dest="learning_rate",
+        default=None,
+        metavar="RATE",
+        choices=("2e-5", "1e-5"),
+        help=(
+            "Single learning rate for all submit_wandb_sweep passes (--learning-rates) "
+            "and for the eval SLURM array (LR env → test_eval_matrix --lr). "
+            "Omit to keep submit_wandb_sweep default (2e-5) and eval LR default (2e-5)."
+        ),
+    )
     args = lp.parse_args(launcher_args)
 
     repo = Path(args.repo_root).resolve() if args.repo_root else Path(__file__).resolve().parent
@@ -207,27 +255,48 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     seen_sweeps = [
-        ("clean", "seen-family", sweep_root / "lm_clean_seen"),
-        ("perturbed", "seen-family", sweep_root / "lm_perturbed_seen"),
+        ("clean", "seen-family", sweep_root / "lm_clean_seen", ()),
+        (
+            "perturbed",
+            "seen-family",
+            sweep_root / "lm_perturbed_seen",
+            ("--perturbed-sweep-subset", "lambda0_only"),
+        ),
     ]
     held_sweeps = [
-        ("clean", "held-out", sweep_root / "lm_clean_heldout"),
-        ("perturbed", "held-out", sweep_root / "lm_perturbed_heldout"),
+        ("clean", "held-out", sweep_root / "lm_clean_heldout", ()),
+        (
+            "perturbed",
+            "held-out",
+            sweep_root / "lm_perturbed_heldout",
+            ("--perturbed-sweep-subset", "lambda0_only"),
+        ),
     ]
 
     chain_eval = not args.parallel_eval and not args.skip_eval
 
+    lr_train_args: list[str] = (
+        ["--learning-rates", args.learning_rate] if args.learning_rate is not None else []
+    )
+
     if not args.skip_training:
         job_ids_path.write_text("", encoding="utf-8")
-        for lm, desc, script_dir in seen_sweeps:
-            cmd = [
-                sys.executable,
-                str(submit_py),
-                "--lm-loss-input",
-                lm,
-                "--script-dir",
-                str(script_dir),
-            ] + forward
+        for lm, desc, script_dir, sweep_extra in seen_sweeps:
+            cmd = (
+                [
+                    sys.executable,
+                    str(submit_py),
+                    "--model-profile",
+                    args.model_profile,
+                    "--lm-loss-input",
+                    lm,
+                    "--script-dir",
+                    str(script_dir),
+                ]
+                + list(sweep_extra)
+                + lr_train_args
+                + forward
+            )
             if chain_eval:
                 cmd.extend(["--record-job-ids", str(job_ids_path)])
             print(f"\n=== submit_wandb_sweep ({desc}, {lm} LM) ===", flush=True)
@@ -235,17 +304,24 @@ def main(argv: list[str] | None = None) -> int:
             subprocess.run(cmd, cwd=str(repo), check=True)
 
         if not args.skip_held_out_training:
-            for lm, desc, script_dir in held_sweeps:
-                cmd = [
-                    sys.executable,
-                    str(submit_py),
-                    "--lm-loss-input",
-                    lm,
-                    "--held-out-families",
-                    HELD_OUT_FAMS,
-                    "--script-dir",
-                    str(script_dir),
-                ] + forward
+            for lm, desc, script_dir, sweep_extra in held_sweeps:
+                cmd = (
+                    [
+                        sys.executable,
+                        str(submit_py),
+                        "--model-profile",
+                        args.model_profile,
+                        "--lm-loss-input",
+                        lm,
+                        "--held-out-families",
+                        HELD_OUT_FAMS,
+                        "--script-dir",
+                        str(script_dir),
+                    ]
+                    + list(sweep_extra)
+                    + lr_train_args
+                    + forward
+                )
                 if chain_eval:
                     cmd.extend(["--record-job-ids", str(job_ids_path)])
                 print(f"\n=== submit_wandb_sweep ({desc}, {lm} LM; {HELD_OUT_FAMS}) ===", flush=True)
@@ -268,6 +344,8 @@ def main(argv: list[str] | None = None) -> int:
             repo=repo,
             eval_sh=eval_sh,
             dependency_job_ids=train_ids if use_dep else None,
+            model_profile=args.model_profile,
+            lr=args.learning_rate,
         )
 
         if not args.skip_heatmaps:
@@ -282,9 +360,11 @@ def main(argv: list[str] | None = None) -> int:
                 _submit_heatmap_job(repo=repo, heatmap_sh=heatmap_sh, after_job_id=eval_job_id)
 
     print(
-        "\nDone. Check sweep_jobs/*/ manifests and SLURM queue. "
-        "PNG heatmaps default to CHECKPOINT_ROOT/test_eval_outputs/heatmaps "
-        "(override METRICS_DIR / HEATMAP_OUT_DIR in eval/submit_plot_heatmaps.sh).",
+        "\nDone. Eval + metrics TSVs + CSVs: ``$CHECKPOINT_ROOT/test_eval_outputs/`` (default "
+        "``$SCRATCH/dp-llm-sweep/test_eval_outputs``). Heatmaps: "
+        "``…/test_eval_outputs/heatmaps_<MODEL_PROFILE>_lr<LR>/{aggregate,by_dataset}/`` "
+        "(names from metrics TSVs unless ``HEATMAP_OUT_DIR`` is set). Override ``CHECKPOINT_ROOT`` / "
+        "``METRICS_DIR`` / ``HEATMAP_OUT_DIR`` when sbatching ``submit_plot_heatmaps.sh`` manually.",
         flush=True,
     )
     return 0

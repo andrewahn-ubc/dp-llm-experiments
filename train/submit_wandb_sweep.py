@@ -16,8 +16,9 @@ Defaults target **final** runs (not train/val hyperparameter search):
 Each job still runs ``total_epochs`` sequential ``train.py`` invocations (default 5),
 saving ``{FINETUNED_BASE}_epoch1 … _epoch5``. Use epoch 5 for reporting.
 
-Use ``python run_final_pipeline.py`` to submit **both** LM modes (clean + perturbed),
-**held-out** training (three families × same λ/ε grid), and the test-eval SLURM array.
+Use ``python run_final_pipeline.py`` to submit **clean** LM on the full λ×ε grid,
+**perturbed** LM only at **λ=0** (one representative ε; same rule as ``lambda_epsilon_pairs``),
+**held-out** training for both, and the test-eval SLURM array (32 tasks by default).
 
 Held-out jobs are submitted via ``--held-out-families gcg,autodan,pair`` (see below).
 
@@ -44,6 +45,12 @@ import subprocess
 import sys
 import uuid
 from pathlib import Path
+
+_REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+
+from train.model_profiles import DEFAULT_MODEL_PROFILE, MODEL_PROFILE_CHOICES, make_run_slug
 
 LAMBDAS = (0.0, 0.1, 0.3, 1.0, 3.0, 10.0, 30.0)
 EPSILONS = (-1.0, -0.5, 0.0, 0.5, 1.0)
@@ -83,20 +90,6 @@ def sweep_lr_lambda_epsilon_combos(
     return [(lr, lam, eps) for lr in learning_rates for lam, eps in pairs]
 
 
-def make_run_slug(lr: float, lam: float, eps: float, lm_loss_input: str = "clean") -> str:
-    """Stable, filesystem-friendly id that encodes the hyperparameters.
-
-    The default lm_loss_input ("clean") produces the original slug format so
-    pre-existing checkpoints/eval outputs are reused as-is. Any non-default
-    LM-loss-input gets a short suffix (e.g. "_pertlm") so the two variants do
-    not clobber each other when the sweep is run twice.
-    """
-    base = f"run_lr{lr:g}_lam{lam:g}_eps{eps:g}".replace(" ", "_")
-    if lm_loss_input == "perturbed":
-        return f"{base}_pertlm"
-    return base
-
-
 def _render_eval_block(
     *,
     ep: int,
@@ -107,6 +100,7 @@ def _render_eval_block(
     validation_csv: str,
     system_prompt_mode: str,
     lm_loss_input: str,
+    model_profile: str,
 ) -> list[str]:
     """Lines that evaluate ${FINETUNED_BASE}_epoch{ep} via $EVAL_PY.
 
@@ -115,7 +109,7 @@ def _render_eval_block(
     """
     return [
         "# ----------------------------",
-        f"# Epoch {ep} eval (Protocol-{'Defended' if system_prompt_mode == 'default' else 'Undefended'})",
+        f"# Epoch {ep} eval (system_prompt_mode={system_prompt_mode})",
         "# ----------------------------",
         f'CKPT_EP{ep}="${{FINETUNED_BASE}}_epoch{ep}"',
         f'HARMFUL_OUT_STEM_EP{ep}="${{EVAL_OUT_DIR}}/{run_slug}_epoch{ep}_val_output"',
@@ -125,6 +119,7 @@ def _render_eval_block(
         'python "$EVAL_PY" \\',
         '    --eval-mode "seen-family" \\',
         f'    --system-prompt-mode "{system_prompt_mode}" \\',
+        f'    --model-profile "{model_profile}" \\',
         f'    --resume-from "$CKPT_EP{ep}" \\',
         f'    --validation-data "{validation_csv}" \\',
         '    --benign-validation-data "$BENIGN_TMP" \\',
@@ -185,6 +180,7 @@ def render_job_script(
     system_prompt_mode: str,
     lm_loss_input: str,
     eval_epochs: list[int],
+    model_profile: str,
     train_eval_mode: str = "seen-family",
     train_unseen_family: str | None = None,
 ) -> str:
@@ -286,6 +282,7 @@ def render_job_script(
             lines.append(f'    --unseen-family "{train_unseen_family}" \\')
         lines.append(f'    --system-prompt-mode "{system_prompt_mode}" \\')
         lines.append(f'    --lm-loss-input "{lm_loss_input}" \\')
+        lines.append(f'    --model-profile "{model_profile}" \\')
         lines.append('    --finetuned-llm-path "$FINETUNED_BASE" \\')
         lines.append(f'    --training-data "{training_csv}" \\')
         lines.append(f"    --lr {lr} \\")
@@ -308,6 +305,7 @@ def render_job_script(
                 validation_csv=validation_csv,
                 system_prompt_mode=system_prompt_mode,
                 lm_loss_input=lm_loss_input,
+                model_profile=model_profile,
             )
 
     eval_eps_str = ",".join(str(e) for e in sorted(eval_eps_set))
@@ -362,10 +360,9 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         default="empty",
         choices=["default", "empty"],
         help=(
-            "System prompt mode applied at BOTH train-time (in train.py) and "
-            "eval-time (in eval.py). 'default' uses Llama-2-Chat's helpful/safe "
-            "system prompt; 'empty' omits the system role entirely "
-            "(Protocol-Undefended). Defaults to 'empty' for this sweep."
+            "System prompt mode at train-time (train.py) and eval-time (eval.py). "
+            "'empty' omits the system role. 'default' uses each profile's "
+            "default_system_prompt (None for built-in profiles). Defaults to 'empty'."
         ),
     )
     p.add_argument(
@@ -392,6 +389,15 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         help=(
             "Comma-separated epochs after which to run eval.py (checkpoint at end of epoch). "
             "Default: '5' only (final checkpoint). Use '1,3,5' for multi-epoch monitoring."
+        ),
+    )
+    p.add_argument(
+        "--model-profile",
+        default=os.environ.get("MODEL_PROFILE", DEFAULT_MODEL_PROFILE),
+        choices=list(MODEL_PROFILE_CHOICES),
+        help=(
+            "Which base LLM + hinge guard pairing to train and evaluate "
+            "(see train/model_profiles.py). Match run_final_pipeline.py --model."
         ),
     )
     p.add_argument(
@@ -492,6 +498,17 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         ),
     )
     p.add_argument(
+        "--perturbed-sweep-subset",
+        default="full",
+        choices=("full", "lambda0_only"),
+        help=(
+            "Only for --lm-loss-input perturbed. 'full' uses the same λ×ε schedule as "
+            "clean (lambda_epsilon_pairs). 'lambda0_only' submits a single job at λ=0 "
+            "with the same representative ε as clean λ=0 (ε is inert when λ=0). "
+            "Ignored for clean LM."
+        ),
+    )
+    p.add_argument(
         "--held-out-families",
         default="",
         help=(
@@ -556,7 +573,17 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
 
 def main(argv: list[str]) -> int:
     args = parse_args(argv)
-    combos = sweep_lr_lambda_epsilon_combos(args.learning_rates_tuple, LAMBDAS, EPSILONS)
+    if args.lm_loss_input == "perturbed" and args.perturbed_sweep_subset == "lambda0_only":
+        pz = lambda_epsilon_pairs((0.0,), EPSILONS)
+        combos = [(lr, lam, eps) for lr in args.learning_rates_tuple for lam, eps in pz]
+    else:
+        combos = sweep_lr_lambda_epsilon_combos(args.learning_rates_tuple, LAMBDAS, EPSILONS)
+    if args.lm_loss_input != "perturbed" and args.perturbed_sweep_subset != "full":
+        print(
+            "[submit_wandb_sweep] note: --perturbed-sweep-subset is ignored when "
+            "--lm-loss-input is clean.",
+            flush=True,
+        )
     if args.limit is not None:
         combos = combos[: args.limit]
 
@@ -580,7 +607,9 @@ def main(argv: list[str]) -> int:
         )
 
         for lr, lam, eps in combos:
-            base_slug = make_run_slug(lr, lam, eps, lm_loss_input=args.lm_loss_input)
+            base_slug = make_run_slug(
+                lr, lam, eps, lm_loss_input=args.lm_loss_input, model_profile=args.model_profile
+            )
             for fam in families:
                 if fam is None:
                     run_slug = base_slug
@@ -625,6 +654,7 @@ def main(argv: list[str]) -> int:
                     system_prompt_mode=args.system_prompt_mode,
                     lm_loss_input=args.lm_loss_input,
                     eval_epochs=args.eval_epochs_list,
+                    model_profile=args.model_profile,
                     train_eval_mode=train_eval_mode,
                     train_unseen_family=train_unseen,
                 )
