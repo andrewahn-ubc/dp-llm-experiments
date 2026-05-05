@@ -1,36 +1,65 @@
 #!/usr/bin/env python3
 """
-Build 8 λ×ε heatmaps from ``test_eval_matrix.py`` per-task ``*_metrics.tsv`` files.
+Build λ×ε heatmaps from ``test_eval_matrix.py`` per-task ``*_metrics.tsv`` files.
 
-Two metrics × two LM modes (clean vs perturbed reg) × two protocol views (seen-family vs
-held-out average across gcg/autodan/pair):
+**Clean-reg LM only** (``mode=clean_reg``); perturbed-LM runs are ignored.
 
-  * Seen: ``seen_mean_asr``, ``seen_frr``
-  * Unseen (held-out): ``heldout_mean_asr``, mean of ``*_model_frr`` per family
+For each (λ, ε) cell, metrics come from the saved CSV paths embedded in each TSV when
+possible (attack ASR), else fall back to scalar fields in the TSV.
 
-Grid axes match ``train/submit_wandb_sweep.py`` (``LAMBDAS`` × ``EPSILONS``). For **λ=0**
-only one ε is trained; heatmaps **repeat that value across every ε column** in that row
-(since ε does not affect the loss at λ=0).
+**Aggregate** (full harmful test set, no benchmark split) — written under
+``<output-dir>/aggregate/``:
+
+  * Seen ASR: mean across jailbreak variants on the harmful CSV, plus **per family**
+    (GCG / AutoDAN / PAIR ``* Safety`` columns); ``seen_frr``
+  * Held-out ASR: mean across families, plus **per jailbreak family** (GCG / AutoDAN / PAIR)
+  * Held-out FRR: mean across families, plus **per family** (from ``*_model_frr`` in the TSV)
+
+**Per harmful benchmark** — written under ``<output-dir>/by_dataset/<dataset>/``:
+
+  * Same ASR panels as aggregate but restricted to prompts with that ``dataset`` label
+    (join on ``goal``, ``target`` via ``--labels``).
+  * **FRR** panels are **identical** to aggregate (the benign FRR set is not split by
+    harmful benchmark); files are duplicated into each folder for a self-contained figure set.
+
+Grid axes match ``train/submit_wandb_sweep.py`` (``LAMBDAS`` × ``EPSILONS``). For **λ=0**,
+heatmaps repeat the measured value across every ε column in that row.
+
+Requires **pandas** (same as other eval utilities).
 """
 
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 import matplotlib
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
 import numpy as np  # noqa: E402
+import pandas as pd  # noqa: E402
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
 from train.submit_wandb_sweep import EPSILONS, LAMBDAS  # noqa: E402
+
+MODE = "clean_reg"
+SAFETY_COL = {
+    "gcg": "GCG Safety",
+    "autodan": "AutoDAN Safety",
+    "pair": "PAIR Safety",
+}
+FAMILIES = ("gcg", "autodan", "pair")
+
+
+def expand_path(p: str) -> str:
+    return os.path.expandvars(os.path.expanduser(p))
 
 
 def _parse_metrics_tsv(path: Path) -> dict[str, str]:
@@ -64,44 +93,194 @@ def _grid_index(val: float, grid: tuple[float, ...]) -> int | None:
     return None
 
 
-def _collect_rows(metrics_dir: Path) -> list[dict[str, Any]]:
+def _mean_asr_seen(h: pd.DataFrame) -> float:
+    if len(h) == 0:
+        return float("nan")
+    cols = [c for c in ("GCG Safety", "AutoDAN Safety", "PAIR Safety") if c in h.columns]
+    if not cols:
+        return float("nan")
+    return float(
+        np.mean([(h[c].astype(str).str.lower() == "unsafe").mean() for c in cols])
+    )
+
+
+def _asr_family(h: pd.DataFrame, family: str) -> float:
+    if len(h) == 0:
+        return float("nan")
+    col = SAFETY_COL[family]
+    if col not in h.columns:
+        return float("nan")
+    return float((h[col].astype(str).str.lower() == "unsafe").mean())
+
+
+def _heldout_asrs_by_subset(
+    metrics: dict[str, str],
+    ds_mask_fn: Callable[[pd.DataFrame], pd.Series],
+) -> tuple[float, dict[str, float]]:
+    """Returns (mean_asr_across_loaded_families, per_family_asr)."""
+    per: dict[str, float] = {fam: float("nan") for fam in FAMILIES}
+    parts: list[float] = []
+    for fam in FAMILIES:
+        key = f"{fam}_harmful_csv"
+        if key not in metrics:
+            continue
+        p = Path(metrics[key])
+        if not p.is_file():
+            continue
+        h = pd.read_csv(p)
+        h = h.loc[ds_mask_fn(h)].copy()
+        if len(h) == 0:
+            v = float("nan")
+        else:
+            v = _asr_family(h, fam)
+        per[fam] = v
+        parts.append(v)
+    if not parts:
+        mean_v = float("nan")
+    elif any(np.isnan(parts)):
+        mean_v = float("nan")
+    else:
+        mean_v = float(np.mean(parts))
+    return mean_v, per
+
+
+def _all_rows_mask(df: pd.DataFrame) -> pd.Series:
+    return pd.Series(True, index=df.index)
+
+
+def _frr_fields_from_tsv(d: dict[str, str]) -> dict[str, float]:
+    seen_frr = _to_float(d.get("seen_frr", ""))
+    parts = [_to_float(d.get(f"{fam}_model_frr", "")) for fam in FAMILIES]
+    per_frr = {fam: _to_float(d.get(f"{fam}_model_frr", "")) for fam in FAMILIES}
+    if all(not np.isnan(x) for x in parts):
+        ho_mean_frr = float(np.nanmean(parts))
+    else:
+        ho_mean_frr = float("nan")
+    return {
+        "seen_frr": seen_frr,
+        "heldout_mean_frr": ho_mean_frr,
+        "heldout_gcg_frr": per_frr["gcg"],
+        "heldout_autodan_frr": per_frr["autodan"],
+        "heldout_pair_frr": per_frr["pair"],
+    }
+
+
+def _collect_aggregate_rows(metrics_dir: Path) -> list[dict[str, Any]]:
+    """One row per clean_reg metrics TSV with ASR from CSVs when possible."""
     rows: list[dict[str, Any]] = []
     for path in sorted(metrics_dir.glob("*_metrics.tsv")):
         d = _parse_metrics_tsv(path)
         if "lambda" not in d or "epsilon" not in d or "mode" not in d:
             continue
+        if d["mode"].strip() != MODE:
+            continue
         lam = _to_float(d["lambda"])
         eps = _to_float(d["epsilon"])
-        mode = d["mode"].strip()
-        seen_asr = _to_float(d.get("seen_mean_asr", ""))
-        seen_frr = _to_float(d.get("seen_frr", ""))
-        ho_asr = _to_float(d.get("heldout_mean_asr", ""))
-        frr_parts = [
-            _to_float(d.get(f"{fam}_model_frr", "")) for fam in ("gcg", "autodan", "pair")
-        ]
-        if all(not np.isnan(x) for x in frr_parts):
-            ho_frr = float(np.nanmean(frr_parts))
+        frr = _frr_fields_from_tsv(d)
+
+        row: dict[str, Any] = {
+            "path": path,
+            "lambda": lam,
+            "epsilon": eps,
+            "mode": MODE,
+            **frr,
+        }
+
+        seen_path = d.get("seen_harmful_csv", "").strip()
+        if seen_path and Path(seen_path).is_file():
+            h_seen = pd.read_csv(seen_path)
+            row["seen_mean_asr"] = _mean_asr_seen(h_seen)
+            for fam in FAMILIES:
+                row[f"seen_{fam}_asr"] = _asr_family(h_seen, fam)
         else:
-            ho_frr = float("nan")
-        rows.append(
-            {
-                "path": path,
-                "lambda": lam,
-                "epsilon": eps,
-                "mode": mode,
-                "seen_mean_asr": seen_asr,
-                "seen_frr": seen_frr,
-                "heldout_mean_asr": ho_asr,
-                "heldout_mean_frr": ho_frr,
-            }
+            row["seen_mean_asr"] = _to_float(d.get("seen_mean_asr", ""))
+            for fam in FAMILIES:
+                row[f"seen_{fam}_asr"] = _to_float(d.get(f"seen_{fam}_asr", ""))
+
+        ho_mean, ho_per = _heldout_asrs_by_subset(d, _all_rows_mask)
+        has_any_heldout_csv = any(
+            f"{fam}_harmful_csv" in d and Path(d[f"{fam}_harmful_csv"]).is_file()
+            for fam in FAMILIES
         )
+        if np.isnan(ho_mean) and not has_any_heldout_csv:
+            ho_mean = _to_float(d.get("heldout_mean_asr", ""))
+            ho_per = {fam: float("nan") for fam in FAMILIES}
+
+        row["heldout_mean_asr"] = ho_mean
+        row["heldout_gcg_asr"] = ho_per["gcg"]
+        row["heldout_autodan_asr"] = ho_per["autodan"]
+        row["heldout_pair_asr"] = ho_per["pair"]
+
+        rows.append(row)
     return rows
 
 
-def _fill_grid(rows: list[dict[str, Any]], mode: str, col: str) -> np.ndarray:
+def _collect_per_dataset_rows(
+    metrics_dir: Path,
+    labels_df: pd.DataFrame,
+) -> dict[str, list[dict[str, Any]]]:
+    keycols = ["goal", "target"]
+    lab = labels_df[keycols + ["dataset"]].drop_duplicates(subset=keycols)
+    by_ds: dict[str, list[dict[str, Any]]] = {}
+
+    for path in sorted(metrics_dir.glob("*_metrics.tsv")):
+        d = _parse_metrics_tsv(path)
+        if "lambda" not in d or "epsilon" not in d or "mode" not in d:
+            continue
+        if d["mode"].strip() != MODE:
+            continue
+        lam = _to_float(d["lambda"])
+        eps = _to_float(d["epsilon"])
+        frr = _frr_fields_from_tsv(d)
+
+        seen_path = d.get("seen_harmful_csv", "").strip()
+        if not seen_path or not Path(seen_path).is_file():
+            continue
+        h_seen = pd.read_csv(seen_path)
+        if any(c not in h_seen.columns for c in keycols):
+            continue
+
+        merged_seen = h_seen.merge(lab, on=keycols, how="left")
+        if merged_seen["dataset"].isna().any():
+            n_bad = int(merged_seen["dataset"].isna().sum())
+            print(
+                f"[warn] {path.name}: {n_bad} harmful rows without dataset label",
+                file=sys.stderr,
+            )
+
+        for ds in sorted(x for x in merged_seen["dataset"].dropna().unique()):
+            mask_seen = merged_seen["dataset"] == ds
+
+            def ds_mask(df: pd.DataFrame, dataset: str = ds) -> pd.Series:
+                m = df.merge(lab, on=keycols, how="left")
+                return m["dataset"] == dataset
+
+            h_sub = merged_seen.loc[mask_seen]
+            seen_asr = _mean_asr_seen(h_sub)
+            ho_mean, ho_per = _heldout_asrs_by_subset(d, ds_mask)
+
+            row = {
+                "path": path,
+                "lambda": lam,
+                "epsilon": eps,
+                "mode": MODE,
+                "seen_mean_asr": seen_asr,
+                **{f"seen_{fam}_asr": _asr_family(h_sub, fam) for fam in FAMILIES},
+                "heldout_mean_asr": ho_mean,
+                "heldout_gcg_asr": ho_per["gcg"],
+                "heldout_autodan_asr": ho_per["autodan"],
+                "heldout_pair_asr": ho_per["pair"],
+                **frr,
+            }
+            by_ds.setdefault(str(ds), []).append(row)
+
+    return by_ds
+
+
+def _fill_grid(rows: list[dict[str, Any]], col: str) -> np.ndarray:
     mat = np.full((len(LAMBDAS), len(EPSILONS)), np.nan, dtype=float)
     for r in rows:
-        if r["mode"] != mode:
+        if r["mode"] != MODE:
             continue
         i = _grid_index(r["lambda"], LAMBDAS)
         j = _grid_index(r["epsilon"], EPSILONS)
@@ -115,7 +294,6 @@ def _fill_grid(rows: list[dict[str, Any]], mode: str, col: str) -> np.ndarray:
 
 
 def _broadcast_lambda_zero_across_epsilon(mat: np.ndarray) -> np.ndarray:
-    """For rows with λ≈0, copy the measured metric across all ε columns (degenerate at λ=0)."""
     out = np.array(mat, copy=True, dtype=float)
     for i, lam in enumerate(LAMBDAS):
         if abs(float(lam)) > 1e-12:
@@ -158,63 +336,145 @@ def _plot_matrix(
     plt.close(fig)
 
 
+# (column_key, title, filename)
+AGGREGATE_SPECS: list[tuple[str, str, str]] = [
+    ("seen_mean_asr", "Seen-family mean ASR — avg. jailbreak variants (clean LM)", "seen_mean_asr_clean_lm.png"),
+    ("seen_gcg_asr", "Seen-family ASR — GCG jailbreak (clean LM)", "seen_gcg_asr_clean_lm.png"),
+    ("seen_autodan_asr", "Seen-family ASR — AutoDAN jailbreak (clean LM)", "seen_autodan_asr_clean_lm.png"),
+    ("seen_pair_asr", "Seen-family ASR — PAIR jailbreak (clean LM)", "seen_pair_asr_clean_lm.png"),
+    ("seen_frr", "Seen-family FRR (clean LM)", "seen_frr_clean_lm.png"),
+    ("heldout_mean_asr", "Held-out mean ASR — avg. jailbreak families (clean LM)", "heldout_mean_asr_clean_lm.png"),
+    ("heldout_gcg_asr", "Held-out ASR — GCG family (clean LM)", "heldout_gcg_asr_clean_lm.png"),
+    ("heldout_autodan_asr", "Held-out ASR — AutoDAN family (clean LM)", "heldout_autodan_asr_clean_lm.png"),
+    ("heldout_pair_asr", "Held-out ASR — PAIR family (clean LM)", "heldout_pair_asr_clean_lm.png"),
+    ("heldout_mean_frr", "Held-out mean FRR — avg. families (clean LM)", "heldout_mean_frr_clean_lm.png"),
+    ("heldout_gcg_frr", "Held-out FRR — GCG-trained adapter (clean LM)", "heldout_gcg_frr_clean_lm.png"),
+    ("heldout_autodan_frr", "Held-out FRR — AutoDAN-trained adapter (clean LM)", "heldout_autodan_frr_clean_lm.png"),
+    ("heldout_pair_frr", "Held-out FRR — PAIR-trained adapter (clean LM)", "heldout_pair_frr_clean_lm.png"),
+]
+
+_ASR_SPEC_KEYS = frozenset(
+    {
+        "seen_mean_asr",
+        "seen_gcg_asr",
+        "seen_autodan_asr",
+        "seen_pair_asr",
+        "heldout_mean_asr",
+        "heldout_gcg_asr",
+        "heldout_autodan_asr",
+        "heldout_pair_asr",
+    }
+)
+
+
 def main(argv: list[str] | None = None) -> int:
+    scr = os.environ.get("SCRATCH", "")
+    default_labels = f"{scr}/dp-llm-experiments/official/combined_test_dataset.csv" if scr else ""
+
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument(
         "--metrics-dir",
         type=Path,
         required=True,
-        help="Directory containing *_metrics.tsv from test_eval_matrix (e.g. .../test_eval_outputs).",
+        help="Directory containing *_metrics.tsv from test_eval_matrix.",
+    )
+    p.add_argument(
+        "--labels",
+        type=Path,
+        default=Path(default_labels) if default_labels else None,
+        help="CSV with goal, target, dataset for per-benchmark splits (optional).",
     )
     p.add_argument(
         "--output-dir",
         type=Path,
         default=None,
-        help="Where to write PNGs (default: <metrics-dir>/heatmaps).",
+        help="Root output directory (default: <metrics-dir>/heatmaps).",
     )
     p.add_argument(
         "--dry-run",
         action="store_true",
-        help="Load data and print planned outputs only.",
+        help="Print planned PNG paths only.",
     )
     args = p.parse_args(argv)
 
-    mdir = args.metrics_dir.expanduser()
+    mdir = Path(expand_path(str(args.metrics_dir)))
     if not mdir.is_dir():
         print(f"ERROR: metrics directory not found: {mdir}", file=sys.stderr)
         return 2
 
-    out_dir = args.output_dir.expanduser() if args.output_dir else mdir / "heatmaps"
-    rows = _collect_rows(mdir)
-    if not rows:
-        print(f"ERROR: no *_metrics.tsv files under {mdir}", file=sys.stderr)
+    out_root = Path(expand_path(str(args.output_dir))) if args.output_dir else mdir / "heatmaps"
+    agg_dir = out_root / "aggregate"
+    by_ds_root = out_root / "by_dataset"
+
+    agg_rows = _collect_aggregate_rows(mdir)
+    if not agg_rows:
+        print(
+            f"ERROR: no clean_reg *_metrics.tsv under {mdir}",
+            file=sys.stderr,
+        )
         return 2
 
-    specs: list[tuple[str, str, str, str]] = [
-        ("clean_reg", "seen_mean_asr", "Seen-family mean ASR (clean LM)", "seen_mean_asr_clean_lm.png"),
-        ("clean_reg", "seen_frr", "Seen-family FRR (clean LM)", "seen_frr_clean_lm.png"),
-        ("pert_reg", "seen_mean_asr", "Seen-family mean ASR (perturbed LM)", "seen_mean_asr_pert_lm.png"),
-        ("pert_reg", "seen_frr", "Seen-family FRR (perturbed LM)", "seen_frr_pert_lm.png"),
-        ("clean_reg", "heldout_mean_asr", "Held-out mean ASR (clean LM)", "heldout_mean_asr_clean_lm.png"),
-        ("clean_reg", "heldout_mean_frr", "Held-out mean FRR (clean LM)", "heldout_mean_frr_clean_lm.png"),
-        ("pert_reg", "heldout_mean_asr", "Held-out mean ASR (perturbed LM)", "heldout_mean_asr_pert_lm.png"),
-        ("pert_reg", "heldout_mean_frr", "Held-out mean FRR (perturbed LM)", "heldout_mean_frr_pert_lm.png"),
-    ]
+    labels_path = Path(expand_path(str(args.labels))) if args.labels else None
+    by_ds: dict[str, list[dict[str, Any]]] = {}
+    if labels_path and labels_path.is_file():
+        labels_df = pd.read_csv(labels_path)
+        for c in ("goal", "target", "dataset"):
+            if c not in labels_df.columns:
+                print(f"ERROR: --labels must contain column {c!r}", file=sys.stderr)
+                return 2
+        by_ds = _collect_per_dataset_rows(mdir, labels_df)
+        if not by_ds:
+            print("[warn] no per-dataset rows (check seen_harmful_csv paths vs labels)", file=sys.stderr)
+    elif args.labels:
+        print(f"[warn] labels file not found ({labels_path}); skipping by_dataset/", file=sys.stderr)
+
+    asr_specs = [s for s in AGGREGATE_SPECS if s[0] in _ASR_SPEC_KEYS]
+    frr_specs = [s for s in AGGREGATE_SPECS if s[0] not in _ASR_SPEC_KEYS]
 
     if args.dry_run:
-        print(f"Would write {len(specs)} heatmaps to {out_dir} from {len(rows)} metric rows")
-        for mode, col, title, fname in specs:
-            print(f"  {fname}: {title}")
+        print(f"Aggregate ({len(AGGREGATE_SPECS)} PNGs) -> {agg_dir}/")
+        for _c, _t, fname in AGGREGATE_SPECS:
+            print(f"  {fname}")
+        if by_ds:
+            print(f"By dataset: {', '.join(sorted(by_ds.keys()))} -> {by_ds_root}/")
+            for ds in sorted(by_ds.keys()):
+                print(f"  [{ds}] {len(asr_specs)} ASR + {len(frr_specs)} FRR (global) panels")
+                for _c, _t, fname in asr_specs + frr_specs:
+                    print(f"    {fname}")
+        print(f"Total aggregate: {len(AGGREGATE_SPECS)}")
         return 0
 
-    for mode, col, title, fname in specs:
-        mat = _fill_grid(rows, mode, col)
-        mat = _broadcast_lambda_zero_across_epsilon(mat)
-        out_path = out_dir / fname
-        _plot_matrix(mat, title=title, out_path=out_path)
-        print(f"Wrote {out_path}")
+    def write_specs(rows: list[dict[str, Any]], out_dir: Path, title_suffix: str) -> None:
+        for col, title_stem, fname in AGGREGATE_SPECS:
+            mat = _fill_grid(rows, col)
+            mat = _broadcast_lambda_zero_across_epsilon(mat)
+            title = f"{title_stem}{title_suffix}"
+            out_path = out_dir / fname
+            _plot_matrix(mat, title=title, out_path=out_path)
+            print(f"Wrote {out_path}")
 
-    print(f"Done. {len(specs)} heatmaps in {out_dir}")
+    write_specs(agg_rows, agg_dir, "")
+
+    if by_ds:
+        for ds, rows_ds in sorted(by_ds.items()):
+            ds_slug = "".join(c if c.isalnum() or c in "-_" else "_" for c in ds)
+            ds_dir = by_ds_root / ds_slug
+            suffix = f" — {ds}"
+            for col, title_stem, fname in asr_specs:
+                mat = _fill_grid(rows_ds, col)
+                mat = _broadcast_lambda_zero_across_epsilon(mat)
+                title = f"{title_stem}{suffix}"
+                _plot_matrix(mat, title=title, out_path=ds_dir / fname)
+                print(f"Wrote {ds_dir / fname}")
+            # Global FRR (same matrix as aggregate): duplicate into each dataset folder
+            for col, title_stem, fname in frr_specs:
+                mat = _fill_grid(agg_rows, col)
+                mat = _broadcast_lambda_zero_across_epsilon(mat)
+                title = f"{title_stem} (global benign set){suffix}"
+                _plot_matrix(mat, title=title, out_path=ds_dir / fname)
+                print(f"Wrote {ds_dir / fname}")
+
+    print(f"Done. Output root: {out_root}")
     return 0
 
 

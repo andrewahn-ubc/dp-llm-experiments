@@ -17,8 +17,8 @@ Single entry point for the **final** experiment on Narval:
   5. Submit the SLURM array for ``test_eval_matrix.py`` (1× seen-family + 3× unseen-family
      eval per cell): **62** tasks (31 λ×ε cells × 2 LM modes; λ=0 uses one ε only).
 
-  6. Submit a short **CPU** job that builds **8 λ×ε heatmaps** (PNG) from
-     ``test_eval_outputs/*_metrics.tsv``, chained after the eval array finishes.
+  6. Submit a short **CPU** job that builds **λ×ε heatmaps** (PNG) under
+     ``test_eval_outputs/heatmaps/aggregate/`` and ``.../heatmaps/by_dataset/``, chained after the eval array.
 
 By default the eval array is submitted with a SLURM dependency so it starts **after all
 training jobs have terminated** (``--dependency=after:<ids>`` — success or failure).
