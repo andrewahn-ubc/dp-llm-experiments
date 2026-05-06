@@ -76,8 +76,9 @@ from train.model_profiles import DEFAULT_MODEL_PROFILE, MODEL_PROFILE_CHOICES  #
 
 HELD_OUT_FAMS = "gcg,autodan,pair"
 
-# Single SLURM script per (lr,λ,ε) cell; train-only; one outer epoch.
-# EPOCH for submit_test_eval_matrix.sh must match checkpoint suffix _epoch{N}.
+# Single SLURM script per (lr,λ,ε) cell; train-only; one outer epoch by default.
+# ``submit_test_eval_matrix.sh`` reads ``EPOCH`` (default 5 in the shell); we set ``EPOCH``
+# from the effective ``--total-epochs`` below (including overrides after ``--``).
 _PIPELINE_TRAIN_EPOCHS = "1"
 _DEFAULT_SUBMIT_TRAIN_ARGS = [
     "--total-epochs",
@@ -86,6 +87,41 @@ _DEFAULT_SUBMIT_TRAIN_ARGS = [
     "--time",
     "2:30:00",
 ]
+
+
+def _epoch_env_for_matrix(forward: list[str]) -> str:
+    """``test_eval_matrix`` checkpoint suffix ``_epoch{N}``; ``N`` = last ``--total-epochs``.
+
+    Parses the same argv merge as training: launcher defaults then ``forward`` (after ``--``),
+    so ``python run_final_pipeline.py -- --total-epochs 5`` evaluates ``_epoch5``.
+    """
+    merged = list(_DEFAULT_SUBMIT_TRAIN_ARGS) + list(forward)
+    last: str | None = None
+    i = 0
+    while i < len(merged):
+        t = merged[i]
+        if t == "--total-epochs" and i + 1 < len(merged):
+            last = merged[i + 1]
+            i += 2
+            continue
+        if t.startswith("--total-epochs="):
+            last = t.split("=", 1)[1].strip()
+            i += 1
+            continue
+        i += 1
+    raw = last if last is not None else _PIPELINE_TRAIN_EPOCHS
+    try:
+        n = int(raw)
+    except ValueError:
+        print(
+            f"[WARN] Invalid --total-epochs {raw!r}; using EPOCH={_PIPELINE_TRAIN_EPOCHS}",
+            file=sys.stderr,
+            flush=True,
+        )
+        return _PIPELINE_TRAIN_EPOCHS
+    if n < 1:
+        return _PIPELINE_TRAIN_EPOCHS
+    return str(n)
 
 
 def _read_job_ids(path: Path) -> list[str]:
@@ -132,6 +168,7 @@ def _submit_eval_array(
     dependency_job_ids: list[str] | None,
     model_profile: str,
     lr: str | None = None,
+    matrix_epoch: str | None = None,
 ) -> str | None:
     """Submit eval SLURM script; optionally wait until all listed training jobs finish."""
     cmd: list[str] = ["sbatch"]
@@ -143,7 +180,8 @@ def _submit_eval_array(
     run_env["REPO_ROOT"] = str(repo.resolve())
     run_env["MODEL_PROFILE"] = model_profile
     run_env["LR"] = lr if lr is not None else "2e-5"
-    run_env["EPOCH"] = _PIPELINE_TRAIN_EPOCHS
+    run_env["EPOCH"] = matrix_epoch if matrix_epoch is not None else _PIPELINE_TRAIN_EPOCHS
+    print(f"  (eval matrix EPOCH={run_env['EPOCH']} → *_finetuned_llm_epoch{run_env['EPOCH']})", flush=True)
     return _submit_sbatch(repo, cmd, env=run_env)
 
 
@@ -361,12 +399,14 @@ def main(argv: list[str] | None = None) -> int:
             )
 
         print("\n=== sbatch test_eval_matrix array (seen + unseen × 3 families) ===", flush=True)
+        matrix_epoch = _epoch_env_for_matrix(forward)
         eval_job_id = _submit_eval_array(
             repo=repo,
             eval_sh=eval_sh,
             dependency_job_ids=train_ids if use_dep else None,
             model_profile=args.model_profile,
             lr=args.learning_rate,
+            matrix_epoch=matrix_epoch,
         )
 
         if not args.skip_heatmaps:

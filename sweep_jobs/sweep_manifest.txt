@@ -1,0 +1,2 @@
+# slug	lr	lambda	epsilon	lm_loss_input	system_prompt_mode	held_out_family	wandb_run_id	finetuned_base	job_script(s)_semicolon_sep_if_chunked
+run_lr2e-05_lam0_eps0	2e-05	0.0	0.0	clean	empty		6824e4c92c4a48ad9c4d08752b61db84	$SCRATCH/dp-llm-sweep/run_lr2e-05_lam0_eps0_finetuned_llm	/Users/andrewahn/Desktop/DP-LLM-Safety Research/dp-llm-experiments/sweep_jobs/run_lr2e-05_lam0_eps0.sh

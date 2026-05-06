@@ -14,7 +14,8 @@ Defaults target **final** runs (not train/val hyperparameter search):
     (train-only jobs; run ``eval/test_eval_matrix.py`` later).
 
 Each **logical run** still performs ``total_epochs`` sequential ``train.py`` invocations
-(default 5), saving ``{FINETUNED_BASE}_epoch1 … _epoch5``. Use epoch 5 for reporting.
+(default 5), saving ``{FINETUNED_BASE}_epoch1 … _epoch{total_epochs}``. Report using the
+last completed epoch folder.
 
 With ``--training-chunks N`` (default 1), those epochs are split across **N** chained
 SLURM jobs: each job resumes from the previous checkpoint on ``$SCRATCH``, and job
@@ -656,30 +657,33 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     )
     args = p.parse_args(argv)
 
-    # Parse + validate --eval-epochs ("1,3,5") into a sorted unique list of ints.
-    eval_eps: list[int] = []
-    for tok in args.eval_epochs.split(","):
-        tok = tok.strip()
-        if not tok:
-            continue
-        try:
-            v = int(tok)
-        except ValueError:
-            raise SystemExit(f"--eval-epochs got non-integer entry: {tok!r}")
-        if v < 1 or v > args.total_epochs:
-            raise SystemExit(
-                f"--eval-epochs entry {v} out of range [1, {args.total_epochs}]"
-            )
-        eval_eps.append(v)
-    args.eval_epochs_list = sorted(set(eval_eps))
     if args.embed_sweep_eval:
         args.skip_embedded_eval = False
+
+    # Parse + validate --eval-epochs only when embedded eval runs; default --eval-epochs 5
+    # would fail validation against --total-epochs 1 when using --skip-embedded-eval.
     if args.skip_embedded_eval:
         args.eval_epochs_list = []
-    elif not args.eval_epochs_list:
-        raise SystemExit(
-            "--eval-epochs must contain at least one epoch (or pass --skip-embedded-eval)"
-        )
+    else:
+        eval_eps: list[int] = []
+        for tok in args.eval_epochs.split(","):
+            tok = tok.strip()
+            if not tok:
+                continue
+            try:
+                v = int(tok)
+            except ValueError:
+                raise SystemExit(f"--eval-epochs got non-integer entry: {tok!r}")
+            if v < 1 or v > args.total_epochs:
+                raise SystemExit(
+                    f"--eval-epochs entry {v} out of range [1, {args.total_epochs}]"
+                )
+            eval_eps.append(v)
+        args.eval_epochs_list = sorted(set(eval_eps))
+        if not args.eval_epochs_list:
+            raise SystemExit(
+                "--eval-epochs must contain at least one epoch (or pass --skip-embedded-eval)"
+            )
 
     lr_parts = [float(x.strip()) for x in args.learning_rates.split(",") if x.strip()]
     if not lr_parts:
