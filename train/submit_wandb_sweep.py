@@ -9,12 +9,19 @@ Defaults target **final** runs (not train/val hyperparameter search):
     (see ``lambda_epsilon_pairs``): fewer jobs than 7×5×LR because ε does not affect
     training when λ=0.
   • Training CSV: ``official_data/train_plus_validation.csv``.
-  • Embedded ``eval.py`` after training uses **test** files:
-    ``combined_test_dataset.csv`` + ``frr_test.csv``.
-  • ``--eval-epochs`` default: ``5`` (checkpoint + metrics once at end).
+  • Embedded ``eval.py`` after selected epochs (default ``--eval-epochs 5``) using **test**
+    CSVs ``combined_test_dataset.csv`` + ``frr_test.csv``, unless ``--skip-embedded-eval``
+    (train-only jobs; run ``eval/test_eval_matrix.py`` later).
 
-Each job still runs ``total_epochs`` sequential ``train.py`` invocations (default 5),
-saving ``{FINETUNED_BASE}_epoch1 … _epoch5``. Use epoch 5 for reporting.
+Each **logical run** still performs ``total_epochs`` sequential ``train.py`` invocations
+(default 5), saving ``{FINETUNED_BASE}_epoch1 … _epoch5``. Use epoch 5 for reporting.
+
+With ``--training-chunks N`` (default 1), those epochs are split across **N** chained
+SLURM jobs: each job resumes from the previous checkpoint on ``$SCRATCH``, and job
+``k+1`` is submitted with ``sbatch --dependency=afterok:<job_k>``. Set per-chunk wall
+time via ``--chunk-times`` or a single ``--time`` applied to every chunk; otherwise
+each chunk's limit is derived from ``--hours-per-epoch`` and ``--eval-hours`` for the
+epochs (and evals) in that chunk only.
 
 Use ``python run_final_pipeline.py`` to submit **clean** LM on the full λ×ε grid,
 **perturbed** LM only at **λ=0** (one representative ε; same rule as ``lambda_epsilon_pairs``),
@@ -88,6 +95,43 @@ def sweep_lr_lambda_epsilon_combos(
 ) -> list[tuple[float, float, float]]:
     pairs = lambda_epsilon_pairs(lambdas, epsilons)
     return [(lr, lam, eps) for lr in learning_rates for lam, eps in pairs]
+
+
+def split_epochs_into_chunks(total_epochs: int, n_chunks: int) -> list[list[int]]:
+    """Partition ``1..total_epochs`` into ``n_chunks`` contiguous groups as evenly as possible."""
+    if n_chunks < 1:
+        raise ValueError("n_chunks must be >= 1")
+    if total_epochs < 1:
+        raise ValueError("total_epochs must be >= 1")
+    if n_chunks > total_epochs:
+        raise ValueError(
+            f"--training-chunks ({n_chunks}) cannot exceed --total-epochs ({total_epochs})"
+        )
+    if n_chunks == 1:
+        return [list(range(1, total_epochs + 1))]
+    epochs = list(range(1, total_epochs + 1))
+    n = len(epochs)
+    base, rem = divmod(n, n_chunks)
+    out: list[list[int]] = []
+    i = 0
+    for c in range(n_chunks):
+        sz = base + (1 if c < rem else 0)
+        out.append(epochs[i : i + sz])
+        i += sz
+    return out
+
+
+def chunk_wall_time_hours(
+    epoch_list: list[int],
+    *,
+    hours_per_epoch: int,
+    eval_hours: int,
+    eval_epochs_set: set[int],
+) -> int:
+    """Rough SLURM hour budget for one chunk (same formula as the global default)."""
+    train_h = hours_per_epoch * len(epoch_list)
+    eval_h = eval_hours * sum(1 for ep in epoch_list if ep in eval_epochs_set)
+    return train_h + eval_h
 
 
 def _render_eval_block(
@@ -183,9 +227,17 @@ def render_job_script(
     model_profile: str,
     train_eval_mode: str = "seen-family",
     train_unseen_family: str | None = None,
+    epoch_schedule: list[int] | None = None,
+    chunk_index: int = 1,
+    chunk_total: int = 1,
 ) -> str:
     # W&B run display name (visible after sync)
     run_name = run_slug
+    epochs_to_run = (
+        epoch_schedule if epoch_schedule is not None else list(range(1, total_epochs + 1))
+    )
+    out_slug = f"{run_slug}_c{chunk_index}" if chunk_total > 1 else run_slug
+    embed_eval = bool(eval_epochs)
 
     lines = [
         "#!/bin/bash",
@@ -195,7 +247,7 @@ def render_job_script(
         f"#SBATCH --cpus-per-task={cpus}",
         f"#SBATCH --mem={mem}",
         f"#SBATCH --time={time_limit}",
-        f"#SBATCH --output=output/sweep_{run_slug}_%j.out",
+        f"#SBATCH --output=output/sweep_{out_slug}_%j.out",
         "",
         "mkdir -p output",
         "",
@@ -229,47 +281,65 @@ def render_job_script(
         "",
         f'export FINETUNED_BASE="{finetuned_base}"',
         f'export TRAIN_PY="{train_py}"',
-        f'export EVAL_PY="{eval_py}"',
-        f'export EVAL_OUT_DIR="{eval_output_dir}"',
         'mkdir -p "$(dirname "$FINETUNED_BASE")"',
         'mkdir -p "$WANDB_DIR" "$WANDB_DIR_PERSISTENT"',
-        'mkdir -p "$EVAL_OUT_DIR"',
-        "",
+    ]
+    if embed_eval:
+        lines += [
+            f'export EVAL_PY="{eval_py}"',
+            f'export EVAL_OUT_DIR="{eval_output_dir}"',
+            'mkdir -p "$EVAL_OUT_DIR"',
+        ]
+    lines += [
         "# Copy any wandb runtime artifacts back to persistent storage on EXIT,",
         "# even if the job is killed or fails partway through.",
         "trap 'cp -r \"$WANDB_DIR\"/* \"$WANDB_DIR_PERSISTENT/\" 2>/dev/null || true' EXIT",
         "",
     ]
 
-    # Pre-build the FRR input once (renames {adversarial,goal,...} -> 'Original Prompt'
-    # so eval.py finds it). Reused across all per-epoch eval calls.
-    lines += [
-        "# ----------------------------",
-        "# FRR input prep (eval.py expects an 'Original Prompt' column)",
-        "# ----------------------------",
-        f'BENIGN_TMP="${{SLURM_TMPDIR}}/frr_eval_input_{run_slug}.csv"',
-        f"python - \"{benign_csv}\" \"$BENIGN_TMP\" <<'PY'",
-        "import sys",
-        "import pandas as pd",
-        "src, dst = sys.argv[1:3]",
-        "df = pd.read_csv(src)",
-        "if 'Original Prompt' in df.columns:",
-        "    df.to_csv(dst, index=False)",
-        "    print(f'[sweep_eval] benign data already has Original Prompt -> {dst}')",
-        "    sys.exit(0)",
-        "candidates = ['adversarial','Adversarial','goal','Goal','prompt','Prompt','original_prompt','instruction','Instruction']",
-        "src_col = next((c for c in candidates if c in df.columns), None)",
-        "if src_col is None:",
-        "    raise ValueError(f'Could not build Original Prompt column from {list(df.columns)}')",
-        "df = df.copy(); df['Original Prompt'] = df[src_col].astype(str)",
-        "df.to_csv(dst, index=False)",
-        "print(f'[sweep_eval] mapped {src_col!r} -> Original Prompt -> {dst}')",
-        "PY",
-        "",
-    ]
+    if chunk_total > 1:
+        ep_join = ",".join(str(e) for e in epochs_to_run)
+        lines += [
+            "# ----------------------------",
+            f"# Training chunk {chunk_index}/{chunk_total} (epochs: {ep_join})",
+            "# Later chunks resume from checkpoints under $FINETUNED_BASE on shared storage.",
+            "# ----------------------------",
+            "",
+        ]
+
+    if embed_eval:
+        # Pre-build the FRR input once (renames {adversarial,goal,...} -> 'Original Prompt'
+        # so eval.py finds it). Reused across all per-epoch eval calls.
+        lines += [
+            "# ----------------------------",
+            "# FRR input prep (eval.py expects an 'Original Prompt' column)",
+            "# ----------------------------",
+            f'BENIGN_TMP="${{SLURM_TMPDIR}}/frr_eval_input_{run_slug}.csv"',
+            f"python - \"{benign_csv}\" \"$BENIGN_TMP\" <<'PY'",
+            "import sys",
+            "import pandas as pd",
+            "src, dst = sys.argv[1:3]",
+            "df = pd.read_csv(src)",
+            "if 'Original Prompt' in df.columns:",
+            "    df.to_csv(dst, index=False)",
+            "    print(f'[sweep_eval] benign data already has Original Prompt -> {dst}')",
+            "    sys.exit(0)",
+            "candidates = ['adversarial','Adversarial','goal','Goal','prompt','Prompt','original_prompt','instruction','Instruction']",
+            "src_col = next((c for c in candidates if c in df.columns), None)",
+            "if src_col is None:",
+            "    raise ValueError(f'Could not build Original Prompt column from {list(df.columns)}')",
+            "df = df.copy(); df['Original Prompt'] = df[src_col].astype(str)",
+            "df.to_csv(dst, index=False)",
+            "print(f'[sweep_eval] mapped {src_col!r} -> Original Prompt -> {dst}')",
+            "PY",
+            "",
+        ]
 
     eval_eps_set = set(eval_epochs)
-    for ep in range(1, total_epochs + 1):
+    last_ep_this_job = max(epochs_to_run)
+    is_final_chunk = last_ep_this_job >= total_epochs
+
+    for ep in epochs_to_run:
         # Train epoch ep
         do_eval_after = ep in eval_eps_set
         suffix = " + eval" if do_eval_after else ""
@@ -309,13 +379,25 @@ def render_job_script(
             )
 
     eval_eps_str = ",".join(str(e) for e in sorted(eval_eps_set))
-    lines += [
-        f'echo "Final adapter (latest): ${{FINETUNED_BASE}}_epoch{total_epochs}"',
-        f'echo "Intermediate checkpoints kept: ${{FINETUNED_BASE}}_epoch1 ... _epoch{total_epochs}"',
-        f'echo "Eval epochs: {eval_eps_str}"',
-        f'echo "Per-epoch metrics in: ${{EVAL_OUT_DIR}}/{run_slug}_epoch<N>_metrics.tsv"',
-        "",
-    ]
+    if is_final_chunk:
+        lines += [
+            f'echo "Final adapter (latest): ${{FINETUNED_BASE}}_epoch{total_epochs}"',
+            f'echo "Checkpoints: ${{FINETUNED_BASE}}_epoch1 ... _epoch{total_epochs}"',
+        ]
+        if embed_eval:
+            lines += [
+                f'echo "Embedded eval epochs: {eval_eps_str}"',
+                f'echo "Per-epoch metrics in: ${{EVAL_OUT_DIR}}/{run_slug}_epoch<N>_metrics.tsv"',
+            ]
+        else:
+            lines += ['echo "Train-only job; run eval/test_eval_matrix.py for test metrics."']
+        lines.append("")
+    else:
+        lines += [
+            f'echo "Chunk {chunk_index}/{chunk_total} done; latest checkpoint: ${{FINETUNED_BASE}}_epoch{last_ep_this_job}"',
+            'echo "Next chained SLURM job resumes training from that checkpoint."',
+            "",
+        ]
     return "\n".join(lines) + "\n"
 
 
@@ -348,12 +430,29 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     p.add_argument(
         "--eval-py",
         default="$SCRATCH/dp-llm-experiments/eval/eval.py",
-        help="Path to eval.py on the cluster (run after the final training epoch).",
+        help="Path to eval.py (only used when embedded eval runs; omit from jobs if --skip-embedded-eval).",
     )
     p.add_argument(
         "--eval-output-dir",
         default="$SCRATCH/dp-llm-sweep/eval_outputs",
-        help="Directory where each run's harmful/benign CSVs and metrics.tsv are written.",
+        help="Directory for embedded eval outputs (ignored with --skip-embedded-eval).",
+    )
+    p.add_argument(
+        "--skip-embedded-eval",
+        action="store_true",
+        help=(
+            "Generate train-only SLURM scripts (no eval.py, no FRR prep). Default wall time "
+            "uses only --hours-per-epoch × epochs per chunk. Run eval/test_eval_matrix.py "
+            "after checkpoints exist. If both this and --embed-sweep-eval are set, embedding wins."
+        ),
+    )
+    p.add_argument(
+        "--embed-sweep-eval",
+        action="store_true",
+        help=(
+            "Force embedded eval.py in generated jobs. Overrides --skip-embedded-eval when "
+            "both appear (e.g. ``run_final_pipeline.py -- --embed-sweep-eval``)."
+        ),
     )
     p.add_argument(
         "--system-prompt-mode",
@@ -387,8 +486,9 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         "--eval-epochs",
         default="5",
         help=(
-            "Comma-separated epochs after which to run eval.py (checkpoint at end of epoch). "
-            "Default: '5' only (final checkpoint). Use '1,3,5' for multi-epoch monitoring."
+            "Comma-separated epochs after which to run eval.py inside the job (checkpoint at "
+            "end of epoch). Ignored if --skip-embedded-eval. Default: '5' only. "
+            "Use '1,3,5' for multi-epoch monitoring."
         ),
     )
     p.add_argument(
@@ -450,8 +550,32 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         "--time",
         dest="time_limit",
         default=None,
-        help="SLURM wall time for the entire sweep job (e.g. 15:00:00). "
-        "Default: hours-per-epoch × total-epochs + eval-hours × len(eval-epochs).",
+        help=(
+            "SLURM wall time. With --training-chunks 1 (default): one job for the full run "
+            "(default derived from --hours-per-epoch / --eval-hours). With "
+            "--training-chunks>1 and without --chunk-times: each chunk gets its own derived "
+            "budget; if you pass --time here instead, that same limit is applied to **every** chunk."
+        ),
+    )
+    p.add_argument(
+        "--training-chunks",
+        type=int,
+        default=1,
+        help=(
+            "Split each logical run into N sequential SLURM jobs. Job k+1 uses "
+            "sbatch --dependency=afterok:<job_k_id> and resumes from the previous epoch "
+            "checkpoint on --checkpoint-root. Default 1 preserves the original single-job behavior."
+        ),
+    )
+    p.add_argument(
+        "--chunk-times",
+        default=None,
+        metavar="T1,T2,...",
+        help=(
+            "Comma-separated SLURM --time values, one per chunk (count must equal "
+            "--training-chunks). Example: 3:00:00,3:00:00,5:00:00. Overrides per-chunk "
+            "auto-estimates and --time."
+        ),
     )
     p.add_argument(
         "--module-line",
@@ -525,7 +649,10 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         "--total-epochs",
         type=int,
         default=5,
-        help="Number of sequential train.py invocations per job (each saves its own checkpoint).",
+        help=(
+            "Outer training epochs per logical run (each saves FINETUNED_BASE_epoch<n>). "
+            "When --training-chunks>1, epochs are divided across chained jobs."
+        ),
     )
     args = p.parse_args(argv)
 
@@ -545,8 +672,14 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
             )
         eval_eps.append(v)
     args.eval_epochs_list = sorted(set(eval_eps))
-    if not args.eval_epochs_list:
-        raise SystemExit("--eval-epochs must contain at least one epoch")
+    if args.embed_sweep_eval:
+        args.skip_embedded_eval = False
+    if args.skip_embedded_eval:
+        args.eval_epochs_list = []
+    elif not args.eval_epochs_list:
+        raise SystemExit(
+            "--eval-epochs must contain at least one epoch (or pass --skip-embedded-eval)"
+        )
 
     lr_parts = [float(x.strip()) for x in args.learning_rates.split(",") if x.strip()]
     if not lr_parts:
@@ -562,12 +695,45 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
             )
     args.held_out_families_tuple = tuple(held_parts)
 
-    if args.time_limit is None:
-        total_h = (
-            args.hours_per_epoch * args.total_epochs
-            + args.eval_hours * len(args.eval_epochs_list)
-        )
-        args.time_limit = f"{total_h}:00:00"
+    if args.training_chunks < 1:
+        raise SystemExit("--training-chunks must be >= 1")
+
+    try:
+        epoch_chunks = split_epochs_into_chunks(args.total_epochs, args.training_chunks)
+    except ValueError as exc:
+        raise SystemExit(str(exc)) from exc
+    args.epoch_chunks = epoch_chunks
+
+    eval_eps_set = set(args.eval_epochs_list)
+
+    if args.training_chunks == 1:
+        if args.chunk_times:
+            raise SystemExit("--chunk-times is only valid with --training-chunks > 1")
+        if args.time_limit is None:
+            total_h = (
+                args.hours_per_epoch * args.total_epochs
+                + args.eval_hours * len(args.eval_epochs_list)
+            )
+            args.time_limit = f"{total_h}:00:00"
+        args.chunk_time_limits = [args.time_limit]
+    else:
+        if args.chunk_times:
+            ct_parts = [x.strip() for x in args.chunk_times.split(",") if x.strip()]
+            if len(ct_parts) != args.training_chunks:
+                raise SystemExit(
+                    f"--chunk-times must list exactly {args.training_chunks} "
+                    f"comma-separated wall times; got {len(ct_parts)}"
+                )
+            args.chunk_time_limits = ct_parts
+        elif args.time_limit is not None:
+            args.chunk_time_limits = [args.time_limit] * args.training_chunks
+        else:
+            args.chunk_time_limits = [
+                f"{chunk_wall_time_hours(ech, hours_per_epoch=args.hours_per_epoch, eval_hours=args.eval_hours, eval_epochs_set=eval_eps_set)}:00:00"
+                for ech in args.epoch_chunks
+            ]
+        args.time_limit = None
+
     return args
 
 
@@ -603,7 +769,8 @@ def main(argv: list[str]) -> int:
     with manifest.open("w", encoding="utf-8") as mf:
         mf.write(
             "# slug\tlr\tlambda\tepsilon\tlm_loss_input\tsystem_prompt_mode\t"
-            "held_out_family\twandb_run_id\tfinetuned_base\tjob_script\n"
+            "held_out_family\twandb_run_id\tfinetuned_base\t"
+            "job_script(s)_semicolon_sep_if_chunked\n"
         )
 
         for lr, lam, eps in combos:
@@ -625,53 +792,65 @@ def main(argv: list[str]) -> int:
                     held_col = fam
 
                 run_id = uuid.uuid4().hex
-                sbatch_job_name = f"sw_{run_slug}"[:64]
+                n_chunks = len(args.epoch_chunks)
+                chunk_script_paths: list[str] = []
+                prev_job_id: str | None = None
 
-                body = render_job_script(
-                    run_slug=run_slug,
-                    run_id=run_id,
-                    lr=lr,
-                    lam=lam,
-                    eps=eps,
-                    wandb_project=args.wandb_project,
-                    wandb_dir=args.wandb_dir,
-                    finetuned_base=finetuned_base,
-                    train_py=args.train_py,
-                    eval_py=args.eval_py,
-                    training_csv=args.training_data,
-                    validation_csv=args.validation_data,
-                    benign_csv=args.benign_validation_data,
-                    eval_output_dir=args.eval_output_dir,
-                    sbatch_job_name=sbatch_job_name,
-                    account=args.account,
-                    gres=args.gres,
-                    cpus=args.cpus_per_task,
-                    mem=args.mem,
-                    time_limit=args.time_limit,
-                    module_line=args.module_line,
-                    venv_activate=args.venv_activate,
-                    total_epochs=args.total_epochs,
-                    system_prompt_mode=args.system_prompt_mode,
-                    lm_loss_input=args.lm_loss_input,
-                    eval_epochs=args.eval_epochs_list,
-                    model_profile=args.model_profile,
-                    train_eval_mode=train_eval_mode,
-                    train_unseen_family=train_unseen,
-                )
+                for ci, epoch_schedule in enumerate(args.epoch_chunks, start=1):
+                    suffix = f"_c{ci}" if n_chunks > 1 else ""
+                    sbatch_job_name = f"sw_{run_slug}{suffix}"[:64]
+                    chunk_time = args.chunk_time_limits[ci - 1]
 
-                sh_path = script_dir / f"{run_slug}.sh"
-                sh_path.write_text(body, encoding="utf-8")
-                os.chmod(sh_path, 0o755)
+                    body = render_job_script(
+                        run_slug=run_slug,
+                        run_id=run_id,
+                        lr=lr,
+                        lam=lam,
+                        eps=eps,
+                        wandb_project=args.wandb_project,
+                        wandb_dir=args.wandb_dir,
+                        finetuned_base=finetuned_base,
+                        train_py=args.train_py,
+                        eval_py=args.eval_py,
+                        training_csv=args.training_data,
+                        validation_csv=args.validation_data,
+                        benign_csv=args.benign_validation_data,
+                        eval_output_dir=args.eval_output_dir,
+                        sbatch_job_name=sbatch_job_name,
+                        account=args.account,
+                        gres=args.gres,
+                        cpus=args.cpus_per_task,
+                        mem=args.mem,
+                        time_limit=chunk_time,
+                        module_line=args.module_line,
+                        venv_activate=args.venv_activate,
+                        total_epochs=args.total_epochs,
+                        system_prompt_mode=args.system_prompt_mode,
+                        lm_loss_input=args.lm_loss_input,
+                        eval_epochs=args.eval_epochs_list,
+                        model_profile=args.model_profile,
+                        train_eval_mode=train_eval_mode,
+                        train_unseen_family=train_unseen,
+                        epoch_schedule=epoch_schedule,
+                        chunk_index=ci,
+                        chunk_total=n_chunks,
+                    )
 
-                mf.write(
-                    f"{run_slug}\t{lr}\t{lam}\t{eps}\t{args.lm_loss_input}"
-                    f"\t{args.system_prompt_mode}\t{held_col}\t{run_id}\t{finetuned_base}\t{sh_path}\n"
-                )
+                    sh_path = script_dir / f"{run_slug}{suffix}.sh"
+                    sh_path.write_text(body, encoding="utf-8")
+                    os.chmod(sh_path, 0o755)
+                    chunk_script_paths.append(str(sh_path))
 
-                cmd = ["sbatch", str(sh_path)]
-                if args.dry_run:
-                    print("Would run:", " ".join(cmd))
-                else:
+                    cmd = ["sbatch"]
+                    if prev_job_id is not None:
+                        cmd.append(f"--dependency=afterok:{prev_job_id}")
+                    cmd.append(str(sh_path))
+
+                    if args.dry_run:
+                        print("Would run:", " ".join(cmd))
+                        prev_job_id = f"DRYRUN_{ci}"
+                        continue
+
                     proc = subprocess.run(
                         cmd,
                         check=False,
@@ -690,8 +869,15 @@ def main(argv: list[str]) -> int:
                         args.record_job_ids.parent.mkdir(parents=True, exist_ok=True)
                         with args.record_job_ids.open("a", encoding="utf-8") as jf:
                             jf.write(f"{job_id}\n")
+                    prev_job_id = job_id
 
-    n_scripts = len(combos) * len(families)
+                scripts_cell = ";".join(chunk_script_paths)
+                mf.write(
+                    f"{run_slug}\t{lr}\t{lam}\t{eps}\t{args.lm_loss_input}"
+                    f"\t{args.system_prompt_mode}\t{held_col}\t{run_id}\t{finetuned_base}\t{scripts_cell}\n"
+                )
+
+    n_scripts = len(combos) * len(families) * len(args.epoch_chunks)
     print(f"Wrote {n_scripts} job scripts to {script_dir}")
     print(f"Manifest: {manifest}")
     if args.dry_run:
@@ -699,6 +885,12 @@ def main(argv: list[str]) -> int:
     else:
         print(f"Submitted {len(submitted)} jobs.")
     print()
+    if args.training_chunks > 1:
+        print(
+            f"Each logical run uses {args.training_chunks} chained SLURM jobs "
+            f"(sbatch --dependency=afterok:…); wall times: {', '.join(args.chunk_time_limits)}.",
+            flush=True,
+        )
     te = args.total_epochs
     print(
         f"Inference: each run saves {te} checkpoints; latest is "

@@ -3,7 +3,11 @@
 Single entry point for the **final** experiment on Narval:
 
   1. Submit **seen-family** training with **clean** LM (full λ×ε grid via
-     ``lambda_epsilon_pairs``).
+     ``lambda_epsilon_pairs``). Each cell is **one** SLURM job that runs **only**
+     ``train.py`` for **one** outer epoch (``--total-epochs 1``, ``--skip-embedded-eval``).
+     SLURM wall time for each training job defaults to **2.5 hours** (``--time 2:30:00``).
+     Checkpoints are ``…_finetuned_llm_epoch1``. Test metrics come from ``test_eval_matrix`` after training.
+     Restore in-job ``eval.py`` with ``python run_final_pipeline.py -- --embed-sweep-eval`` if needed.
 
   2. Submit **seen-family** training with **perturbed** LM only at **λ=0** (one run;
      representative ε matches ``lambda_epsilon_pairs`` for λ=0), via
@@ -39,6 +43,9 @@ Forward extra arguments to ``train/submit_wandb_sweep.py`` (all **four** trainin
 
   python run_final_pipeline.py --model mistral_7b_instruct -- --dry-run --limit 2
 
+Arguments after ``--`` override launcher defaults such as ``--total-epochs``, ``--time``, or
+``--embed-sweep-eval`` (see ``train/submit_wandb_sweep.py --help``).
+
 Launcher-only flags (before ``--``)::
 
   --model NAME             Base LLM preset (default: llama_2_7b_chat); see train/model_profiles.py.
@@ -68,6 +75,17 @@ if str(_REPO_ROOT) not in sys.path:
 from train.model_profiles import DEFAULT_MODEL_PROFILE, MODEL_PROFILE_CHOICES  # noqa: E402
 
 HELD_OUT_FAMS = "gcg,autodan,pair"
+
+# Single SLURM script per (lr,λ,ε) cell; train-only; one outer epoch.
+# EPOCH for submit_test_eval_matrix.sh must match checkpoint suffix _epoch{N}.
+_PIPELINE_TRAIN_EPOCHS = "1"
+_DEFAULT_SUBMIT_TRAIN_ARGS = [
+    "--total-epochs",
+    _PIPELINE_TRAIN_EPOCHS,
+    "--skip-embedded-eval",
+    "--time",
+    "2:30:00",
+]
 
 
 def _read_job_ids(path: Path) -> list[str]:
@@ -125,6 +143,7 @@ def _submit_eval_array(
     run_env["REPO_ROOT"] = str(repo.resolve())
     run_env["MODEL_PROFILE"] = model_profile
     run_env["LR"] = lr if lr is not None else "2e-5"
+    run_env["EPOCH"] = _PIPELINE_TRAIN_EPOCHS
     return _submit_sbatch(repo, cmd, env=run_env)
 
 
@@ -295,6 +314,7 @@ def main(argv: list[str] | None = None) -> int:
                 ]
                 + list(sweep_extra)
                 + lr_train_args
+                + _DEFAULT_SUBMIT_TRAIN_ARGS
                 + forward
             )
             if chain_eval:
@@ -320,6 +340,7 @@ def main(argv: list[str] | None = None) -> int:
                     ]
                     + list(sweep_extra)
                     + lr_train_args
+                    + _DEFAULT_SUBMIT_TRAIN_ARGS
                     + forward
                 )
                 if chain_eval:
