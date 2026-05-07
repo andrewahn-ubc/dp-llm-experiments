@@ -5,7 +5,7 @@ Submit a grid of SLURM training jobs (Narval / Compute Canada friendly).
 Defaults target **final** runs (not train/val hyperparameter search):
 
   • Learning rates: ``2e-5`` only (override via ``--learning-rates``).
-  • λ × ε grid: defaults to **two** (λ, ε) cells for the final pipeline (see ``LAMBDAS`` /
+  • λ × ε grid: defaults to **one** (λ, ε) cell for the final pipeline (see ``LAMBDAS`` /
     ``EPSILONS``). When **λ=0** appears in ``LAMBDAS``, only one representative ε is used
     (see ``lambda_epsilon_pairs``); ε does not affect training at λ=0.
   • Training CSV: ``official_data/train_plus_validation.csv`` (row order is not
@@ -65,7 +65,7 @@ from train.model_profiles import DEFAULT_MODEL_PROFILE, MODEL_PROFILE_CHOICES, m
 # Final-pipeline slice: only these (λ, ε) pairs for clean LM (plus λ=0 perturbed via
 # --perturbed-sweep-subset lambda0_only; representative ε follows lambda_epsilon_pairs).
 LAMBDAS = (0.1,)
-EPSILONS = (-1.0, -0.5)
+EPSILONS = (-1.0,)
 
 
 def lambda_epsilon_pairs(

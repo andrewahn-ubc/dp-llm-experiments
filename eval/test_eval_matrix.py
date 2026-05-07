@@ -98,10 +98,10 @@ def expand_path(p: str) -> str:
 DEFAULT_LR = 2e-5
 DEFAULT_EPOCH = 5
 # Default grid: must match train/submit_wandb_sweep.py LAMBDAS × EPSILONS (+ perturbed task
-# when --perturbed-reg-subset lambda0_only). With pipeline defaults: 2 clean_reg + 1 pert_reg = 3 tasks.
+# when --perturbed-reg-subset lambda0_only). With pipeline defaults: 1 clean_reg + 1 pert_reg = 2 tasks.
 # Use --perturbed-reg-subset full for full perturbed grid, or none for clean only.
 DEFAULT_LAMBDAS = (0.1,)
-DEFAULT_EPSILONS = (-1.0, -0.5)
+DEFAULT_EPSILONS = (-1.0,)
 
 FAMILIES = ("gcg", "autodan", "pair")
 

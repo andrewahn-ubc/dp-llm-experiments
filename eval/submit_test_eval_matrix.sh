@@ -5,7 +5,7 @@
 #SBATCH --cpus-per-task=6
 #SBATCH --mem=48G
 #SBATCH --time=2:15:00
-#SBATCH --array=0-2
+#SBATCH --array=0-1
 #SBATCH --output=output/test_eval_matrix_%A_%a.out
 #
 # ---------------------------------------------------------------------------
@@ -35,7 +35,7 @@
 #
 # One array task = one (mode, λ, ε) cell: clean grid + one perturbed LM run at λ=0
 # (default --perturbed-reg-subset lambda0_only), running 1× seen-family + 3× unseen eval.
-# Default task_count matches train/submit_wandb_sweep.py (pipeline: 2 clean + 1 perturbed@λ=0 = 3).
+# Default task_count matches train/submit_wandb_sweep.py (pipeline: 1 clean + 1 perturbed@λ=0 = 2).
 # Wider grids: raise --array upper bound to len(tasks)-1 from: python eval/test_eval_matrix.py --list-tasks
 #
 # Prerequisites:

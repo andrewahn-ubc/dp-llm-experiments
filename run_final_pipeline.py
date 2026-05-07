@@ -21,8 +21,8 @@ Single entry point for the **final** experiment on Narval:
   4. Submit **held-out** training for **perturbed** LM at λ=0 only (same as (2)).
 
   5. Submit the SLURM array for ``test_eval_matrix.py`` (task count matches the grid in
-     ``submit_wandb_sweep`` / ``eval/test_eval_matrix.py``; default pipeline: **3** tasks:
-     2 clean + 1 perturbed-at-λ=0; 1× seen + 3× unseen eval per task).
+     ``submit_wandb_sweep`` / ``eval/test_eval_matrix.py``; default pipeline: **2** tasks:
+     1 clean (λ=0.1, ε=-1) + 1 perturbed-at-λ=0; 1× seen + 3× unseen eval per task).
 
   6. Submit **CPU** heatmaps: **13** per-metric panel PNGs plus **combined_clean_lm_dashboard.png**
      under ``…/heatmaps_<MODEL>_lr<LR>/aggregate/`` and each
