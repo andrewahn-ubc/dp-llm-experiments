@@ -7,9 +7,8 @@ Single entry point for the **final** experiment on Narval:
      ``train.py`` once by default on the **first half** of the shuffled CSV (``--training-halves-phase first``,
      ``--total-epochs 1`` in the sweep sense → checkpoint ``…_finetuned_llm_epoch1``). Use
      ``python run_final_pipeline.py --training-half second`` (same ``--model`` / ``--lr``) for the
-     second half → ``…_epoch2``. SLURM wall time defaults to **2 hours** per half (``--time 2:00:00``),
-     i.e. **4 hours per full epoch** of data; ``--training-half full`` defaults to **4 hours** for one
-     full-data pass.
+     second half → ``…_epoch2``. SLURM wall time defaults to **3 hours** (``--time 3:00:00``) per
+     training job (each half-epoch pass or a single full-data pass when using ``--training-half full``).
      Test metrics use ``submit_test_eval_matrix.sh`` with ``EPOCH`` matching the half (1 or 2).
 
   2. Submit **seen-family** training with **perturbed** LM only at **λ=0** (one run;
@@ -91,23 +90,16 @@ HELD_OUT_FAMS = "gcg,autodan,pair"
 # ``submit_test_eval_matrix.sh`` reads ``EPOCH``; we set ``EPOCH`` from ``--training-half``
 # and any ``--total-epochs`` override after ``--``.
 _PIPELINE_TRAIN_EPOCHS = "1"
-# Budget: 4 h per full pass over all training rows; each 0.5-epoch half-job gets 2 h.
-_TRAIN_TIME_PER_FULL_EPOCH = "4:00:00"
-_TRAIN_TIME_PER_HALF_EPOCH = "2:00:00"
+_TRAIN_WALL_TIME = "3:00:00"
 
 
 def _default_submit_train_args(training_half: str) -> list[str]:
-    wall = (
-        _TRAIN_TIME_PER_HALF_EPOCH
-        if training_half in ("first", "second")
-        else _TRAIN_TIME_PER_FULL_EPOCH
-    )
     base = [
         "--total-epochs",
         _PIPELINE_TRAIN_EPOCHS,
         "--skip-embedded-eval",
         "--time",
-        wall,
+        _TRAIN_WALL_TIME,
     ]
     if training_half == "first":
         return base[:2] + ["--training-halves-phase", "first"] + base[2:]
