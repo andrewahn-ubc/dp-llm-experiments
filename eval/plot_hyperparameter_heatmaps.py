@@ -22,6 +22,11 @@ possible (attack ASR), else fall back to scalar fields in the TSV.
   * **FRR** panels are **identical** to aggregate (the benign FRR set is not split by
     harmful benchmark); files are duplicated into each folder for a self-contained figure set.
 
+After the per-panel PNGs are written, **aggregate/** and each **by_dataset/<benchmark>/** folder
+also gets ``combined_clean_lm_dashboard.png``: one figure with six rows — seen AutoDAN/GCG/PAIR ASR,
+then seen mean ASR and seen FRR, then held-out ASR/FRR pairs per family and finally held-out means —
+for quick visual comparison.
+
 Artifact paths in each ``*_metrics.tsv`` are stored **relative to the eval output directory**
 when possible; the plotter also falls back to ``<metrics-dir>/<basename>`` so copies that
 keep TSVs and CSVs together still work.
@@ -44,7 +49,9 @@ from typing import Any, Callable
 import matplotlib
 
 matplotlib.use("Agg")
+import matplotlib.image as mpimg  # noqa: E402
 import matplotlib.pyplot as plt  # noqa: E402
+from matplotlib.gridspec import GridSpec  # noqa: E402
 import numpy as np  # noqa: E402
 import pandas as pd  # noqa: E402
 
@@ -405,6 +412,64 @@ _ASR_SPEC_KEYS = frozenset(
     }
 )
 
+# Rows of PNG basenames under panel_dir; triple rows span three equal slots, pair rows two centered slots.
+_COMBINED_CLEAN_LM_ROWS: tuple[tuple[str, ...], ...] = (
+    (
+        "seen_autodan_asr_clean_lm.png",
+        "seen_gcg_asr_clean_lm.png",
+        "seen_pair_asr_clean_lm.png",
+    ),
+    ("seen_mean_asr_clean_lm.png", "seen_frr_clean_lm.png"),
+    ("heldout_autodan_asr_clean_lm.png", "heldout_autodan_frr_clean_lm.png"),
+    ("heldout_gcg_asr_clean_lm.png", "heldout_gcg_frr_clean_lm.png"),
+    ("heldout_pair_asr_clean_lm.png", "heldout_pair_frr_clean_lm.png"),
+    ("heldout_mean_asr_clean_lm.png", "heldout_mean_frr_clean_lm.png"),
+)
+
+COMBINED_DASHBOARD_FILENAME = "combined_clean_lm_dashboard.png"
+
+
+def _write_combined_clean_lm_dashboard(panel_dir: Path, *, suptitle: str | None = None) -> bool:
+    """
+    Stitch existing per-metric PNGs into one figure (6 rows: 3+2+2+2+2+2 panels).
+    Returns False if any source file is missing.
+    """
+    for row in _COMBINED_CLEAN_LM_ROWS:
+        for fname in row:
+            if not (panel_dir / fname).is_file():
+                print(
+                    f"[warn] combined dashboard: missing {panel_dir / fname}; skip combined figure",
+                    file=sys.stderr,
+                )
+                return False
+
+    fig = plt.figure(figsize=(18, 22))
+    gs = GridSpec(6, 6, figure=fig, hspace=0.14, wspace=0.10, top=0.94, bottom=0.02)
+
+    for row_idx, fnames in enumerate(_COMBINED_CLEAN_LM_ROWS):
+        imgs = [mpimg.imread(str(panel_dir / f)) for f in fnames]
+        if len(fnames) == 3:
+            for k in range(3):
+                ax = fig.add_subplot(gs[row_idx, k * 2 : (k + 1) * 2])
+                ax.imshow(imgs[k], aspect="auto")
+                ax.axis("off")
+        else:
+            ax0 = fig.add_subplot(gs[row_idx, 1:3])
+            ax1 = fig.add_subplot(gs[row_idx, 3:5])
+            ax0.imshow(imgs[0], aspect="auto")
+            ax1.imshow(imgs[1], aspect="auto")
+            ax0.axis("off")
+            ax1.axis("off")
+
+    if suptitle:
+        fig.suptitle(suptitle, fontsize=13)
+
+    out_path = panel_dir / COMBINED_DASHBOARD_FILENAME
+    fig.savefig(out_path, dpi=150, bbox_inches="tight")
+    plt.close(fig)
+    print(f"Wrote {out_path}")
+    return True
+
 
 def _default_heatmap_dirname(metrics_dir: Path) -> str:
     """``heatmaps_<MODEL_PROFILE>_lr<LR>/`` from env if set, else inferred from metrics TSVs."""
@@ -503,6 +568,11 @@ def main(argv: list[str] | None = None) -> int:
                 for _c, _t, fname in asr_specs + frr_specs:
                     print(f"    {fname}")
         print(f"Total aggregate: {len(AGGREGATE_SPECS)}")
+        print(f"  + {COMBINED_DASHBOARD_FILENAME}")
+        if by_ds:
+            for ds in sorted(by_ds.keys()):
+                ds_slug = "".join(c if c.isalnum() or c in "-_" else "_" for c in ds)
+                print(f"  [{ds}] + {COMBINED_DASHBOARD_FILENAME} -> {by_ds_root / ds_slug}/")
         print(f"Output root: {out_root}")
         return 0
 
@@ -516,6 +586,7 @@ def main(argv: list[str] | None = None) -> int:
             print(f"Wrote {out_path}")
 
     write_specs(agg_rows, agg_dir, "")
+    _write_combined_clean_lm_dashboard(agg_dir, suptitle="Aggregate — clean LM")
 
     if by_ds:
         for ds, rows_ds in sorted(by_ds.items()):
@@ -535,6 +606,7 @@ def main(argv: list[str] | None = None) -> int:
                 title = f"{title_stem} (global benign set){suffix}"
                 _plot_matrix(mat, title=title, out_path=ds_dir / fname)
                 print(f"Wrote {ds_dir / fname}")
+            _write_combined_clean_lm_dashboard(ds_dir, suptitle=f"{ds} — clean LM")
 
     print(f"Done. Output root: {out_root}")
     return 0

@@ -9,8 +9,9 @@ Checkpoint naming matches train/submit_wandb_sweep.py:
 
 where slug = make_run_slug(lr, lam, eps, lm_loss_input).
 
-Default grid matches ``submit_wandb_sweep.py``: **7 λ × 5 ε** with **λ=0** collapsed to a
-single ε (``0.0`` when present), fixed ``lr=2e-5``, ``epoch=5``.
+Default grid matches ``submit_wandb_sweep.py`` (``LAMBDAS`` / ``EPSILONS`` there), with
+**λ=0** collapsed to a single representative ε when λ=0 is in the λ list (``lambda_epsilon_pairs``),
+fixed ``lr=2e-5``, ``epoch=5``.
 
 Default test CSVs under ``--repo-root``: ``official_data/combined_test_dataset.csv`` and
 ``official_data/frr_test.csv`` (cluster layout: ``$SCRATCH/dp-llm-experiments/official_data/``).
@@ -54,7 +55,7 @@ Usage (Narval):
   # Run task 0 for real
   python eval/test_eval_matrix.py --task-id 0
 
-  # submit_test_eval_matrix.sh uses SLURM_ARRAY_TASK_ID (default 32 tasks)
+  # submit_test_eval_matrix.sh uses SLURM_ARRAY_TASK_ID (array range must match task count)
 
 Outputs under --out-dir:
   per-task metrics TSV + optional master summary rows.
@@ -96,10 +97,11 @@ def expand_path(p: str) -> str:
 
 DEFAULT_LR = 2e-5
 DEFAULT_EPOCH = 5
-# Default grid: 31 clean_reg + 1 pert_reg at λ=0 (representative ε) = 32 tasks (--perturbed-reg-subset lambda0_only).
-# Use --perturbed-reg-subset full for 62 tasks (legacy), or none for 31 (clean only).
-DEFAULT_LAMBDAS = (0.0, 0.1, 0.3, 1.0, 3.0, 10.0, 30.0)
-DEFAULT_EPSILONS = (-1.0, -0.5, 0.0, 0.5, 1.0)
+# Default grid: must match train/submit_wandb_sweep.py LAMBDAS × EPSILONS (+ perturbed task
+# when --perturbed-reg-subset lambda0_only). With pipeline defaults: 2 clean_reg + 1 pert_reg = 3 tasks.
+# Use --perturbed-reg-subset full for full perturbed grid, or none for clean only.
+DEFAULT_LAMBDAS = (0.1,)
+DEFAULT_EPSILONS = (-1.0, -0.5)
 
 FAMILIES = ("gcg", "autodan", "pair")
 
@@ -462,8 +464,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         choices=("none", "lambda0_only", "full"),
         help=(
             "Which perturbed-LM checkpoints to evaluate. 'lambda0_only' (default): one "
-            "task at λ=0 with the same representative ε as clean λ=0. 'full': same λ×ε as "
-            "clean (62 tasks). 'none': clean grid only (31)."
+            "task at λ=0 with the same representative ε as clean λ=0 (when λ=0 is in the λ list). "
+            "'full': one perturbed task per (λ, ε) clean cell. 'none': clean grid only."
         ),
     )
     p.add_argument("--skip-missing", action="store_true", default=True, help="Skip task if any checkpoint is missing (default: on).")
@@ -475,13 +477,13 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--lambdas",
         type=str,
         default=",".join(str(x) for x in DEFAULT_LAMBDAS),
-        help="Comma-separated λ grid (default 7 values; must match training sweep).",
+        help="Comma-separated λ grid (must match training sweep).",
     )
     p.add_argument(
         "--epsilons",
         type=str,
         default=",".join(str(x) for x in DEFAULT_EPSILONS),
-        help="Comma-separated ε grid (default 5 values; must match training sweep).",
+        help="Comma-separated ε grid (must match training sweep).",
     )
 
     p.add_argument(

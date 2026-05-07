@@ -1,3 +1,4 @@
+import math
 import torch
 import torch.nn.functional as F
 from transformers import (
@@ -64,6 +65,10 @@ def _wandb_init(args, *, hinge_style: str):
             "lm_loss_input": getattr(args, "lm_loss_input", "clean"),
             "model_profile": getattr(args, "model_profile", DEFAULT_MODEL_PROFILE),
             "hinge_style": hinge_style,
+            "shuffle_training_rows": getattr(args, "shuffle_training_rows", True),
+            "training_shuffle_seed": getattr(args, "training_shuffle_seed", None),
+            "train_data_frac_start": float(getattr(args, "train_data_frac_start", 0.0)),
+            "train_data_frac_end": float(getattr(args, "train_data_frac_end", 1.0)),
         },
     }
     if run_name:
@@ -416,7 +421,40 @@ def _main_train(args, wandb_on):
     required_cols = ["Original Prompt", "Original Response"] + \
                     [v[0] for v in neighbour_names.values()]
     df = df.dropna(subset=required_cols).reset_index(drop=True)
-    print(f"Training on {len(df)} rows after dropping NaNs")
+    if getattr(args, "shuffle_training_rows", True):
+        df = df.sample(frac=1.0, random_state=args.training_shuffle_seed).reset_index(
+            drop=True
+        )
+        print(
+            f"[train] Shuffled {len(df)} training rows after NaN filter "
+            f"(seed={args.training_shuffle_seed!r})",
+            flush=True,
+        )
+
+    fs = float(getattr(args, "train_data_frac_start", 0.0))
+    fe = float(getattr(args, "train_data_frac_end", 1.0))
+    if not (0.0 <= fs < fe <= 1.0):
+        raise ValueError(
+            f"require 0 <= train_data_frac_start < train_data_frac_end <= 1; got {fs=}, {fe=}"
+        )
+    n_all = len(df)
+    if n_all > 0:
+        i0 = max(0, min(n_all, math.floor(fs * n_all + 1e-12)))
+        i1 = max(0, min(n_all, math.floor(fe * n_all + 1e-12)))
+        if i1 <= i0:
+            i1 = min(n_all, i0 + 1)
+        df = df.iloc[i0:i1].reset_index(drop=True)
+        print(
+            f"[train] Using rows [{i0}:{i1}) of {n_all} after shuffle "
+            f"(train_data_frac_start={fs}, train_data_frac_end={fe})",
+            flush=True,
+        )
+
+    print(
+        f"[train] Training on {len(df)} rows this run (after NaN filter, optional shuffle, "
+        f"and optional frac slice)",
+        flush=True,
+    )
     print(
         f"Epoch {args.start_epoch}/{args.total_epochs} — checkpoint will be saved under "
         f"{args.finetuned_llm_path}_epoch{args.start_epoch}",
@@ -589,6 +627,44 @@ if __name__ == "__main__":
         "--training-data",
         default = "/home/taegyoem/scratch/dp-llm-experiments/official_data/train.csv",
         help = "path to csv containing training data"
+    )
+    parser.add_argument(
+        "--shuffle-training-rows",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help=(
+            "After loading --training-data (and dropping NaNs), shuffle row order before "
+            "the epoch loop. Recommended when using <1 full epoch so the first steps are "
+            "not always the same prompts. Disable with --no-shuffle-training-rows for a "
+            "fixed on-disk order."
+        ),
+    )
+    parser.add_argument(
+        "--training-shuffle-seed",
+        type=int,
+        default=None,
+        help=(
+            "RNG seed for --shuffle-training-rows (default: None = different order each "
+            "process unless NumPy's global seed is set). Ignored when --no-shuffle-training-rows."
+        ),
+    )
+    parser.add_argument(
+        "--train-data-frac-start",
+        type=float,
+        default=0.0,
+        help=(
+            "After shuffling, keep rows from this fraction of the index range [0, N) "
+            "(inclusive lower bound). Use 0 and 0.5 for the first half of a split pass."
+        ),
+    )
+    parser.add_argument(
+        "--train-data-frac-end",
+        type=float,
+        default=1.0,
+        help=(
+            "Exclusive-style upper bound on the same [0, N) scale as --train-data-frac-start "
+            "(end is floored to an integer row index). Use 0.5 and 1.0 for the second half."
+        ),
     )
     parser.add_argument(
         "--validation-data",

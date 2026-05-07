@@ -2,12 +2,15 @@
 """
 Single entry point for the **final** experiment on Narval:
 
-  1. Submit **seen-family** training with **clean** LM (full λ×ε grid via
-     ``lambda_epsilon_pairs``). Each cell is **one** SLURM job that runs **only**
-     ``train.py`` for **one** outer epoch (``--total-epochs 1``, ``--skip-embedded-eval``).
-     SLURM wall time for each training job defaults to **2.5 hours** (``--time 2:30:00``).
-     Checkpoints are ``…_finetuned_llm_epoch1``. Test metrics come from ``test_eval_matrix`` after training.
-     Restore in-job ``eval.py`` with ``python run_final_pipeline.py -- --embed-sweep-eval`` if needed.
+  1. Submit **seen-family** training with **clean** LM (λ×ε grid via
+     ``train/submit_wandb_sweep.LAMBDAS`` / ``EPSILONS`` and ``lambda_epsilon_pairs``). Each cell is **one** SLURM job that runs **only**
+     ``train.py`` once by default on the **first half** of the shuffled CSV (``--training-halves-phase first``,
+     ``--total-epochs 1`` in the sweep sense → checkpoint ``…_finetuned_llm_epoch1``). Use
+     ``python run_final_pipeline.py --training-half second`` (same ``--model`` / ``--lr``) for the
+     second half → ``…_epoch2``. SLURM wall time defaults to **2 hours** per half (``--time 2:00:00``),
+     i.e. **4 hours per full epoch** of data; ``--training-half full`` defaults to **4 hours** for one
+     full-data pass.
+     Test metrics use ``submit_test_eval_matrix.sh`` with ``EPOCH`` matching the half (1 or 2).
 
   2. Submit **seen-family** training with **perturbed** LM only at **λ=0** (one run;
      representative ε matches ``lambda_epsilon_pairs`` for λ=0), via
@@ -17,10 +20,12 @@ Single entry point for the **final** experiment on Narval:
 
   4. Submit **held-out** training for **perturbed** LM at λ=0 only (same as (2)).
 
-  5. Submit the SLURM array for ``test_eval_matrix.py`` (default **32** tasks: 31 clean +
-     1 perturbed-at-λ=0; 1× seen + 3× unseen eval per task).
+  5. Submit the SLURM array for ``test_eval_matrix.py`` (task count matches the grid in
+     ``submit_wandb_sweep`` / ``eval/test_eval_matrix.py``; default pipeline: **3** tasks:
+     2 clean + 1 perturbed-at-λ=0; 1× seen + 3× unseen eval per task).
 
-  6. Submit **CPU** heatmaps: **13** PNGs under ``…/heatmaps_<MODEL>_lr<LR>/aggregate/`` plus
+  6. Submit **CPU** heatmaps: **13** per-metric panel PNGs plus **combined_clean_lm_dashboard.png**
+     under ``…/heatmaps_<MODEL>_lr<LR>/aggregate/`` and each
      ``…/heatmaps_<MODEL>_lr<LR>/by_dataset/<benchmark>/``. Folder names come from the eval
      ``*_metrics.tsv`` files (no manual exports). Labels default to
      ``official_data/combined_test_dataset.csv`` (must include ``dataset``). Eval artifacts live under
@@ -57,6 +62,10 @@ Launcher-only flags (before ``--``)::
   --skip-eval              Submit training only (no ``submit_test_eval_matrix.sh``).
   --skip-heatmaps          Do not submit ``eval/submit_plot_heatmaps.sh`` after eval.
   --parallel-eval          Submit eval immediately; do not wait for training jobs to finish.
+
+  --training-half {first,second,full}
+                           Default ``first``: first shuffled half → ``*_epoch1``. ``second``: resume
+                           ``*_epoch1``, second half → ``*_epoch2``. ``full``: legacy one pass on all rows.
 """
 
 from __future__ import annotations
@@ -76,26 +85,49 @@ from train.model_profiles import DEFAULT_MODEL_PROFILE, MODEL_PROFILE_CHOICES  #
 
 HELD_OUT_FAMS = "gcg,autodan,pair"
 
-# Single SLURM script per (lr,λ,ε) cell; train-only; one outer epoch by default.
-# ``submit_test_eval_matrix.sh`` reads ``EPOCH`` (default 5 in the shell); we set ``EPOCH``
-# from the effective ``--total-epochs`` below (including overrides after ``--``).
+# Single SLURM script per (lr,λ,ε) cell; train-only; default **first half** of one data
+# pass (``--total-epochs 1`` + ``--training-halves-phase first`` → ``*_epoch1``), then run
+# ``python run_final_pipeline.py --training-half second`` for the second half → ``*_epoch2``.
+# ``submit_test_eval_matrix.sh`` reads ``EPOCH``; we set ``EPOCH`` from ``--training-half``
+# and any ``--total-epochs`` override after ``--``.
 _PIPELINE_TRAIN_EPOCHS = "1"
-_DEFAULT_SUBMIT_TRAIN_ARGS = [
-    "--total-epochs",
-    _PIPELINE_TRAIN_EPOCHS,
-    "--skip-embedded-eval",
-    "--time",
-    "2:30:00",
-]
+# Budget: 4 h per full pass over all training rows; each 0.5-epoch half-job gets 2 h.
+_TRAIN_TIME_PER_FULL_EPOCH = "4:00:00"
+_TRAIN_TIME_PER_HALF_EPOCH = "2:00:00"
 
 
-def _epoch_env_for_matrix(forward: list[str]) -> str:
-    """``test_eval_matrix`` checkpoint suffix ``_epoch{N}``; ``N`` = last ``--total-epochs``.
+def _default_submit_train_args(training_half: str) -> list[str]:
+    wall = (
+        _TRAIN_TIME_PER_HALF_EPOCH
+        if training_half in ("first", "second")
+        else _TRAIN_TIME_PER_FULL_EPOCH
+    )
+    base = [
+        "--total-epochs",
+        _PIPELINE_TRAIN_EPOCHS,
+        "--skip-embedded-eval",
+        "--time",
+        wall,
+    ]
+    if training_half == "first":
+        return base[:2] + ["--training-halves-phase", "first"] + base[2:]
+    if training_half == "second":
+        return base[:2] + ["--training-halves-phase", "second"] + base[2:]
+    return base
 
-    Parses the same argv merge as training: launcher defaults then ``forward`` (after ``--``),
-    so ``python run_final_pipeline.py -- --total-epochs 5`` evaluates ``_epoch5``.
+
+def _epoch_env_for_matrix(training_half: str, forward: list[str]) -> str:
+    """``test_eval_matrix`` checkpoint suffix ``_epoch{N}``.
+
+    After the default first-half training, evaluate ``_epoch1``. After ``--training-half
+    second``, evaluate ``_epoch2``. Otherwise ``N`` comes from the effective ``--total-epochs``
+    in merged defaults + ``forward`` (after ``--``).
     """
-    merged = list(_DEFAULT_SUBMIT_TRAIN_ARGS) + list(forward)
+    if training_half == "first":
+        return "1"
+    if training_half == "second":
+        return "2"
+    merged = list(_default_submit_train_args("full")) + list(forward)
     last: str | None = None
     i = 0
     while i < len(merged):
@@ -267,6 +299,17 @@ def main(argv: list[str] | None = None) -> int:
         ),
     )
     lp.add_argument(
+        "--training-half",
+        choices=("first", "second", "full"),
+        default="first",
+        help=(
+            "Training data slice for each sweep job: default ``first`` runs train.py on the "
+            "first half of the shuffled rows (checkpoint *_epoch1). ``second`` resumes *_epoch1 "
+            "and trains the second half (*_epoch2). ``full`` uses the whole CSV in one pass "
+            "(``--training-halves-phase full``; legacy behavior)."
+        ),
+    )
+    lp.add_argument(
         "--repo-root",
         default="",
         help="Repo path on the cluster (default: directory containing this script).",
@@ -335,6 +378,7 @@ def main(argv: list[str] | None = None) -> int:
     lr_train_args: list[str] = (
         ["--learning-rates", args.learning_rate] if args.learning_rate is not None else []
     )
+    train_submit_args = _default_submit_train_args(args.training_half)
 
     if not args.skip_training:
         job_ids_path.write_text("", encoding="utf-8")
@@ -352,7 +396,7 @@ def main(argv: list[str] | None = None) -> int:
                 ]
                 + list(sweep_extra)
                 + lr_train_args
-                + _DEFAULT_SUBMIT_TRAIN_ARGS
+                + train_submit_args
                 + forward
             )
             if chain_eval:
@@ -378,7 +422,7 @@ def main(argv: list[str] | None = None) -> int:
                     ]
                     + list(sweep_extra)
                     + lr_train_args
-                    + _DEFAULT_SUBMIT_TRAIN_ARGS
+                    + train_submit_args
                     + forward
                 )
                 if chain_eval:
@@ -399,7 +443,7 @@ def main(argv: list[str] | None = None) -> int:
             )
 
         print("\n=== sbatch test_eval_matrix array (seen + unseen × 3 families) ===", flush=True)
-        matrix_epoch = _epoch_env_for_matrix(forward)
+        matrix_epoch = _epoch_env_for_matrix(args.training_half, forward)
         eval_job_id = _submit_eval_array(
             repo=repo,
             eval_sh=eval_sh,
@@ -419,6 +463,20 @@ def main(argv: list[str] | None = None) -> int:
             else:
                 print("\n=== sbatch plot hyperparameter heatmaps (after eval array) ===", flush=True)
                 _submit_heatmap_job(repo=repo, heatmap_sh=heatmap_sh, after_job_id=eval_job_id)
+
+    if args.training_half == "first" and not args.skip_training:
+        lr_hint = args.learning_rate or "2e-5"
+        exe = Path(sys.argv[0]).name
+        extra = " --skip-held-out-training" if args.skip_held_out_training else ""
+        print(
+            "\n=== After *_epoch1 checkpoints exist: second half (same model / LR) ===\n"
+            f"  python {exe} --model {args.model_profile} --lr {lr_hint} "
+            f"--training-half second{extra}\n"
+            "  Job scripts pin ``--training-shuffle-seed`` from each run slug so the second "
+            "half sees the same shuffled order as the first.\n"
+            "  (Append the same ``--`` forward args you used for the first half, if any.)\n",
+            flush=True,
+        )
 
     print(
         "\nDone. Eval + metrics TSVs + CSVs: ``$CHECKPOINT_ROOT/test_eval_outputs/`` (default "

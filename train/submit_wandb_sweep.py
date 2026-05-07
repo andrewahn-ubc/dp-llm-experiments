@@ -5,10 +5,11 @@ Submit a grid of SLURM training jobs (Narval / Compute Canada friendly).
 Defaults target **final** runs (not train/val hyperparameter search):
 
   • Learning rates: ``2e-5`` only (override via ``--learning-rates``).
-  • λ × ε grid: **7 × 5** full factorial except **λ=0** uses a single representative ε
-    (see ``lambda_epsilon_pairs``): fewer jobs than 7×5×LR because ε does not affect
-    training when λ=0.
-  • Training CSV: ``official_data/train_plus_validation.csv``.
+  • λ × ε grid: defaults to **two** (λ, ε) cells for the final pipeline (see ``LAMBDAS`` /
+    ``EPSILONS``). When **λ=0** appears in ``LAMBDAS``, only one representative ε is used
+    (see ``lambda_epsilon_pairs``); ε does not affect training at λ=0.
+  • Training CSV: ``official_data/train_plus_validation.csv`` (row order is not
+    semantically meaningful; ``train.py`` shuffles after load by default).
   • Embedded ``eval.py`` after selected epochs (default ``--eval-epochs 5``) using **test**
     CSVs ``combined_test_dataset.csv`` + ``frr_test.csv``, unless ``--skip-embedded-eval``
     (train-only jobs; run ``eval/test_eval_matrix.py`` later).
@@ -24,9 +25,9 @@ time via ``--chunk-times`` or a single ``--time`` applied to every chunk; otherw
 each chunk's limit is derived from ``--hours-per-epoch`` and ``--eval-hours`` for the
 epochs (and evals) in that chunk only.
 
-Use ``python run_final_pipeline.py`` to submit **clean** LM on the full λ×ε grid,
+Use ``python run_final_pipeline.py`` to submit **clean** LM on the configured λ×ε grid,
 **perturbed** LM only at **λ=0** (one representative ε; same rule as ``lambda_epsilon_pairs``),
-**held-out** training for both, and the test-eval SLURM array (32 tasks by default).
+**held-out** training for both, and the test-eval SLURM array (must match ``eval/test_eval_matrix.py``).
 
 Held-out jobs are submitted via ``--held-out-families gcg,autodan,pair`` (see below).
 
@@ -52,6 +53,7 @@ import re
 import subprocess
 import sys
 import uuid
+import zlib
 from pathlib import Path
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -60,8 +62,10 @@ if str(_REPO_ROOT) not in sys.path:
 
 from train.model_profiles import DEFAULT_MODEL_PROFILE, MODEL_PROFILE_CHOICES, make_run_slug
 
-LAMBDAS = (0.0, 0.1, 0.3, 1.0, 3.0, 10.0, 30.0)
-EPSILONS = (-1.0, -0.5, 0.0, 0.5, 1.0)
+# Final-pipeline slice: only these (λ, ε) pairs for clean LM (plus λ=0 perturbed via
+# --perturbed-sweep-subset lambda0_only; representative ε follows lambda_epsilon_pairs).
+LAMBDAS = (0.1,)
+EPSILONS = (-1.0, -0.5)
 
 
 def lambda_epsilon_pairs(
@@ -231,6 +235,9 @@ def render_job_script(
     epoch_schedule: list[int] | None = None,
     chunk_index: int = 1,
     chunk_total: int = 1,
+    training_halves_phase: str = "full",
+    train_data_frac_start: float = 0.0,
+    train_data_frac_end: float = 1.0,
 ) -> str:
     # W&B run display name (visible after sync)
     run_name = run_slug
@@ -239,6 +246,23 @@ def render_job_script(
     )
     out_slug = f"{run_slug}_c{chunk_index}" if chunk_total > 1 else run_slug
     embed_eval = bool(eval_epochs)
+
+    # (start_epoch, resume_prev_epoch_or_none, frac_start, frac_end, train_total_epochs_label)
+    if training_halves_phase == "first":
+        train_rounds = [(1, None, 0.0, 0.5, 2)]
+    elif training_halves_phase == "second":
+        train_rounds = [(2, 1, 0.5, 1.0, 2)]
+    else:
+        train_rounds = [
+            (
+                ep,
+                ep - 1 if ep > 1 else None,
+                float(train_data_frac_start),
+                float(train_data_frac_end),
+                int(total_epochs),
+            )
+            for ep in epochs_to_run
+        ]
 
     lines = [
         "#!/bin/bash",
@@ -337,14 +361,13 @@ def render_job_script(
         ]
 
     eval_eps_set = set(eval_epochs)
-    last_ep_this_job = max(epochs_to_run)
+    last_ep_this_job = max(t[0] for t in train_rounds)
     is_final_chunk = last_ep_this_job >= total_epochs
 
-    for ep in epochs_to_run:
-        # Train epoch ep
-        do_eval_after = ep in eval_eps_set
+    for start_ep, resume_prev, fs, fe, train_te_label in train_rounds:
+        do_eval_after = training_halves_phase == "full" and start_ep in eval_eps_set
         suffix = " + eval" if do_eval_after else ""
-        lines.append(f"# Epoch {ep} - training{suffix}")
+        lines.append(f"# Outer step {start_ep} (of logical {train_te_label}) - training{suffix}")
         lines.append('python "$TRAIN_PY" \\')
         lines.append(f'    --eval-mode "{train_eval_mode}" \\')
         if train_eval_mode == "unseen-family":
@@ -360,15 +383,23 @@ def render_job_script(
         lines.append(f"    --lambda-val {lam} \\")
         lines.append(f"    --epsilon {eps} \\")
         lines.append("    --lora-rank 8 \\")
-        lines.append(f"    --total-epochs {total_epochs} \\")
-        if ep > 1:
-            lines.append(f'    --resume-from "${{FINETUNED_BASE}}_epoch{ep - 1}" \\')
-        lines.append(f"    --start-epoch {ep}")
+        lines.append(f"    --total-epochs {train_te_label} \\")
+        if training_halves_phase in ("first", "second"):
+            # Same seed for first vs second half re-submits: derived from slug (stable), not
+            # WANDB_RUN_ID (new uuid each submission).
+            shuf = zlib.crc32(run_slug.encode("utf-8")) & 0x7FFFFFFF
+            lines.append(f"    --training-shuffle-seed {shuf} \\")
+        if resume_prev is not None:
+            lines.append(f'    --resume-from "${{FINETUNED_BASE}}_epoch{resume_prev}" \\')
+        if not (abs(fs) < 1e-15 and abs(fe - 1.0) < 1e-15):
+            lines.append(f"    --train-data-frac-start {fs} \\")
+            lines.append(f"    --train-data-frac-end {fe} \\")
+        lines.append(f"    --start-epoch {start_ep}")
         lines.append("")
 
         if do_eval_after:
             lines += _render_eval_block(
-                ep=ep,
+                ep=start_ep,
                 run_slug=run_slug,
                 lr=lr,
                 lam=lam,
@@ -382,9 +413,13 @@ def render_job_script(
     eval_eps_str = ",".join(str(e) for e in sorted(eval_eps_set))
     if is_final_chunk:
         lines += [
-            f'echo "Final adapter (latest): ${{FINETUNED_BASE}}_epoch{total_epochs}"',
-            f'echo "Checkpoints: ${{FINETUNED_BASE}}_epoch1 ... _epoch{total_epochs}"',
+            f'echo "Latest checkpoint from this job: ${{FINETUNED_BASE}}_epoch{last_ep_this_job}"',
         ]
+        if training_halves_phase == "first":
+            lines += [
+                'echo "Next half: re-submit with --training-halves-phase second (same slug; '
+                'requires this *_epoch1 directory)."',
+            ]
         if embed_eval:
             lines += [
                 f'echo "Embedded eval epochs: {eval_eps_str}"',
@@ -652,13 +687,55 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         default=5,
         help=(
             "Outer training epochs per logical run (each saves FINETUNED_BASE_epoch<n>). "
-            "When --training-chunks>1, epochs are divided across chained jobs."
+            "When --training-chunks>1, epochs are divided across chained jobs. "
+            "With --training-halves-phase first|second, must be 1 (one train.py per script)."
         ),
+    )
+    p.add_argument(
+        "--training-halves-phase",
+        choices=("full", "first", "second"),
+        default="full",
+        help=(
+            "full: honor --total-epochs and optional --train-data-frac-* on each step. "
+            "first: one train.py pass on the first half of rows [0,0.5) → *_epoch1 "
+            "(--total-epochs must be 1). "
+            "second: resume *_epoch1, second half [0.5,1) → *_epoch2 (--total-epochs 1). "
+            "first|second also set --training-shuffle-seed from the run slug so re-submitting "
+            "the second half matches the first half's shuffle."
+        ),
+    )
+    p.add_argument(
+        "--train-data-frac-start",
+        type=float,
+        default=0.0,
+        help="Only for --training-halves-phase full: row slice lower bound on [0,1) after shuffle.",
+    )
+    p.add_argument(
+        "--train-data-frac-end",
+        type=float,
+        default=1.0,
+        help="Only for --training-halves-phase full: row slice upper bound (see train.py).",
     )
     args = p.parse_args(argv)
 
     if args.embed_sweep_eval:
         args.skip_embedded_eval = False
+
+    if args.training_halves_phase in ("first", "second"):
+        if args.total_epochs != 1:
+            raise SystemExit(
+                "--training-halves-phase first|second requires --total-epochs 1 "
+                "(one train.py invocation per Slurm script)."
+            )
+    else:
+        if not (
+            0.0 <= args.train_data_frac_start < args.train_data_frac_end <= 1.0
+        ):
+            raise SystemExit(
+                "With --training-halves-phase full, require "
+                "0 <= --train-data-frac-start < --train-data-frac-end <= 1 "
+                f"(got {args.train_data_frac_start}, {args.train_data_frac_end})"
+            )
 
     # Parse + validate --eval-epochs only when embedded eval runs; default --eval-epochs 5
     # would fail validation against --total-epochs 1 when using --skip-embedded-eval.
@@ -838,6 +915,9 @@ def main(argv: list[str]) -> int:
                         epoch_schedule=epoch_schedule,
                         chunk_index=ci,
                         chunk_total=n_chunks,
+                        training_halves_phase=args.training_halves_phase,
+                        train_data_frac_start=args.train_data_frac_start,
+                        train_data_frac_end=args.train_data_frac_end,
                     )
 
                     sh_path = script_dir / f"{run_slug}{suffix}.sh"
@@ -896,10 +976,25 @@ def main(argv: list[str]) -> int:
             flush=True,
         )
     te = args.total_epochs
-    print(
-        f"Inference: each run saves {te} checkpoints; latest is "
-        f"${{FINETUNED_BASE}}_epoch{te} (see manifest)."
-    )
+    if args.training_halves_phase == "second":
+        te = 2
+    if args.training_halves_phase == "first":
+        print(
+            "Inference: each job saves *_epoch1 after the first shuffled half; "
+            "re-run submit with --training-halves-phase second for *_epoch2.",
+            flush=True,
+        )
+    elif args.training_halves_phase == "second":
+        print(
+            "Inference: each job resumes *_epoch1 and saves *_epoch2 after the second half.",
+            flush=True,
+        )
+    else:
+        print(
+            f"Inference: each run saves {te} checkpoints; latest is "
+            f"${{FINETUNED_BASE}}_epoch{te} (see manifest).",
+            flush=True,
+        )
     print("W&B: set WANDB_MODE=offline in jobs (already in scripts). After jobs finish, from a machine")
     print("with network access, run: wandb sync <offline-run-folder> under your WANDB_DIR.")
     return 0

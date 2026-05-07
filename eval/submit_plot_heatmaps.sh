@@ -12,6 +12,7 @@
 # CPU-only: reads test_eval_matrix ``*_metrics.tsv`` and runs ``plot_hyperparameter_heatmaps.py``.
 # Default output: ``<METRICS_DIR>/heatmaps_<model>_lr<rate>/{aggregate,by_dataset}/`` — the Python
 # script infers ``<model>`` and ``<rate>`` from the first ``clean_reg`` metrics TSV (no exports needed).
+# Each of those folders gets per-metric PNGs plus ``combined_clean_lm_dashboard.png`` (single stitched figure).
 # Override the root only with HEATMAP_OUT_DIR (passed through as ``--output-dir``).
 #
 # Environment (defaults match submit_test_eval_matrix.sh):

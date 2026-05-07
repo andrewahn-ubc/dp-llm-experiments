@@ -5,7 +5,7 @@
 #SBATCH --cpus-per-task=6
 #SBATCH --mem=48G
 #SBATCH --time=2:15:00
-#SBATCH --array=0-31
+#SBATCH --array=0-2
 #SBATCH --output=output/test_eval_matrix_%A_%a.out
 #
 # ---------------------------------------------------------------------------
@@ -19,24 +19,24 @@
 #   mkdir -p output
 #   sbatch eval/submit_test_eval_matrix.sh
 #
-# Rerun only some array tasks (CLI --array replaces the default 0-31 above), e.g.:
+# Rerun only some array tasks (CLI --array replaces the default range above), e.g.:
 #
-#   cd /path/to/dp-llm-experiments && mkdir -p output && sbatch --array=7,12,18,30-31 eval/submit_test_eval_matrix.sh
+#   cd /path/to/dp-llm-experiments && mkdir -p output && sbatch --array=0,2 eval/submit_test_eval_matrix.sh
 #
 # If your repo is not ${SCRATCH}/dp-llm-experiments, set REPO_ROOT before sbatch:
 #
 #   export REPO_ROOT=/lustre07/scratch/you/dp-llm-experiments
-#   cd "$REPO_ROOT" && mkdir -p output && sbatch --array=7,12,18,30-31 eval/submit_test_eval_matrix.sh
+#   cd "$REPO_ROOT" && mkdir -p output && sbatch --array=0,2 eval/submit_test_eval_matrix.sh
 #
 # Heatmaps after this eval array finishes (use the Job ID sbatch prints):
 #   sbatch --dependency=afterok:<JOBID> eval/submit_plot_heatmaps.sh
 #
 # ---------------------------------------------------------------------------
 #
-# One array task = one (mode, λ, ε) cell: full clean grid + one perturbed LM run at λ=0
+# One array task = one (mode, λ, ε) cell: clean grid + one perturbed LM run at λ=0
 # (default --perturbed-reg-subset lambda0_only), running 1× seen-family + 3× unseen eval.
-# Default task_count=32 = 31 clean + 1 perturbed@λ=0 (same representative ε as clean λ=0).
-# Legacy 62-task matrix: sbatch --array=0-61 ... and pass --perturbed-reg-subset full (edit python line).
+# Default task_count matches train/submit_wandb_sweep.py (pipeline: 2 clean + 1 perturbed@λ=0 = 3).
+# Wider grids: raise --array upper bound to len(tasks)-1 from: python eval/test_eval_matrix.py --list-tasks
 #
 # Prerequisites:
 #   • Seen checkpoints under CHECKPOINT_ROOT (same as submit_wandb_sweep):
