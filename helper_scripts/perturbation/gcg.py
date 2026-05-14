@@ -9,14 +9,13 @@ import time
 
 start_time = time.time()
 
-# Set up input/output files 
-MODEL_PATH = "/home/taegyoem/scratch/llama2_7b_chat_hf" 
-
-# Get input csv path and output file name
+# Get input csv path, model path, and output file name
 parser = argparse.ArgumentParser()
 parser.add_argument("--input_file", type=str)
+parser.add_argument("--model_path", type=str, required=True)
 parser.add_argument("--save_suffix", type=str, default="default")
 args = parser.parse_args()
+MODEL_PATH = args.model_path
 data_path = args.input_file
 TASK_ID = args.save_suffix
 

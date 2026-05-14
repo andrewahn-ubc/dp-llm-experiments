@@ -23,7 +23,7 @@ possible (attack ASR), else fall back to scalar fields in the TSV.
     harmful benchmark); files are duplicated into each folder for a self-contained figure set.
 
 After the per-panel PNGs are written, **aggregate/** and each **by_dataset/<benchmark>/** folder
-also gets ``combined_clean_lm_dashboard.png``: one figure with six rows — seen AutoDAN/GCG/PAIR ASR,
+also gets ``combined_dashboard.png``: one figure with six rows — seen AutoDAN/GCG/PAIR ASR,
 then seen mean ASR and seen FRR, then held-out ASR/FRR pairs per family and finally held-out means —
 for quick visual comparison.
 
@@ -31,8 +31,10 @@ Artifact paths in each ``*_metrics.tsv`` are stored **relative to the eval outpu
 when possible; the plotter also falls back to ``<metrics-dir>/<basename>`` so copies that
 keep TSVs and CSVs together still work.
 
-Grid axes match ``train/submit_wandb_sweep.py`` (``LAMBDAS`` × ``EPSILONS``). For **λ=0**,
-heatmaps repeat the measured value across every ε column in that row.
+Grid axes **λ × ε** are **inferred from the ``clean_reg`` ``*_metrics.tsv`` files** in
+``--metrics-dir`` (sorted unique λ and ε). If none match, the script falls back to
+``train/submit_wandb_sweep.LAMBDAS`` / ``EPSILONS``. For **λ=0**, heatmaps repeat the
+measured value across every ε column in that row.
 
 Requires **pandas** (same as other eval utilities). You do **not** need to export
 ``MODEL_PROFILE`` or ``LR``: the default output folder is inferred from ``*_metrics.tsv``.
@@ -50,6 +52,7 @@ import matplotlib
 
 matplotlib.use("Agg")
 import matplotlib.image as mpimg  # noqa: E402
+import matplotlib.colors as mcolors  # noqa: E402
 import matplotlib.pyplot as plt  # noqa: E402
 from matplotlib.gridspec import GridSpec  # noqa: E402
 import numpy as np  # noqa: E402
@@ -59,7 +62,26 @@ _REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
-from train.submit_wandb_sweep import EPSILONS, LAMBDAS  # noqa: E402
+from train.submit_wandb_sweep import (  # noqa: E402
+    EPSILONS as _FALLBACK_EPSILONS,
+    LAMBDAS as _FALLBACK_LAMBDAS,
+)
+
+_HEATMAP_CMAP = plt.cm.viridis
+
+
+def _times_rcparams() -> dict[str, Any]:
+    """Serif/Times styling for heatmaps (restore via context manager)."""
+    return {
+        "font.family": "serif",
+        "font.serif": ["Times New Roman", "Times", "DejaVu Serif", "Bitstream Vera Serif"],
+        "axes.labelsize": 11,
+        "axes.titlesize": 12,
+        "xtick.labelsize": 9,
+        "ytick.labelsize": 9,
+        "mathtext.fontset": "dejavuserif",
+    }
+
 
 MODE = "clean_reg"
 SAFETY_COL = {
@@ -133,6 +155,29 @@ def _grid_index(val: float, grid: tuple[float, ...]) -> int | None:
         if abs(float(val) - float(g)) <= 1e-6 * max(1.0, abs(g)):
             return i
     return None
+
+
+def infer_lambda_epsilon_grid(
+    metrics_dir: Path, *, mode: str = MODE
+) -> tuple[tuple[float, ...], tuple[float, ...]]:
+    """Unique λ and ε values present in ``*_metrics.tsv`` for ``mode`` (sorted ascending)."""
+    lambdas: list[float] = []
+    epsilons: list[float] = []
+    for path in sorted(metrics_dir.glob("*_metrics.tsv")):
+        d = _parse_metrics_tsv(path)
+        if d.get("mode", "").strip() != mode:
+            continue
+        if "lambda" not in d or "epsilon" not in d:
+            continue
+        lv = _to_float(d["lambda"])
+        ev = _to_float(d["epsilon"])
+        if np.isnan(lv) or np.isnan(ev):
+            continue
+        lambdas.append(lv)
+        epsilons.append(ev)
+    if not lambdas or not epsilons:
+        return tuple(_FALLBACK_LAMBDAS), tuple(_FALLBACK_EPSILONS)
+    return tuple(sorted(set(lambdas))), tuple(sorted(set(epsilons)))
 
 
 def _mean_asr_seen(h: pd.DataFrame) -> float:
@@ -323,13 +368,19 @@ def _collect_per_dataset_rows(
     return by_ds
 
 
-def _fill_grid(rows: list[dict[str, Any]], col: str) -> np.ndarray:
-    mat = np.full((len(LAMBDAS), len(EPSILONS)), np.nan, dtype=float)
+def _fill_grid(
+    rows: list[dict[str, Any]],
+    col: str,
+    *,
+    lambdas: tuple[float, ...],
+    epsilons: tuple[float, ...],
+) -> np.ndarray:
+    mat = np.full((len(lambdas), len(epsilons)), np.nan, dtype=float)
     for r in rows:
         if r["mode"] != MODE:
             continue
-        i = _grid_index(r["lambda"], LAMBDAS)
-        j = _grid_index(r["epsilon"], EPSILONS)
+        i = _grid_index(r["lambda"], lambdas)
+        j = _grid_index(r["epsilon"], epsilons)
         if i is None or j is None:
             continue
         v = r.get(col)
@@ -339,9 +390,11 @@ def _fill_grid(rows: list[dict[str, Any]], col: str) -> np.ndarray:
     return mat
 
 
-def _broadcast_lambda_zero_across_epsilon(mat: np.ndarray) -> np.ndarray:
+def _broadcast_lambda_zero_across_epsilon(
+    mat: np.ndarray, lambdas: tuple[float, ...]
+) -> np.ndarray:
     out = np.array(mat, copy=True, dtype=float)
-    for i, lam in enumerate(LAMBDAS):
+    for i, lam in enumerate(lambdas):
         if abs(float(lam)) > 1e-12:
             continue
         row = out[i, :]
@@ -358,45 +411,68 @@ def _plot_matrix(
     *,
     title: str,
     out_path: Path,
+    lambdas: tuple[float, ...],
+    epsilons: tuple[float, ...],
     vmin: float | None = None,
     vmax: float | None = None,
 ) -> None:
-    fig, ax = plt.subplots(figsize=(9, 6))
-    im = ax.imshow(mat, aspect="auto", cmap="viridis", vmin=vmin, vmax=vmax)
-    ax.set_xticks(np.arange(len(EPSILONS)))
-    ax.set_yticks(np.arange(len(LAMBDAS)))
-    ax.set_xticklabels([f"{e:g}" for e in EPSILONS])
-    ax.set_yticklabels([f"{lam:g}" for lam in LAMBDAS])
-    ax.set_xlabel("ε")
-    ax.set_ylabel("λ")
-    ax.set_title(title)
-    plt.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
-    for i in range(mat.shape[0]):
-        for j in range(mat.shape[1]):
-            v = mat[i, j]
-            txt = "—" if np.isnan(v) else f"{v:.3f}"
-            ax.text(j, i, txt, ha="center", va="center", color="white", fontsize=7)
-    fig.tight_layout()
-    out_path.parent.mkdir(parents=True, exist_ok=True)
-    fig.savefig(out_path, dpi=150)
-    plt.close(fig)
+    finite = mat[np.isfinite(mat)]
+    if vmin is None and finite.size:
+        vmin = float(np.nanmin(finite))
+    if vmax is None and finite.size:
+        vmax = float(np.nanmax(finite))
+    if vmin is None:
+        vmin = 0.0
+    if vmax is None:
+        vmax = 1.0
+    if vmax <= vmin:
+        vmax = vmin + 1e-9
+
+    norm = mcolors.Normalize(vmin=vmin, vmax=vmax)
+    with plt.rc_context(rc=_times_rcparams()):
+        fig, ax = plt.subplots(figsize=(9, 6))
+        im = ax.imshow(mat, aspect="auto", cmap=_HEATMAP_CMAP, vmin=vmin, vmax=vmax)
+        ax.set_xticks(np.arange(len(epsilons)))
+        ax.set_yticks(np.arange(len(lambdas)))
+        ax.set_xticklabels([f"{e:g}" for e in epsilons])
+        ax.set_yticklabels([f"{lam:g}" for lam in lambdas])
+        ax.set_xlabel("ε")
+        ax.set_ylabel("λ")
+        ax.set_title(title)
+        plt.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
+        for i in range(mat.shape[0]):
+            for j in range(mat.shape[1]):
+                v = mat[i, j]
+                txt = "—" if np.isnan(v) else f"{v:.3f}"
+                if np.isnan(v):
+                    ax.text(j, i, txt, ha="center", va="center", color="black", fontsize=7)
+                else:
+                    rgba = _HEATMAP_CMAP(norm(float(v)))
+                    lum = 0.299 * rgba[0] + 0.587 * rgba[1] + 0.114 * rgba[2]
+                    # Dark text on light cells, light text on dark cells (viridis)
+                    tcol = "black" if lum > 0.52 else "white"
+                    ax.text(j, i, txt, ha="center", va="center", color=tcol, fontsize=7)
+        fig.tight_layout()
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+        fig.savefig(out_path, dpi=150)
+        plt.close(fig)
 
 
 # (column_key, title, filename)
 AGGREGATE_SPECS: list[tuple[str, str, str]] = [
-    ("seen_mean_asr", "Seen-family mean ASR — avg. jailbreak variants (clean LM)", "seen_mean_asr_clean_lm.png"),
-    ("seen_gcg_asr", "Seen-family ASR — GCG jailbreak (clean LM)", "seen_gcg_asr_clean_lm.png"),
-    ("seen_autodan_asr", "Seen-family ASR — AutoDAN jailbreak (clean LM)", "seen_autodan_asr_clean_lm.png"),
-    ("seen_pair_asr", "Seen-family ASR — PAIR jailbreak (clean LM)", "seen_pair_asr_clean_lm.png"),
-    ("seen_frr", "Seen-family FRR (clean LM)", "seen_frr_clean_lm.png"),
-    ("heldout_mean_asr", "Held-out mean ASR — avg. jailbreak families (clean LM)", "heldout_mean_asr_clean_lm.png"),
-    ("heldout_gcg_asr", "Held-out ASR — GCG family (clean LM)", "heldout_gcg_asr_clean_lm.png"),
-    ("heldout_autodan_asr", "Held-out ASR — AutoDAN family (clean LM)", "heldout_autodan_asr_clean_lm.png"),
-    ("heldout_pair_asr", "Held-out ASR — PAIR family (clean LM)", "heldout_pair_asr_clean_lm.png"),
-    ("heldout_mean_frr", "Held-out mean FRR — avg. families (clean LM)", "heldout_mean_frr_clean_lm.png"),
-    ("heldout_gcg_frr", "Held-out FRR — GCG-trained adapter (clean LM)", "heldout_gcg_frr_clean_lm.png"),
-    ("heldout_autodan_frr", "Held-out FRR — AutoDAN-trained adapter (clean LM)", "heldout_autodan_frr_clean_lm.png"),
-    ("heldout_pair_frr", "Held-out FRR — PAIR-trained adapter (clean LM)", "heldout_pair_frr_clean_lm.png"),
+    ("seen_mean_asr", "Seen-family mean ASR", "seen_mean_asr.png"),
+    ("seen_gcg_asr", "Seen-family ASR — GCG", "seen_gcg_asr.png"),
+    ("seen_autodan_asr", "Seen-family ASR — AutoDAN", "seen_autodan_asr.png"),
+    ("seen_pair_asr", "Seen-family ASR — PAIR", "seen_pair_asr.png"),
+    ("seen_frr", "Seen-family FRR", "seen_frr.png"),
+    ("heldout_mean_asr", "Held-out mean ASR — avg. jailbreak families", "heldout_mean_asr.png"),
+    ("heldout_gcg_asr", "Held-out ASR — GCG family", "heldout_gcg_asr.png"),
+    ("heldout_autodan_asr", "Held-out ASR — AutoDAN family", "heldout_autodan_asr.png"),
+    ("heldout_pair_asr", "Held-out ASR — PAIR family", "heldout_pair_asr.png"),
+    ("heldout_mean_frr", "Held-out mean FRR — avg. families", "heldout_mean_frr.png"),
+    ("heldout_gcg_frr", "Held-out FRR — GCG-trained adapter", "heldout_gcg_frr.png"),
+    ("heldout_autodan_frr", "Held-out FRR — AutoDAN-trained adapter", "heldout_autodan_frr.png"),
+    ("heldout_pair_frr", "Held-out FRR — PAIR-trained adapter", "heldout_pair_frr.png"),
 ]
 
 _ASR_SPEC_KEYS = frozenset(
@@ -413,28 +489,28 @@ _ASR_SPEC_KEYS = frozenset(
 )
 
 # Rows of PNG basenames under panel_dir; triple rows span three equal slots, pair rows two centered slots.
-_COMBINED_CLEAN_LM_ROWS: tuple[tuple[str, ...], ...] = (
+_COMBINED_DASHBOARD_ROWS: tuple[tuple[str, ...], ...] = (
     (
-        "seen_autodan_asr_clean_lm.png",
-        "seen_gcg_asr_clean_lm.png",
-        "seen_pair_asr_clean_lm.png",
+        "seen_autodan_asr.png",
+        "seen_gcg_asr.png",
+        "seen_pair_asr.png",
     ),
-    ("seen_mean_asr_clean_lm.png", "seen_frr_clean_lm.png"),
-    ("heldout_autodan_asr_clean_lm.png", "heldout_autodan_frr_clean_lm.png"),
-    ("heldout_gcg_asr_clean_lm.png", "heldout_gcg_frr_clean_lm.png"),
-    ("heldout_pair_asr_clean_lm.png", "heldout_pair_frr_clean_lm.png"),
-    ("heldout_mean_asr_clean_lm.png", "heldout_mean_frr_clean_lm.png"),
+    ("seen_mean_asr.png", "seen_frr.png"),
+    ("heldout_autodan_asr.png", "heldout_autodan_frr.png"),
+    ("heldout_gcg_asr.png", "heldout_gcg_frr.png"),
+    ("heldout_pair_asr.png", "heldout_pair_frr.png"),
+    ("heldout_mean_asr.png", "heldout_mean_frr.png"),
 )
 
-COMBINED_DASHBOARD_FILENAME = "combined_clean_lm_dashboard.png"
+COMBINED_DASHBOARD_FILENAME = "combined_dashboard.png"
 
 
-def _write_combined_clean_lm_dashboard(panel_dir: Path, *, suptitle: str | None = None) -> bool:
+def _write_combined_dashboard(panel_dir: Path, *, suptitle: str | None = None) -> bool:
     """
     Stitch existing per-metric PNGs into one figure (6 rows: 3+2+2+2+2+2 panels).
     Returns False if any source file is missing.
     """
-    for row in _COMBINED_CLEAN_LM_ROWS:
+    for row in _COMBINED_DASHBOARD_ROWS:
         for fname in row:
             if not (panel_dir / fname).is_file():
                 print(
@@ -443,30 +519,31 @@ def _write_combined_clean_lm_dashboard(panel_dir: Path, *, suptitle: str | None 
                 )
                 return False
 
-    fig = plt.figure(figsize=(18, 22))
-    gs = GridSpec(6, 6, figure=fig, hspace=0.14, wspace=0.10, top=0.94, bottom=0.02)
+    with plt.rc_context(rc=_times_rcparams()):
+        fig = plt.figure(figsize=(18, 22))
+        gs = GridSpec(6, 6, figure=fig, hspace=0.14, wspace=0.10, top=0.94, bottom=0.02)
 
-    for row_idx, fnames in enumerate(_COMBINED_CLEAN_LM_ROWS):
-        imgs = [mpimg.imread(str(panel_dir / f)) for f in fnames]
-        if len(fnames) == 3:
-            for k in range(3):
-                ax = fig.add_subplot(gs[row_idx, k * 2 : (k + 1) * 2])
-                ax.imshow(imgs[k], aspect="auto")
-                ax.axis("off")
-        else:
-            ax0 = fig.add_subplot(gs[row_idx, 1:3])
-            ax1 = fig.add_subplot(gs[row_idx, 3:5])
-            ax0.imshow(imgs[0], aspect="auto")
-            ax1.imshow(imgs[1], aspect="auto")
-            ax0.axis("off")
-            ax1.axis("off")
+        for row_idx, fnames in enumerate(_COMBINED_DASHBOARD_ROWS):
+            imgs = [mpimg.imread(str(panel_dir / f)) for f in fnames]
+            if len(fnames) == 3:
+                for k in range(3):
+                    ax = fig.add_subplot(gs[row_idx, k * 2 : (k + 1) * 2])
+                    ax.imshow(imgs[k], aspect="auto")
+                    ax.axis("off")
+            else:
+                ax0 = fig.add_subplot(gs[row_idx, 1:3])
+                ax1 = fig.add_subplot(gs[row_idx, 3:5])
+                ax0.imshow(imgs[0], aspect="auto")
+                ax1.imshow(imgs[1], aspect="auto")
+                ax0.axis("off")
+                ax1.axis("off")
 
-    if suptitle:
-        fig.suptitle(suptitle, fontsize=13)
+        if suptitle:
+            fig.suptitle(suptitle, fontsize=13)
 
-    out_path = panel_dir / COMBINED_DASHBOARD_FILENAME
-    fig.savefig(out_path, dpi=150, bbox_inches="tight")
-    plt.close(fig)
+        out_path = panel_dir / COMBINED_DASHBOARD_FILENAME
+        fig.savefig(out_path, dpi=150, bbox_inches="tight")
+        plt.close(fig)
     print(f"Wrote {out_path}")
     return True
 
@@ -540,6 +617,15 @@ def main(argv: list[str] | None = None) -> int:
         )
         return 2
 
+    lambdas, epsilons = infer_lambda_epsilon_grid(mdir)
+    print(
+        f"[plot_hyperparameter_heatmaps] inferred λ×ε grid: {len(lambdas)}×{len(epsilons)} "
+        f"(from clean_reg TSVs; empty cells = no run)",
+        flush=True,
+    )
+    print(f"  λ: {lambdas}", flush=True)
+    print(f"  ε: {epsilons}", flush=True)
+
     labels_path = Path(expand_path(str(args.labels))) if args.labels else None
     by_ds: dict[str, list[dict[str, Any]]] = {}
     if labels_path and labels_path.is_file():
@@ -578,15 +664,21 @@ def main(argv: list[str] | None = None) -> int:
 
     def write_specs(rows: list[dict[str, Any]], out_dir: Path, title_suffix: str) -> None:
         for col, title_stem, fname in AGGREGATE_SPECS:
-            mat = _fill_grid(rows, col)
-            mat = _broadcast_lambda_zero_across_epsilon(mat)
+            mat = _fill_grid(rows, col, lambdas=lambdas, epsilons=epsilons)
+            mat = _broadcast_lambda_zero_across_epsilon(mat, lambdas)
             title = f"{title_stem}{title_suffix}"
             out_path = out_dir / fname
-            _plot_matrix(mat, title=title, out_path=out_path)
+            _plot_matrix(
+                mat,
+                title=title,
+                out_path=out_path,
+                lambdas=lambdas,
+                epsilons=epsilons,
+            )
             print(f"Wrote {out_path}")
 
     write_specs(agg_rows, agg_dir, "")
-    _write_combined_clean_lm_dashboard(agg_dir, suptitle="Aggregate — clean LM")
+    _write_combined_dashboard(agg_dir, suptitle="Aggregate")
 
     if by_ds:
         for ds, rows_ds in sorted(by_ds.items()):
@@ -594,19 +686,31 @@ def main(argv: list[str] | None = None) -> int:
             ds_dir = by_ds_root / ds_slug
             suffix = f" — {ds}"
             for col, title_stem, fname in asr_specs:
-                mat = _fill_grid(rows_ds, col)
-                mat = _broadcast_lambda_zero_across_epsilon(mat)
+                mat = _fill_grid(rows_ds, col, lambdas=lambdas, epsilons=epsilons)
+                mat = _broadcast_lambda_zero_across_epsilon(mat, lambdas)
                 title = f"{title_stem}{suffix}"
-                _plot_matrix(mat, title=title, out_path=ds_dir / fname)
+                _plot_matrix(
+                    mat,
+                    title=title,
+                    out_path=ds_dir / fname,
+                    lambdas=lambdas,
+                    epsilons=epsilons,
+                )
                 print(f"Wrote {ds_dir / fname}")
             # Global FRR (same matrix as aggregate): duplicate into each dataset folder
             for col, title_stem, fname in frr_specs:
-                mat = _fill_grid(agg_rows, col)
-                mat = _broadcast_lambda_zero_across_epsilon(mat)
+                mat = _fill_grid(agg_rows, col, lambdas=lambdas, epsilons=epsilons)
+                mat = _broadcast_lambda_zero_across_epsilon(mat, lambdas)
                 title = f"{title_stem} (global benign set){suffix}"
-                _plot_matrix(mat, title=title, out_path=ds_dir / fname)
+                _plot_matrix(
+                    mat,
+                    title=title,
+                    out_path=ds_dir / fname,
+                    lambdas=lambdas,
+                    epsilons=epsilons,
+                )
                 print(f"Wrote {ds_dir / fname}")
-            _write_combined_clean_lm_dashboard(ds_dir, suptitle=f"{ds} — clean LM")
+            _write_combined_dashboard(ds_dir, suptitle=f"{ds}")
 
     print(f"Done. Output root: {out_root}")
     return 0
