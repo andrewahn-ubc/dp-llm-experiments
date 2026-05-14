@@ -1,5 +1,6 @@
 #!/bin/bash
 #SBATCH --job-name=gcg_test
+#SBATCH --account=rrg-mijungp
 #SBATCH --gres=gpu:1
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=40G
