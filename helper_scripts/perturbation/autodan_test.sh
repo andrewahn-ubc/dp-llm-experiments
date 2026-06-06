@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name=autodan_test
 #SBATCH  --account=rrg-mijungp
-#SBATCH --array=0-99
+#SBATCH --array=0-6
 #SBATCH --gres=gpu:1
 #SBATCH --cpus-per-task=6
 #SBATCH --mem=40G
@@ -12,7 +12,7 @@ module load python cuda
 
 source $SCRATCH/venv/autodan/bin/activate
 
-IDX=$(printf "%02d" ${SLURM_ARRAY_TASK_ID})
+IDX=$(printf "%03d" $((SLURM_ARRAY_TASK_ID + 100)))
 DATA_PATH="/home/taegyoem/scratch/dp-llm-experiments/official_data/test_${IDX}.csv"
 
 echo "Running on file: $DATA_PATH"
