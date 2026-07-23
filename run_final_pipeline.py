@@ -39,9 +39,11 @@ Run from the repo root on the cluster::
 
   python run_final_pipeline.py --model llama_3_8b_instruct
   python run_final_pipeline.py --model llama_3_8b_instruct --lr 1e-5
+  python run_final_pipeline.py --model llama_3_8b_instruct --lr 2e-5,1e-5
 
-``--lr`` must be ``2e-5`` or ``1e-5``: passed to ``submit_wandb_sweep --learning-rates`` and
-``LR`` for ``submit_test_eval_matrix.sh``.
+``--lr`` is a comma-separated subset of ``{2e-5, 1e-5}``: passed to
+``submit_wandb_sweep --learning-rates`` and used as ``LR`` for
+``submit_test_eval_matrix.sh`` (one eval array + heatmap job per LR). Omit to use both LRs.
 
 Forward extra arguments to ``train/submit_wandb_sweep.py`` (all **four** training passes) after ``--``::
 
@@ -54,7 +56,8 @@ Launcher-only flags (before ``--``)::
 
   --model NAME             Base LLM preset (default: llama_2_7b_chat); see train/model_profiles.py.
 
-  --lr RATE                ``2e-5`` or ``1e-5`` for all training sweeps + eval array (see above).
+  --lr RATE[,RATE...]      Comma-separated subset of {2e-5, 1e-5} for all training sweeps +
+                           eval array (one eval array + heatmap per LR). Omit to use both.
 
   --skip-training          Skip all ``submit_wandb_sweep`` calls (only sbatch eval array).
   --skip-held-out-training Submit seen-family sweeps only (no held-out training jobs).
@@ -81,8 +84,39 @@ if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
 from train.model_profiles import DEFAULT_MODEL_PROFILE, MODEL_PROFILE_CHOICES  # noqa: E402
+from train.submit_wandb_sweep import (  # noqa: E402
+    EPSILONS as SWEEP_EPSILONS,
+    LAMBDAS as SWEEP_LAMBDAS,
+    lambda_epsilon_pairs,
+)
 
 HELD_OUT_FAMS = "gcg,autodan,pair"
+
+# Learning rates accepted by --lr. Default (when --lr is omitted) matches the
+# submit_wandb_sweep --learning-rates default so the eval arrays cover every trained LR.
+_ALLOWED_LRS = ("2e-5", "1e-5")
+_DEFAULT_SWEEP_LRS = ("2e-5", "1e-5")
+
+
+def _parse_lr_list(raw: str | None) -> list[str] | None:
+    """Parse the --lr value into an ordered, de-duplicated list of allowed rates.
+
+    Returns None when --lr is omitted (keep submit_wandb_sweep / eval defaults).
+    """
+    if raw is None:
+        return None
+    parts = [x.strip() for x in raw.split(",") if x.strip()]
+    if not parts:
+        raise SystemExit("--lr must list at least one learning rate")
+    out: list[str] = []
+    for p in parts:
+        if p not in _ALLOWED_LRS:
+            raise SystemExit(
+                f"--lr: unknown rate {p!r}; allowed values: {', '.join(_ALLOWED_LRS)}"
+            )
+        if p not in out:
+            out.append(p)
+    return out
 
 # Single SLURM script per (lr,λ,ε) cell; train-only; default **first half** of one data
 # pass (``--total-epochs 1`` + ``--training-halves-phase first`` → ``*_epoch1``), then run
@@ -91,6 +125,31 @@ HELD_OUT_FAMS = "gcg,autodan,pair"
 # and any ``--total-epochs`` override after ``--``.
 _PIPELINE_TRAIN_EPOCHS = "1"
 _TRAIN_WALL_TIME = "3:00:00"
+
+# Llama 3 data on the compute node ($SCRATCH sync of the repo's official/ dir).
+# training-data: llama3 train split; validation-data: llama3 validation split (same
+# goal partition as the Llama 2 train/validation split). Override via --training-data /
+# --validation-data if needed.
+_L3_TRAINING_DATA = "$SCRATCH/dp-llm-experiments/official_data/llama3_train.csv"
+_L3_VALIDATION_DATA = "$SCRATCH/dp-llm-experiments/official_data/llama3_validation.csv"
+# Benign (FRR) validation set for over-refusal measurement during the validation sweep.
+_L3_FRR_VALIDATION_DATA = "$SCRATCH/dp-llm-experiments/official_data/frr_validation.csv"
+
+
+def _eval_grid_str() -> tuple[str, str]:
+    """λ and ε grids (comma-separated) that the eval matrix must match — from the sweep."""
+    lam = ",".join(f"{x:g}" for x in SWEEP_LAMBDAS)
+    eps = ",".join(f"{x:g}" for x in SWEEP_EPSILONS)
+    return lam, eps
+
+
+def _eval_task_count() -> int:
+    """Number of test_eval_matrix tasks for the pipeline's grid.
+
+    Matches eval/test_eval_matrix.build_tasks with --perturbed-reg-subset lambda0_only:
+    one clean_reg task per (λ, ε) cell, plus one perturbed λ=0 task.
+    """
+    return len(lambda_epsilon_pairs(SWEEP_LAMBDAS, SWEEP_EPSILONS)) + 1
 
 
 def _default_submit_train_args(training_half: str) -> list[str]:
@@ -193,11 +252,26 @@ def _submit_eval_array(
     model_profile: str,
     lr: str | None = None,
     matrix_epoch: str | None = None,
+    array_range: str | None = None,
+    harmful_data: str | None = None,
+    benign_data: str | None = None,
+    out_dir: str | None = None,
+    lambdas: str | None = None,
+    epsilons: str | None = None,
+    system_prompt_mode: str | None = None,
+    benign_system_prompt_mode: str | None = None,
 ) -> str | None:
-    """Submit eval SLURM script; optionally wait until all listed training jobs finish."""
+    """Submit eval SLURM script; optionally wait until all listed training jobs finish.
+
+    Optional args parameterize eval/submit_test_eval_matrix.sh (via env) so the same
+    array can evaluate the validation set (harmful ASR + FRR) over the full λ×ε grid,
+    with an independent system-prompt policy for FRR.
+    """
     cmd: list[str] = ["sbatch"]
     if dependency_job_ids:
         cmd.append(f"--dependency=after:{':'.join(dependency_job_ids)}")
+    if array_range:
+        cmd.append(f"--array={array_range}")
     cmd.append(str(eval_sh))
     print(" ", " ".join(cmd), flush=True)
     run_env = os.environ.copy()
@@ -205,20 +279,41 @@ def _submit_eval_array(
     run_env["MODEL_PROFILE"] = model_profile
     run_env["LR"] = lr if lr is not None else "2e-5"
     run_env["EPOCH"] = matrix_epoch if matrix_epoch is not None else _PIPELINE_TRAIN_EPOCHS
+    if harmful_data is not None:
+        run_env["HARMFUL_TEST"] = harmful_data
+    if benign_data is not None:
+        run_env["BENIGN_TEST"] = benign_data
+    if out_dir is not None:
+        run_env["OUT_DIR"] = out_dir
+    if lambdas is not None:
+        run_env["LAMBDAS"] = lambdas
+    if epsilons is not None:
+        run_env["EPSILONS"] = epsilons
+    if system_prompt_mode is not None:
+        run_env["SYSTEM_PROMPT_MODE"] = system_prompt_mode
+    if benign_system_prompt_mode is not None:
+        run_env["BENIGN_SYSTEM_PROMPT_MODE"] = benign_system_prompt_mode
     print(f"  (eval matrix EPOCH={run_env['EPOCH']} → *_finetuned_llm_epoch{run_env['EPOCH']})", flush=True)
     return _submit_sbatch(repo, cmd, env=run_env)
 
 
-def _submit_heatmap_job(*, repo: Path, heatmap_sh: Path, after_job_id: str) -> None:
+def _submit_heatmap_job(
+    *,
+    repo: Path,
+    heatmap_sh: Path,
+    after_job_id: str,
+    metrics_dir: str | None = None,
+    labels_csv: str | None = None,
+) -> None:
     """Chain heatmap CPU job after the eval array.
 
     Try ``afterok`` first (typical on Compute Canada / job arrays: run after all tasks
     exit 0). Some Slurm builds reject ``after:`` or behave oddly with arrays; fall back
     to ``afterany`` then ``after``.
 
-    Ensures ``METRICS_DIR`` / ``CHECKPOINT_ROOT`` match ``test_eval_matrix`` defaults
-    (``$CHECKPOINT_ROOT/test_eval_outputs``) when not already set in the parent environment,
-    so ``by_dataset/`` heatmaps resolve CSV paths next to ``*_metrics.tsv``.
+    ``metrics_dir`` selects which ``*_metrics.tsv`` folder to plot (e.g. the per-lr
+    validation output dir); ``labels_csv`` sets the harmful CSV used for the by_dataset
+    split (omit / use a goal-only CSV to get aggregate heatmaps only).
 
     Output folder name is chosen inside ``plot_hyperparameter_heatmaps.py`` from the metrics
     TSVs (no ``MODEL_PROFILE`` / ``LR`` exports required). Set ``HEATMAP_OUT_DIR`` only to
@@ -229,8 +324,12 @@ def _submit_heatmap_job(*, repo: Path, heatmap_sh: Path, after_job_id: str) -> N
     if "CHECKPOINT_ROOT" not in os.environ and scr:
         heatmap_env["CHECKPOINT_ROOT"] = f"{scr}/dp-llm-sweep"
     ck = os.environ.get("CHECKPOINT_ROOT", heatmap_env.get("CHECKPOINT_ROOT", ""))
-    if "METRICS_DIR" not in os.environ and ck:
+    if metrics_dir is not None:
+        heatmap_env["METRICS_DIR"] = metrics_dir
+    elif "METRICS_DIR" not in os.environ and ck:
         heatmap_env["METRICS_DIR"] = str(Path(ck) / "test_eval_outputs")
+    if labels_csv is not None:
+        heatmap_env["LABELS_CSV"] = labels_csv
     dep_styles = (
         f"afterok:{after_job_id}",
         f"afterany:{after_job_id}",
@@ -309,20 +408,45 @@ def main(argv: list[str] | None = None) -> int:
     lp.add_argument(
         "--model",
         dest="model_profile",
-        default=DEFAULT_MODEL_PROFILE,
+        default="llama_3_8b_instruct",
         choices=list(MODEL_PROFILE_CHOICES),
-        help="Which base LLM + hinge/eval preset (train/model_profiles.py). Propagates to training, eval array, and MODEL_PROFILE.",
+        help="Which base LLM + hinge/eval preset (train/model_profiles.py). Propagates to training, eval array, and MODEL_PROFILE. Default: llama_3_8b_instruct.",
+    )
+    lp.add_argument(
+        "--training-data",
+        default=_L3_TRAINING_DATA,
+        help=(
+            "Training CSV forwarded to submit_wandb_sweep --training-data (all passes). "
+            "Default: the Llama 3 train split."
+        ),
+    )
+    lp.add_argument(
+        "--validation-data",
+        default=_L3_VALIDATION_DATA,
+        help=(
+            "Harmful validation CSV. Forwarded to submit_wandb_sweep --validation-data and "
+            "used as the harmful (ASR) set for the post-training validation eval array + "
+            "heatmaps. Default: the Llama 3 validation split."
+        ),
+    )
+    lp.add_argument(
+        "--benign-validation-data",
+        default=_L3_FRR_VALIDATION_DATA,
+        help=(
+            "Benign (FRR) validation CSV for the validation eval array. FRR generation "
+            "always runs WITHOUT a system prompt. Default: frr_validation.csv."
+        ),
     )
     lp.add_argument(
         "--lr",
         dest="learning_rate",
         default=None,
-        metavar="RATE",
-        choices=("2e-5", "1e-5"),
+        metavar="RATE[,RATE...]",
         help=(
-            "Single learning rate for all submit_wandb_sweep passes (--learning-rates) "
-            "and for the eval SLURM array (LR env → test_eval_matrix --lr). "
-            "Omit to keep submit_wandb_sweep default (2e-5) and eval LR default (2e-5)."
+            "Comma-separated learning rate(s) from {2e-5, 1e-5} for all submit_wandb_sweep "
+            "passes (--learning-rates) and for the eval SLURM array (one array + heatmap job "
+            "per LR; LR env → test_eval_matrix --lr). Omit to use the submit_wandb_sweep "
+            "default (2e-5,1e-5) for both training and eval."
         ),
     )
     args = lp.parse_args(launcher_args)
@@ -367,9 +491,20 @@ def main(argv: list[str] | None = None) -> int:
 
     chain_eval = not args.parallel_eval and not args.skip_eval
 
+    lr_list = _parse_lr_list(args.learning_rate)
     lr_train_args: list[str] = (
-        ["--learning-rates", args.learning_rate] if args.learning_rate is not None else []
+        ["--learning-rates", ",".join(lr_list)] if lr_list is not None else []
     )
+    # LRs the eval arrays must cover: the explicit list, else the sweep default (both LRs).
+    eval_lrs = lr_list if lr_list is not None else list(_DEFAULT_SWEEP_LRS)
+    # Llama 3 train/validation data forwarded to every submit_wandb_sweep pass. Placed
+    # before `forward`, so user args after `--` can still override them.
+    data_args = [
+        "--training-data",
+        args.training_data,
+        "--validation-data",
+        args.validation_data,
+    ]
     train_submit_args = _default_submit_train_args(args.training_half)
 
     if not args.skip_training:
@@ -388,6 +523,7 @@ def main(argv: list[str] | None = None) -> int:
                 ]
                 + list(sweep_extra)
                 + lr_train_args
+                + data_args
                 + train_submit_args
                 + forward
             )
@@ -414,6 +550,7 @@ def main(argv: list[str] | None = None) -> int:
                     ]
                     + list(sweep_extra)
                     + lr_train_args
+                    + data_args
                     + train_submit_args
                     + forward
                 )
@@ -434,30 +571,57 @@ def main(argv: list[str] | None = None) -> int:
                 flush=True,
             )
 
-        print("\n=== sbatch test_eval_matrix array (seen + unseen × 3 families) ===", flush=True)
         matrix_epoch = _epoch_env_for_matrix(args.training_half, forward)
-        eval_job_id = _submit_eval_array(
-            repo=repo,
-            eval_sh=eval_sh,
-            dependency_job_ids=train_ids if use_dep else None,
-            model_profile=args.model_profile,
-            lr=args.learning_rate,
-            matrix_epoch=matrix_epoch,
-        )
+        lam_grid, eps_grid = _eval_grid_str()
+        array_range = f"0-{_eval_task_count() - 1}"
+        base_ck = os.environ.get("CHECKPOINT_ROOT") or "$SCRATCH/dp-llm-sweep"
+        for lr in eval_lrs:
+            # Per-lr output dir keeps each lr's λ×ε metrics (and heatmaps) separate.
+            val_out_dir = f"{base_ck}/val_eval_outputs/lr{lr}"
+            print(
+                f"\n=== sbatch VALIDATION eval array (lr={lr}; λ×ε grid, seen + unseen × 3 "
+                f"families; FRR without system prompt) ===",
+                flush=True,
+            )
+            eval_job_id = _submit_eval_array(
+                repo=repo,
+                eval_sh=eval_sh,
+                dependency_job_ids=train_ids if use_dep else None,
+                model_profile=args.model_profile,
+                lr=lr,
+                matrix_epoch=matrix_epoch,
+                array_range=array_range,
+                harmful_data=args.validation_data,
+                benign_data=args.benign_validation_data,
+                out_dir=val_out_dir,
+                lambdas=lam_grid,
+                epsilons=eps_grid,
+                system_prompt_mode="empty",
+                benign_system_prompt_mode="empty",
+            )
 
-        if not args.skip_heatmaps:
-            if eval_job_id is None:
-                print(
-                    "[WARN] Could not parse eval job id; skipping heatmap submission. "
-                    "Run manually: sbatch eval/submit_plot_heatmaps.sh",
-                    flush=True,
-                )
-            else:
-                print("\n=== sbatch plot hyperparameter heatmaps (after eval array) ===", flush=True)
-                _submit_heatmap_job(repo=repo, heatmap_sh=heatmap_sh, after_job_id=eval_job_id)
+            if not args.skip_heatmaps:
+                if eval_job_id is None:
+                    print(
+                        f"[WARN] Could not parse eval job id for lr={lr}; skipping heatmap "
+                        "submission. Run manually: sbatch eval/submit_plot_heatmaps.sh",
+                        flush=True,
+                    )
+                else:
+                    print(
+                        f"\n=== sbatch VALIDATION heatmaps (lr={lr}, after eval array) ===",
+                        flush=True,
+                    )
+                    _submit_heatmap_job(
+                        repo=repo,
+                        heatmap_sh=heatmap_sh,
+                        after_job_id=eval_job_id,
+                        metrics_dir=val_out_dir,
+                        labels_csv=args.validation_data,
+                    )
 
     if args.training_half == "first" and not args.skip_training:
-        lr_hint = args.learning_rate or "2e-5"
+        lr_hint = args.learning_rate or ",".join(_DEFAULT_SWEEP_LRS)
         exe = Path(sys.argv[0]).name
         extra = " --skip-held-out-training" if args.skip_held_out_training else ""
         print(
@@ -471,11 +635,13 @@ def main(argv: list[str] | None = None) -> int:
         )
 
     print(
-        "\nDone. Eval + metrics TSVs + CSVs: ``$CHECKPOINT_ROOT/test_eval_outputs/`` (default "
-        "``$SCRATCH/dp-llm-sweep/test_eval_outputs``). Heatmaps: "
-        "``…/test_eval_outputs/heatmaps_<MODEL_PROFILE>_lr<LR>/{aggregate,by_dataset}/`` "
-        "(names from metrics TSVs unless ``HEATMAP_OUT_DIR`` is set). Override ``CHECKPOINT_ROOT`` / "
-        "``METRICS_DIR`` / ``HEATMAP_OUT_DIR`` when sbatching ``submit_plot_heatmaps.sh`` manually.",
+        "\nDone. VALIDATION eval metrics TSVs + per-example CSVs: "
+        "``$CHECKPOINT_ROOT/val_eval_outputs/lr<LR>/`` (default "
+        "``$SCRATCH/dp-llm-sweep/val_eval_outputs/lr<LR>``). Validation heatmaps (aggregate "
+        "ASR + FRR): ``…/val_eval_outputs/lr<LR>/heatmaps_<MODEL_PROFILE>_lr<LR>/aggregate/``. "
+        "FRR was measured WITHOUT a system prompt. Pick the best (λ, ε, lr) from these, then "
+        "run the TEST eval separately (e.g. sbatch eval/submit_test_eval_matrix.sh with the "
+        "test CSVs) for the final numbers.",
         flush=True,
     )
     return 0

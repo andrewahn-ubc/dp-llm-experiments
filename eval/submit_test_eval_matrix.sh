@@ -70,11 +70,28 @@ mkdir -p "$TRANSFORMERS_CACHE" "$HF_HOME"
 CHECKPOINT_ROOT="${CHECKPOINT_ROOT:-${SCRATCH}/dp-llm-sweep}"
 MODEL_PROFILE="${MODEL_PROFILE:-llama_2_7b_chat}"
 
-python "${REPO_ROOT}/eval/test_eval_matrix.py" \
-    --repo-root "${REPO_ROOT}" \
-    --checkpoint-root "${CHECKPOINT_ROOT}" \
-    --model-profile "${MODEL_PROFILE}" \
-    --epoch "${EPOCH:-5}" \
-    --lr "${LR:-2e-5}" \
-    --perturbed-reg-subset lambda0_only \
-    ${EXTRA_ARGS:-}
+# Optional overrides (used e.g. by run_final_pipeline.py for validation-set eval):
+#   LAMBDAS / EPSILONS          λ×ε grid (must match the training sweep)
+#   HARMFUL_TEST / BENIGN_TEST  harmful (ASR) / benign (FRR) CSVs
+#   OUT_DIR                     metrics + per-example CSV output dir
+#   SYSTEM_PROMPT_MODE          system-prompt policy for harmful eval (default: empty)
+#   BENIGN_SYSTEM_PROMPT_MODE   system-prompt policy for FRR eval (e.g. empty = no sys prompt)
+PY_ARGS=(
+    --repo-root "${REPO_ROOT}"
+    --checkpoint-root "${CHECKPOINT_ROOT}"
+    --model-profile "${MODEL_PROFILE}"
+    --epoch "${EPOCH:-5}"
+    --lr "${LR:-2e-5}"
+    --perturbed-reg-subset lambda0_only
+)
+# Use --opt=value form: EPSILONS can start with '-' (e.g. -1,-0.5,...), which argparse
+# would otherwise misread as a flag.
+[[ -n "${LAMBDAS:-}" ]] && PY_ARGS+=(--lambdas="${LAMBDAS}")
+[[ -n "${EPSILONS:-}" ]] && PY_ARGS+=(--epsilons="${EPSILONS}")
+[[ -n "${HARMFUL_TEST:-}" ]] && PY_ARGS+=(--harmful-test="${HARMFUL_TEST}")
+[[ -n "${BENIGN_TEST:-}" ]] && PY_ARGS+=(--benign-test="${BENIGN_TEST}")
+[[ -n "${OUT_DIR:-}" ]] && PY_ARGS+=(--out-dir="${OUT_DIR}")
+[[ -n "${SYSTEM_PROMPT_MODE:-}" ]] && PY_ARGS+=(--system-prompt-mode="${SYSTEM_PROMPT_MODE}")
+[[ -n "${BENIGN_SYSTEM_PROMPT_MODE:-}" ]] && PY_ARGS+=(--benign-system-prompt-mode="${BENIGN_SYSTEM_PROMPT_MODE}")
+
+python "${REPO_ROOT}/eval/test_eval_matrix.py" "${PY_ARGS[@]}" ${EXTRA_ARGS:-}

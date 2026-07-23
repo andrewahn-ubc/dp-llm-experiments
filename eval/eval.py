@@ -142,9 +142,19 @@ def main(args):
         if args.system_prompt_mode == "default"
         else None
     )
+    # Benign/FRR generation can use a different system-prompt policy than harmful eval.
+    # Defaults to mirroring --system-prompt-mode when --benign-system-prompt-mode is unset.
+    benign_mode = args.benign_system_prompt_mode or args.system_prompt_mode
+    benign_system_prompt = (
+        profile.default_system_prompt if benign_mode == "default" else None
+    )
     print(
         f"[eval] system_prompt_mode={args.system_prompt_mode!r} "
         f"(system_prompt={'custom' if system_prompt else 'None / no system role'})"
+    )
+    print(
+        f"[eval] benign_system_prompt_mode={benign_mode!r} "
+        f"(FRR system_prompt={'custom' if benign_system_prompt else 'None / no system role'})"
     )
 
     # Compute ASR on harmful prompts
@@ -173,7 +183,7 @@ def main(args):
                                 batch_size=8, 
                                 finetuned_model=model, 
                                 tokenizer=tokenizer,
-                                system_prompt=system_prompt)
+                                system_prompt=benign_system_prompt)
     model.eval()
     gc.collect()
     torch.cuda.empty_cache()
@@ -257,6 +267,16 @@ if __name__ == "__main__":
         help=(
             "'empty' omits the system role. 'default' uses profile "
             "default_system_prompt (None for all built-in profiles)."
+        ),
+    )
+    parser.add_argument(
+        "--benign-system-prompt-mode",
+        default=None,
+        choices=["default", "empty"],
+        help=(
+            "System-prompt policy for benign/FRR generation only. If unset, mirrors "
+            "--system-prompt-mode. Set to 'empty' to guarantee FRR eval never uses a "
+            "system prompt (independent of harmful eval)."
         ),
     )
     parser.add_argument("--resume-from", default=None) # this is the model you load at the start

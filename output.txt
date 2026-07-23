@@ -1,0 +1,543 @@
+[taegyoem@narval3 dp-llm-experiments]$ python3 run_final_pipeline.py --model llama_2_7b_chat --lr 2e-5
+
+=== submit_wandb_sweep (seen-family, clean LM) ===
+  /cvmfs/soft.computecanada.ca/gentoo/2023/x86-64-v3/usr/lib/python-exec/python3.11/python3 /lustre07/scratch/taegyoem/dp-llm-experiments/train/submit_wandb_sweep.py --model-profile llama_2_7b_chat --lm-loss-input clean --script-dir /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_seen --learning-rates 2e-5 --total-epochs 1 --skip-embedded-eval --time 2:30:00 --record-job-ids /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/training_job_ids.txt
+Submitted batch job 60516363 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_seen/run_lr2e-05_lam0_eps0.sh
+Submitted batch job 60516380 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_seen/run_lr2e-05_lam0.1_eps-1.sh
+Submitted batch job 60516382 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_seen/run_lr2e-05_lam0.1_eps-0.5.sh
+Submitted batch job 60516384 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_seen/run_lr2e-05_lam0.1_eps0.sh
+Submitted batch job 60516385 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_seen/run_lr2e-05_lam0.1_eps0.5.sh
+Submitted batch job 60516386 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_seen/run_lr2e-05_lam0.1_eps1.sh
+Submitted batch job 60516387 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_seen/run_lr2e-05_lam0.3_eps-1.sh
+Submitted batch job 60516388 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_seen/run_lr2e-05_lam0.3_eps-0.5.sh
+Submitted batch job 60516389 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_seen/run_lr2e-05_lam0.3_eps0.sh
+Submitted batch job 60516390 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_seen/run_lr2e-05_lam0.3_eps0.5.sh
+Submitted batch job 60516391 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_seen/run_lr2e-05_lam0.3_eps1.sh
+Submitted batch job 60516392 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_seen/run_lr2e-05_lam1_eps-1.sh
+Submitted batch job 60516399 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_seen/run_lr2e-05_lam1_eps-0.5.sh
+Submitted batch job 60516400 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_seen/run_lr2e-05_lam1_eps0.sh
+Submitted batch job 60516404 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_seen/run_lr2e-05_lam1_eps0.5.sh
+Submitted batch job 60516406 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_seen/run_lr2e-05_lam1_eps1.sh
+Submitted batch job 60516408 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_seen/run_lr2e-05_lam3_eps-1.sh
+Submitted batch job 60516410 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_seen/run_lr2e-05_lam3_eps-0.5.sh
+Submitted batch job 60516412 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_seen/run_lr2e-05_lam3_eps0.sh
+Submitted batch job 60516416 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_seen/run_lr2e-05_lam3_eps0.5.sh
+Submitted batch job 60516417 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_seen/run_lr2e-05_lam3_eps1.sh
+Submitted batch job 60516418 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_seen/run_lr2e-05_lam10_eps-1.sh
+Submitted batch job 60516419 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_seen/run_lr2e-05_lam10_eps-0.5.sh
+Submitted batch job 60516420 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_seen/run_lr2e-05_lam10_eps0.sh
+Submitted batch job 60516421 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_seen/run_lr2e-05_lam10_eps0.5.sh
+Submitted batch job 60516422 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_seen/run_lr2e-05_lam10_eps1.sh
+Submitted batch job 60516423 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_seen/run_lr2e-05_lam30_eps-1.sh
+Submitted batch job 60516424 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_seen/run_lr2e-05_lam30_eps-0.5.sh
+Submitted batch job 60516425 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_seen/run_lr2e-05_lam30_eps0.sh
+Submitted batch job 60516427 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_seen/run_lr2e-05_lam30_eps0.5.sh
+Submitted batch job 60516428 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_seen/run_lr2e-05_lam30_eps1.sh
+Wrote 31 job scripts to /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_seen
+Manifest: /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_seen/sweep_manifest.txt
+Submitted 31 jobs.
+
+Inference: each run saves 1 checkpoints; latest is ${FINETUNED_BASE}_epoch1 (see manifest).
+W&B: set WANDB_MODE=offline in jobs (already in scripts). After jobs finish, from a machine
+with network access, run: wandb sync <offline-run-folder> under your WANDB_DIR.
+
+=== submit_wandb_sweep (seen-family, perturbed LM) ===
+  /cvmfs/soft.computecanada.ca/gentoo/2023/x86-64-v3/usr/lib/python-exec/python3.11/python3 /lustre07/scratch/taegyoem/dp-llm-experiments/train/submit_wandb_sweep.py --model-profile llama_2_7b_chat --lm-loss-input perturbed --script-dir /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_perturbed_seen --perturbed-sweep-subset lambda0_only --learning-rates 2e-5 --total-epochs 1 --skip-embedded-eval --time 2:30:00 --record-job-ids /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/training_job_ids.txt
+Submitted batch job 60516429 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_perturbed_seen/run_lr2e-05_lam0_eps0_pertlm.sh
+Wrote 1 job scripts to /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_perturbed_seen
+Manifest: /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_perturbed_seen/sweep_manifest.txt
+Submitted 1 jobs.
+
+Inference: each run saves 1 checkpoints; latest is ${FINETUNED_BASE}_epoch1 (see manifest).
+W&B: set WANDB_MODE=offline in jobs (already in scripts). After jobs finish, from a machine
+with network access, run: wandb sync <offline-run-folder> under your WANDB_DIR.
+
+=== submit_wandb_sweep (held-out, clean LM; gcg,autodan,pair) ===
+  /cvmfs/soft.computecanada.ca/gentoo/2023/x86-64-v3/usr/lib/python-exec/python3.11/python3 /lustre07/scratch/taegyoem/dp-llm-experiments/train/submit_wandb_sweep.py --model-profile llama_2_7b_chat --lm-loss-input clean --held-out-families gcg,autodan,pair --script-dir /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout --learning-rates 2e-5 --total-epochs 1 --skip-embedded-eval --time 2:30:00 --record-job-ids /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/training_job_ids.txt
+Submitted batch job 60516430 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_gcg_run_lr2e-05_lam0_eps0.sh
+Submitted batch job 60516432 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_autodan_run_lr2e-05_lam0_eps0.sh
+Submitted batch job 60516433 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_pair_run_lr2e-05_lam0_eps0.sh
+Submitted batch job 60516434 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_gcg_run_lr2e-05_lam0.1_eps-1.sh
+Submitted batch job 60516435 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_autodan_run_lr2e-05_lam0.1_eps-1.sh
+Submitted batch job 60516436 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_pair_run_lr2e-05_lam0.1_eps-1.sh
+Submitted batch job 60516437 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_gcg_run_lr2e-05_lam0.1_eps-0.5.sh
+Submitted batch job 60516438 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_autodan_run_lr2e-05_lam0.1_eps-0.5.sh
+Submitted batch job 60516439 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_pair_run_lr2e-05_lam0.1_eps-0.5.sh
+Submitted batch job 60516440 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_gcg_run_lr2e-05_lam0.1_eps0.sh
+Submitted batch job 60516441 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_autodan_run_lr2e-05_lam0.1_eps0.sh
+Submitted batch job 60516442 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_pair_run_lr2e-05_lam0.1_eps0.sh
+Submitted batch job 60516443 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_gcg_run_lr2e-05_lam0.1_eps0.5.sh
+Submitted batch job 60516444 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_autodan_run_lr2e-05_lam0.1_eps0.5.sh
+Submitted batch job 60516445 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_pair_run_lr2e-05_lam0.1_eps0.5.sh
+Submitted batch job 60516446 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_gcg_run_lr2e-05_lam0.1_eps1.sh
+Submitted batch job 60516447 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_autodan_run_lr2e-05_lam0.1_eps1.sh
+Submitted batch job 60516448 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_pair_run_lr2e-05_lam0.1_eps1.sh
+Submitted batch job 60516449 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_gcg_run_lr2e-05_lam0.3_eps-1.sh
+Submitted batch job 60516450 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_autodan_run_lr2e-05_lam0.3_eps-1.sh
+Submitted batch job 60516451 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_pair_run_lr2e-05_lam0.3_eps-1.sh
+Submitted batch job 60516452 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_gcg_run_lr2e-05_lam0.3_eps-0.5.sh
+Submitted batch job 60516453 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_autodan_run_lr2e-05_lam0.3_eps-0.5.sh
+Submitted batch job 60516454 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_pair_run_lr2e-05_lam0.3_eps-0.5.sh
+Submitted batch job 60516455 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_gcg_run_lr2e-05_lam0.3_eps0.sh
+Submitted batch job 60516456 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_autodan_run_lr2e-05_lam0.3_eps0.sh
+Submitted batch job 60516458 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_pair_run_lr2e-05_lam0.3_eps0.sh
+Submitted batch job 60516459 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_gcg_run_lr2e-05_lam0.3_eps0.5.sh
+Submitted batch job 60516460 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_autodan_run_lr2e-05_lam0.3_eps0.5.sh
+Submitted batch job 60516461 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_pair_run_lr2e-05_lam0.3_eps0.5.sh
+Submitted batch job 60516462 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_gcg_run_lr2e-05_lam0.3_eps1.sh
+Submitted batch job 60516463 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_autodan_run_lr2e-05_lam0.3_eps1.sh
+Submitted batch job 60516464 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_pair_run_lr2e-05_lam0.3_eps1.sh
+Submitted batch job 60516465 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_gcg_run_lr2e-05_lam1_eps-1.sh
+Submitted batch job 60516466 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_autodan_run_lr2e-05_lam1_eps-1.sh
+Submitted batch job 60516467 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_pair_run_lr2e-05_lam1_eps-1.sh
+Submitted batch job 60516468 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_gcg_run_lr2e-05_lam1_eps-0.5.sh
+Submitted batch job 60516469 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_autodan_run_lr2e-05_lam1_eps-0.5.sh
+Submitted batch job 60516470 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_pair_run_lr2e-05_lam1_eps-0.5.sh
+Submitted batch job 60516471 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_gcg_run_lr2e-05_lam1_eps0.sh
+Submitted batch job 60516472 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_autodan_run_lr2e-05_lam1_eps0.sh
+Submitted batch job 60516473 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_pair_run_lr2e-05_lam1_eps0.sh
+Submitted batch job 60516474 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_gcg_run_lr2e-05_lam1_eps0.5.sh
+Submitted batch job 60516475 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_autodan_run_lr2e-05_lam1_eps0.5.sh
+Submitted batch job 60516476 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_pair_run_lr2e-05_lam1_eps0.5.sh
+Submitted batch job 60516479 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_gcg_run_lr2e-05_lam1_eps1.sh
+Submitted batch job 60516480 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_autodan_run_lr2e-05_lam1_eps1.sh
+Submitted batch job 60516481 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_pair_run_lr2e-05_lam1_eps1.sh
+Submitted batch job 60516482 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_gcg_run_lr2e-05_lam3_eps-1.sh
+Submitted batch job 60516483 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_autodan_run_lr2e-05_lam3_eps-1.sh
+Submitted batch job 60516484 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_pair_run_lr2e-05_lam3_eps-1.sh
+Submitted batch job 60516485 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_gcg_run_lr2e-05_lam3_eps-0.5.sh
+Submitted batch job 60516486 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_autodan_run_lr2e-05_lam3_eps-0.5.sh
+Submitted batch job 60516488 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_pair_run_lr2e-05_lam3_eps-0.5.sh
+Submitted batch job 60516489 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_gcg_run_lr2e-05_lam3_eps0.sh
+Submitted batch job 60516490 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_autodan_run_lr2e-05_lam3_eps0.sh
+Submitted batch job 60516491 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_pair_run_lr2e-05_lam3_eps0.sh
+Submitted batch job 60516492 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_gcg_run_lr2e-05_lam3_eps0.5.sh
+Submitted batch job 60516494 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_autodan_run_lr2e-05_lam3_eps0.5.sh
+Submitted batch job 60516495 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_pair_run_lr2e-05_lam3_eps0.5.sh
+Submitted batch job 60516496 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_gcg_run_lr2e-05_lam3_eps1.sh
+Submitted batch job 60516497 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_autodan_run_lr2e-05_lam3_eps1.sh
+Submitted batch job 60516498 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_pair_run_lr2e-05_lam3_eps1.sh
+Submitted batch job 60516499 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_gcg_run_lr2e-05_lam10_eps-1.sh
+Submitted batch job 60516500 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_autodan_run_lr2e-05_lam10_eps-1.sh
+Submitted batch job 60516501 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_pair_run_lr2e-05_lam10_eps-1.sh
+Submitted batch job 60516502 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_gcg_run_lr2e-05_lam10_eps-0.5.sh
+Submitted batch job 60516503 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_autodan_run_lr2e-05_lam10_eps-0.5.sh
+Submitted batch job 60516504 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_pair_run_lr2e-05_lam10_eps-0.5.sh
+Submitted batch job 60516505 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_gcg_run_lr2e-05_lam10_eps0.sh
+Submitted batch job 60516506 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_autodan_run_lr2e-05_lam10_eps0.sh
+Submitted batch job 60516507 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_pair_run_lr2e-05_lam10_eps0.sh
+Submitted batch job 60516508 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_gcg_run_lr2e-05_lam10_eps0.5.sh
+Submitted batch job 60516509 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_autodan_run_lr2e-05_lam10_eps0.5.sh
+Submitted batch job 60516510 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_pair_run_lr2e-05_lam10_eps0.5.sh
+Submitted batch job 60516511 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_gcg_run_lr2e-05_lam10_eps1.sh
+Submitted batch job 60516512 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_autodan_run_lr2e-05_lam10_eps1.sh
+Submitted batch job 60516513 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_pair_run_lr2e-05_lam10_eps1.sh
+Submitted batch job 60516514 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_gcg_run_lr2e-05_lam30_eps-1.sh
+Submitted batch job 60516515 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_autodan_run_lr2e-05_lam30_eps-1.sh
+Submitted batch job 60516516 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_pair_run_lr2e-05_lam30_eps-1.sh
+Submitted batch job 60516517 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_gcg_run_lr2e-05_lam30_eps-0.5.sh
+Submitted batch job 60516518 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_autodan_run_lr2e-05_lam30_eps-0.5.sh
+Submitted batch job 60516519 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_pair_run_lr2e-05_lam30_eps-0.5.sh
+Submitted batch job 60516520 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_gcg_run_lr2e-05_lam30_eps0.sh
+Submitted batch job 60516521 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_autodan_run_lr2e-05_lam30_eps0.sh
+Submitted batch job 60516522 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_pair_run_lr2e-05_lam30_eps0.sh
+Submitted batch job 60516523 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_gcg_run_lr2e-05_lam30_eps0.5.sh
+Submitted batch job 60516524 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_autodan_run_lr2e-05_lam30_eps0.5.sh
+Submitted batch job 60516525 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_pair_run_lr2e-05_lam30_eps0.5.sh
+Submitted batch job 60516526 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_gcg_run_lr2e-05_lam30_eps1.sh
+Submitted batch job 60516527 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_autodan_run_lr2e-05_lam30_eps1.sh
+Submitted batch job 60516528 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_pair_run_lr2e-05_lam30_eps1.sh
+Wrote 93 job scripts to /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout
+Manifest: /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/sweep_manifest.txt
+Submitted 93 jobs.
+
+Inference: each run saves 1 checkpoints; latest is ${FINETUNED_BASE}_epoch1 (see manifest).
+W&B: set WANDB_MODE=offline in jobs (already in scripts). After jobs finish, from a machine
+with network access, run: wandb sync <offline-run-folder> under your WANDB_DIR.
+
+=== submit_wandb_sweep (held-out, perturbed LM; gcg,autodan,pair) ===
+  /cvmfs/soft.computecanada.ca/gentoo/2023/x86-64-v3/usr/lib/python-exec/python3.11/python3 /lustre07/scratch/taegyoem/dp-llm-experiments/train/submit_wandb_sweep.py --model-profile llama_2_7b_chat --lm-loss-input perturbed --held-out-families gcg,autodan,pair --script-dir /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_perturbed_heldout --perturbed-sweep-subset lambda0_only --learning-rates 2e-5 --total-epochs 1 --skip-embedded-eval --time 2:30:00 --record-job-ids /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/training_job_ids.txt
+Submitted batch job 60516529 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_perturbed_heldout/heldout_gcg_run_lr2e-05_lam0_eps0_pertlm.sh
+Submitted batch job 60516530 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_perturbed_heldout/heldout_autodan_run_lr2e-05_lam0_eps0_pertlm.sh
+Submitted batch job 60516531 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_perturbed_heldout/heldout_pair_run_lr2e-05_lam0_eps0_pertlm.sh
+Wrote 3 job scripts to /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_perturbed_heldout
+Manifest: /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_perturbed_heldout/sweep_manifest.txt
+Submitted 3 jobs.
+
+Inference: each run saves 1 checkpoints; latest is ${FINETUNED_BASE}_epoch1 (see manifest).
+W&B: set WANDB_MODE=offline in jobs (already in scripts). After jobs finish, from a machine
+with network access, run: wandb sync <offline-run-folder> under your WANDB_DIR.
+
+=== sbatch test_eval_matrix array (seen + unseen × 3 families) ===
+  sbatch --dependency=after:60516363:60516380:60516382:60516384:60516385:60516386:60516387:60516388:60516389:60516390:60516391:60516392:60516399:60516400:60516404:60516406:60516408:60516410:60516412:60516416:60516417:60516418:60516419:60516420:60516421:60516422:60516423:60516424:60516425:60516427:60516428:60516429:60516430:60516432:60516433:60516434:60516435:60516436:60516437:60516438:60516439:60516440:60516441:60516442:60516443:60516444:60516445:60516446:60516447:60516448:60516449:60516450:60516451:60516452:60516453:60516454:60516455:60516456:60516458:60516459:60516460:60516461:60516462:60516463:60516464:60516465:60516466:60516467:60516468:60516469:60516470:60516471:60516472:60516473:60516474:60516475:60516476:60516479:60516480:60516481:60516482:60516483:60516484:60516485:60516486:60516488:60516489:60516490:60516491:60516492:60516494:60516495:60516496:60516497:60516498:60516499:60516500:60516501:60516502:60516503:60516504:60516505:60516506:60516507:60516508:60516509:60516510:60516511:60516512:60516513:60516514:60516515:60516516:60516517:60516518:60516519:60516520:60516521:60516522:60516523:60516524:60516525:60516526:60516527:60516528:60516529:60516530:60516531 /lustre07/scratch/taegyoem/dp-llm-experiments/eval/submit_test_eval_matrix.sh
+  (eval matrix EPOCH=1 → *_finetuned_llm_epoch1)
+Submitted batch job 60516532
+
+=== sbatch plot hyperparameter heatmaps (after eval array) ===
+  sbatch --dependency=afterok:60516532 /lustre07/scratch/taegyoem/dp-llm-experiments/eval/submit_plot_heatmaps.sh
+Submitted batch job 60516533
+sbatch: NOTE: Your memory request of 8192.0M was likely submitted as 8.0G. Please note that Slurm interprets memory requests denominated in G as multiples of 1024M, not 1000M.
+
+Done. Eval + metrics TSVs + CSVs: ``$CHECKPOINT_ROOT/test_eval_outputs/`` (default ``$SCRATCH/dp-llm-sweep/test_eval_outputs``). Heatmaps: ``…/test_eval_outputs/heatmaps_<MODEL_PROFILE>_lr<LR>/{aggregate,by_dataset}/`` (names from metrics TSVs unless ``HEATMAP_OUT_DIR`` is set). Override ``CHECKPOINT_ROOT`` / ``METRICS_DIR`` / ``HEATMAP_OUT_DIR`` when sbatching ``submit_plot_heatmaps.sh`` manually.
+[taegyoem@narval3 dp-llm-experiments]$ python3 run_final_pipeline.py --model llama_3_8b_instruct --lr 2e-5
+
+=== submit_wandb_sweep (seen-family, clean LM) ===
+  /cvmfs/soft.computecanada.ca/gentoo/2023/x86-64-v3/usr/lib/python-exec/python3.11/python3 /lustre07/scratch/taegyoem/dp-llm-experiments/train/submit_wandb_sweep.py --model-profile llama_3_8b_instruct --lm-loss-input clean --script-dir /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_seen --learning-rates 2e-5 --total-epochs 1 --skip-embedded-eval --time 2:30:00 --record-job-ids /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/training_job_ids.txt
+Submitted batch job 60516541 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_seen/l3_run_lr2e-05_lam0_eps0.sh
+Submitted batch job 60516542 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_seen/l3_run_lr2e-05_lam0.1_eps-1.sh
+Submitted batch job 60516543 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_seen/l3_run_lr2e-05_lam0.1_eps-0.5.sh
+Submitted batch job 60516544 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_seen/l3_run_lr2e-05_lam0.1_eps0.sh
+Submitted batch job 60516545 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_seen/l3_run_lr2e-05_lam0.1_eps0.5.sh
+Submitted batch job 60516546 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_seen/l3_run_lr2e-05_lam0.1_eps1.sh
+Submitted batch job 60516547 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_seen/l3_run_lr2e-05_lam0.3_eps-1.sh
+Submitted batch job 60516548 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_seen/l3_run_lr2e-05_lam0.3_eps-0.5.sh
+Submitted batch job 60516549 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_seen/l3_run_lr2e-05_lam0.3_eps0.sh
+Submitted batch job 60516550 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_seen/l3_run_lr2e-05_lam0.3_eps0.5.sh
+Submitted batch job 60516551 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_seen/l3_run_lr2e-05_lam0.3_eps1.sh
+Submitted batch job 60516552 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_seen/l3_run_lr2e-05_lam1_eps-1.sh
+Submitted batch job 60516553 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_seen/l3_run_lr2e-05_lam1_eps-0.5.sh
+Submitted batch job 60516554 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_seen/l3_run_lr2e-05_lam1_eps0.sh
+Submitted batch job 60516555 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_seen/l3_run_lr2e-05_lam1_eps0.5.sh
+Submitted batch job 60516556 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_seen/l3_run_lr2e-05_lam1_eps1.sh
+Submitted batch job 60516557 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_seen/l3_run_lr2e-05_lam3_eps-1.sh
+Submitted batch job 60516558 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_seen/l3_run_lr2e-05_lam3_eps-0.5.sh
+Submitted batch job 60516559 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_seen/l3_run_lr2e-05_lam3_eps0.sh
+Submitted batch job 60516560 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_seen/l3_run_lr2e-05_lam3_eps0.5.sh
+Submitted batch job 60516561 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_seen/l3_run_lr2e-05_lam3_eps1.sh
+Submitted batch job 60516562 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_seen/l3_run_lr2e-05_lam10_eps-1.sh
+Submitted batch job 60516563 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_seen/l3_run_lr2e-05_lam10_eps-0.5.sh
+Submitted batch job 60516564 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_seen/l3_run_lr2e-05_lam10_eps0.sh
+Submitted batch job 60516565 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_seen/l3_run_lr2e-05_lam10_eps0.5.sh
+Submitted batch job 60516566 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_seen/l3_run_lr2e-05_lam10_eps1.sh
+Submitted batch job 60516567 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_seen/l3_run_lr2e-05_lam30_eps-1.sh
+Submitted batch job 60516568 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_seen/l3_run_lr2e-05_lam30_eps-0.5.sh
+Submitted batch job 60516569 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_seen/l3_run_lr2e-05_lam30_eps0.sh
+Submitted batch job 60516570 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_seen/l3_run_lr2e-05_lam30_eps0.5.sh
+Submitted batch job 60516572 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_seen/l3_run_lr2e-05_lam30_eps1.sh
+Wrote 31 job scripts to /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_seen
+Manifest: /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_seen/sweep_manifest.txt
+Submitted 31 jobs.
+
+Inference: each run saves 1 checkpoints; latest is ${FINETUNED_BASE}_epoch1 (see manifest).
+W&B: set WANDB_MODE=offline in jobs (already in scripts). After jobs finish, from a machine
+with network access, run: wandb sync <offline-run-folder> under your WANDB_DIR.
+
+=== submit_wandb_sweep (seen-family, perturbed LM) ===
+  /cvmfs/soft.computecanada.ca/gentoo/2023/x86-64-v3/usr/lib/python-exec/python3.11/python3 /lustre07/scratch/taegyoem/dp-llm-experiments/train/submit_wandb_sweep.py --model-profile llama_3_8b_instruct --lm-loss-input perturbed --script-dir /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_perturbed_seen --perturbed-sweep-subset lambda0_only --learning-rates 2e-5 --total-epochs 1 --skip-embedded-eval --time 2:30:00 --record-job-ids /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/training_job_ids.txt
+Submitted batch job 60516573 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_perturbed_seen/l3_run_lr2e-05_lam0_eps0_pertlm.sh
+Wrote 1 job scripts to /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_perturbed_seen
+Manifest: /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_perturbed_seen/sweep_manifest.txt
+Submitted 1 jobs.
+
+Inference: each run saves 1 checkpoints; latest is ${FINETUNED_BASE}_epoch1 (see manifest).
+W&B: set WANDB_MODE=offline in jobs (already in scripts). After jobs finish, from a machine
+with network access, run: wandb sync <offline-run-folder> under your WANDB_DIR.
+
+=== submit_wandb_sweep (held-out, clean LM; gcg,autodan,pair) ===
+  /cvmfs/soft.computecanada.ca/gentoo/2023/x86-64-v3/usr/lib/python-exec/python3.11/python3 /lustre07/scratch/taegyoem/dp-llm-experiments/train/submit_wandb_sweep.py --model-profile llama_3_8b_instruct --lm-loss-input clean --held-out-families gcg,autodan,pair --script-dir /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout --learning-rates 2e-5 --total-epochs 1 --skip-embedded-eval --time 2:30:00 --record-job-ids /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/training_job_ids.txt
+Submitted batch job 60516574 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_gcg_l3_run_lr2e-05_lam0_eps0.sh
+Submitted batch job 60516575 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_autodan_l3_run_lr2e-05_lam0_eps0.sh
+Submitted batch job 60516576 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_pair_l3_run_lr2e-05_lam0_eps0.sh
+Submitted batch job 60516577 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_gcg_l3_run_lr2e-05_lam0.1_eps-1.sh
+Submitted batch job 60516578 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_autodan_l3_run_lr2e-05_lam0.1_eps-1.sh
+Submitted batch job 60516579 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_pair_l3_run_lr2e-05_lam0.1_eps-1.sh
+Submitted batch job 60516580 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_gcg_l3_run_lr2e-05_lam0.1_eps-0.5.sh
+Submitted batch job 60516581 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_autodan_l3_run_lr2e-05_lam0.1_eps-0.5.sh
+Submitted batch job 60516582 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_pair_l3_run_lr2e-05_lam0.1_eps-0.5.sh
+Submitted batch job 60516583 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_gcg_l3_run_lr2e-05_lam0.1_eps0.sh
+Submitted batch job 60516584 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_autodan_l3_run_lr2e-05_lam0.1_eps0.sh
+Submitted batch job 60516585 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_pair_l3_run_lr2e-05_lam0.1_eps0.sh
+Submitted batch job 60516586 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_gcg_l3_run_lr2e-05_lam0.1_eps0.5.sh
+Submitted batch job 60516587 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_autodan_l3_run_lr2e-05_lam0.1_eps0.5.sh
+Submitted batch job 60516588 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_pair_l3_run_lr2e-05_lam0.1_eps0.5.sh
+Submitted batch job 60516589 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_gcg_l3_run_lr2e-05_lam0.1_eps1.sh
+Submitted batch job 60516590 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_autodan_l3_run_lr2e-05_lam0.1_eps1.sh
+Submitted batch job 60516591 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_pair_l3_run_lr2e-05_lam0.1_eps1.sh
+Submitted batch job 60516592 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_gcg_l3_run_lr2e-05_lam0.3_eps-1.sh
+Submitted batch job 60516593 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_autodan_l3_run_lr2e-05_lam0.3_eps-1.sh
+Submitted batch job 60516594 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_pair_l3_run_lr2e-05_lam0.3_eps-1.sh
+Submitted batch job 60516595 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_gcg_l3_run_lr2e-05_lam0.3_eps-0.5.sh
+Submitted batch job 60516596 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_autodan_l3_run_lr2e-05_lam0.3_eps-0.5.sh
+Submitted batch job 60516598 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_pair_l3_run_lr2e-05_lam0.3_eps-0.5.sh
+Submitted batch job 60516600 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_gcg_l3_run_lr2e-05_lam0.3_eps0.sh
+Submitted batch job 60516601 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_autodan_l3_run_lr2e-05_lam0.3_eps0.sh
+Submitted batch job 60516602 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_pair_l3_run_lr2e-05_lam0.3_eps0.sh
+Submitted batch job 60516603 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_gcg_l3_run_lr2e-05_lam0.3_eps0.5.sh
+Submitted batch job 60516604 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_autodan_l3_run_lr2e-05_lam0.3_eps0.5.sh
+Submitted batch job 60516605 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_pair_l3_run_lr2e-05_lam0.3_eps0.5.sh
+Submitted batch job 60516606 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_gcg_l3_run_lr2e-05_lam0.3_eps1.sh
+Submitted batch job 60516607 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_autodan_l3_run_lr2e-05_lam0.3_eps1.sh
+Submitted batch job 60516608 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_pair_l3_run_lr2e-05_lam0.3_eps1.sh
+Submitted batch job 60516609 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_gcg_l3_run_lr2e-05_lam1_eps-1.sh
+Submitted batch job 60516610 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_autodan_l3_run_lr2e-05_lam1_eps-1.sh
+Submitted batch job 60516611 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_pair_l3_run_lr2e-05_lam1_eps-1.sh
+Submitted batch job 60516612 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_gcg_l3_run_lr2e-05_lam1_eps-0.5.sh
+Submitted batch job 60516613 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_autodan_l3_run_lr2e-05_lam1_eps-0.5.sh
+Submitted batch job 60516614 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_pair_l3_run_lr2e-05_lam1_eps-0.5.sh
+Submitted batch job 60516615 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_gcg_l3_run_lr2e-05_lam1_eps0.sh
+Submitted batch job 60516616 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_autodan_l3_run_lr2e-05_lam1_eps0.sh
+Submitted batch job 60516617 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_pair_l3_run_lr2e-05_lam1_eps0.sh
+Submitted batch job 60516618 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_gcg_l3_run_lr2e-05_lam1_eps0.5.sh
+Submitted batch job 60516619 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_autodan_l3_run_lr2e-05_lam1_eps0.5.sh
+Submitted batch job 60516620 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_pair_l3_run_lr2e-05_lam1_eps0.5.sh
+Submitted batch job 60516621 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_gcg_l3_run_lr2e-05_lam1_eps1.sh
+Submitted batch job 60516622 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_autodan_l3_run_lr2e-05_lam1_eps1.sh
+Submitted batch job 60516623 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_pair_l3_run_lr2e-05_lam1_eps1.sh
+Submitted batch job 60516624 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_gcg_l3_run_lr2e-05_lam3_eps-1.sh
+Submitted batch job 60516625 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_autodan_l3_run_lr2e-05_lam3_eps-1.sh
+Submitted batch job 60516626 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_pair_l3_run_lr2e-05_lam3_eps-1.sh
+Submitted batch job 60516627 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_gcg_l3_run_lr2e-05_lam3_eps-0.5.sh
+Submitted batch job 60516628 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_autodan_l3_run_lr2e-05_lam3_eps-0.5.sh
+Submitted batch job 60516629 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_pair_l3_run_lr2e-05_lam3_eps-0.5.sh
+Submitted batch job 60516630 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_gcg_l3_run_lr2e-05_lam3_eps0.sh
+Submitted batch job 60516631 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_autodan_l3_run_lr2e-05_lam3_eps0.sh
+Submitted batch job 60516632 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_pair_l3_run_lr2e-05_lam3_eps0.sh
+Submitted batch job 60516634 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_gcg_l3_run_lr2e-05_lam3_eps0.5.sh
+Submitted batch job 60516635 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_autodan_l3_run_lr2e-05_lam3_eps0.5.sh
+Submitted batch job 60516636 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_pair_l3_run_lr2e-05_lam3_eps0.5.sh
+Submitted batch job 60516637 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_gcg_l3_run_lr2e-05_lam3_eps1.sh
+Submitted batch job 60516638 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_autodan_l3_run_lr2e-05_lam3_eps1.sh
+Submitted batch job 60516639 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_pair_l3_run_lr2e-05_lam3_eps1.sh
+Submitted batch job 60516640 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_gcg_l3_run_lr2e-05_lam10_eps-1.sh
+Submitted batch job 60516641 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_autodan_l3_run_lr2e-05_lam10_eps-1.sh
+Submitted batch job 60516642 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_pair_l3_run_lr2e-05_lam10_eps-1.sh
+Submitted batch job 60516643 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_gcg_l3_run_lr2e-05_lam10_eps-0.5.sh
+Submitted batch job 60516644 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_autodan_l3_run_lr2e-05_lam10_eps-0.5.sh
+Submitted batch job 60516645 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_pair_l3_run_lr2e-05_lam10_eps-0.5.sh
+Submitted batch job 60516646 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_gcg_l3_run_lr2e-05_lam10_eps0.sh
+Submitted batch job 60516647 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_autodan_l3_run_lr2e-05_lam10_eps0.sh
+Submitted batch job 60516648 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_pair_l3_run_lr2e-05_lam10_eps0.sh
+Submitted batch job 60516649 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_gcg_l3_run_lr2e-05_lam10_eps0.5.sh
+Submitted batch job 60516650 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_autodan_l3_run_lr2e-05_lam10_eps0.5.sh
+Submitted batch job 60516651 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_pair_l3_run_lr2e-05_lam10_eps0.5.sh
+Submitted batch job 60516653 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_gcg_l3_run_lr2e-05_lam10_eps1.sh
+Submitted batch job 60516654 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_autodan_l3_run_lr2e-05_lam10_eps1.sh
+Submitted batch job 60516655 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_pair_l3_run_lr2e-05_lam10_eps1.sh
+Submitted batch job 60516656 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_gcg_l3_run_lr2e-05_lam30_eps-1.sh
+Submitted batch job 60516657 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_autodan_l3_run_lr2e-05_lam30_eps-1.sh
+Submitted batch job 60516658 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_pair_l3_run_lr2e-05_lam30_eps-1.sh
+Submitted batch job 60516659 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_gcg_l3_run_lr2e-05_lam30_eps-0.5.sh
+Submitted batch job 60516661 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_autodan_l3_run_lr2e-05_lam30_eps-0.5.sh
+Submitted batch job 60516662 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_pair_l3_run_lr2e-05_lam30_eps-0.5.sh
+Submitted batch job 60516663 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_gcg_l3_run_lr2e-05_lam30_eps0.sh
+Submitted batch job 60516664 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_autodan_l3_run_lr2e-05_lam30_eps0.sh
+Submitted batch job 60516665 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_pair_l3_run_lr2e-05_lam30_eps0.sh
+Submitted batch job 60516666 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_gcg_l3_run_lr2e-05_lam30_eps0.5.sh
+Submitted batch job 60516667 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_autodan_l3_run_lr2e-05_lam30_eps0.5.sh
+Submitted batch job 60516668 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_pair_l3_run_lr2e-05_lam30_eps0.5.sh
+Submitted batch job 60516672 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_gcg_l3_run_lr2e-05_lam30_eps1.sh
+Submitted batch job 60516676 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_autodan_l3_run_lr2e-05_lam30_eps1.sh
+Submitted batch job 60516678 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_pair_l3_run_lr2e-05_lam30_eps1.sh
+Wrote 93 job scripts to /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout
+Manifest: /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/sweep_manifest.txt
+Submitted 93 jobs.
+
+Inference: each run saves 1 checkpoints; latest is ${FINETUNED_BASE}_epoch1 (see manifest).
+W&B: set WANDB_MODE=offline in jobs (already in scripts). After jobs finish, from a machine
+with network access, run: wandb sync <offline-run-folder> under your WANDB_DIR.
+
+=== submit_wandb_sweep (held-out, perturbed LM; gcg,autodan,pair) ===
+  /cvmfs/soft.computecanada.ca/gentoo/2023/x86-64-v3/usr/lib/python-exec/python3.11/python3 /lustre07/scratch/taegyoem/dp-llm-experiments/train/submit_wandb_sweep.py --model-profile llama_3_8b_instruct --lm-loss-input perturbed --held-out-families gcg,autodan,pair --script-dir /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_perturbed_heldout --perturbed-sweep-subset lambda0_only --learning-rates 2e-5 --total-epochs 1 --skip-embedded-eval --time 2:30:00 --record-job-ids /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/training_job_ids.txt
+Submitted batch job 60516679 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_perturbed_heldout/heldout_gcg_l3_run_lr2e-05_lam0_eps0_pertlm.sh
+Submitted batch job 60516680 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_perturbed_heldout/heldout_autodan_l3_run_lr2e-05_lam0_eps0_pertlm.sh
+Submitted batch job 60516681 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_perturbed_heldout/heldout_pair_l3_run_lr2e-05_lam0_eps0_pertlm.sh
+Wrote 3 job scripts to /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_perturbed_heldout
+Manifest: /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_perturbed_heldout/sweep_manifest.txt
+Submitted 3 jobs.
+
+Inference: each run saves 1 checkpoints; latest is ${FINETUNED_BASE}_epoch1 (see manifest).
+W&B: set WANDB_MODE=offline in jobs (already in scripts). After jobs finish, from a machine
+with network access, run: wandb sync <offline-run-folder> under your WANDB_DIR.
+
+=== sbatch test_eval_matrix array (seen + unseen × 3 families) ===
+  sbatch --dependency=after:60516541:60516542:60516543:60516544:60516545:60516546:60516547:60516548:60516549:60516550:60516551:60516552:60516553:60516554:60516555:60516556:60516557:60516558:60516559:60516560:60516561:60516562:60516563:60516564:60516565:60516566:60516567:60516568:60516569:60516570:60516572:60516573:60516574:60516575:60516576:60516577:60516578:60516579:60516580:60516581:60516582:60516583:60516584:60516585:60516586:60516587:60516588:60516589:60516590:60516591:60516592:60516593:60516594:60516595:60516596:60516598:60516600:60516601:60516602:60516603:60516604:60516605:60516606:60516607:60516608:60516609:60516610:60516611:60516612:60516613:60516614:60516615:60516616:60516617:60516618:60516619:60516620:60516621:60516622:60516623:60516624:60516625:60516626:60516627:60516628:60516629:60516630:60516631:60516632:60516634:60516635:60516636:60516637:60516638:60516639:60516640:60516641:60516642:60516643:60516644:60516645:60516646:60516647:60516648:60516649:60516650:60516651:60516653:60516654:60516655:60516656:60516657:60516658:60516659:60516661:60516662:60516663:60516664:60516665:60516666:60516667:60516668:60516672:60516676:60516678:60516679:60516680:60516681 /lustre07/scratch/taegyoem/dp-llm-experiments/eval/submit_test_eval_matrix.sh
+  (eval matrix EPOCH=1 → *_finetuned_llm_epoch1)
+Submitted batch job 60516683
+
+=== sbatch plot hyperparameter heatmaps (after eval array) ===
+  sbatch --dependency=afterok:60516683 /lustre07/scratch/taegyoem/dp-llm-experiments/eval/submit_plot_heatmaps.sh
+Submitted batch job 60516684
+sbatch: NOTE: Your memory request of 8192.0M was likely submitted as 8.0G. Please note that Slurm interprets memory requests denominated in G as multiples of 1024M, not 1000M.
+
+Done. Eval + metrics TSVs + CSVs: ``$CHECKPOINT_ROOT/test_eval_outputs/`` (default ``$SCRATCH/dp-llm-sweep/test_eval_outputs``). Heatmaps: ``…/test_eval_outputs/heatmaps_<MODEL_PROFILE>_lr<LR>/{aggregate,by_dataset}/`` (names from metrics TSVs unless ``HEATMAP_OUT_DIR`` is set). Override ``CHECKPOINT_ROOT`` / ``METRICS_DIR`` / ``HEATMAP_OUT_DIR`` when sbatching ``submit_plot_heatmaps.sh`` manually.
+[taegyoem@narval3 dp-llm-experiments]$ python3 run_final_pipeline.py --model mistral_7b_instruct --lr 2e-5
+
+=== submit_wandb_sweep (seen-family, clean LM) ===
+  /cvmfs/soft.computecanada.ca/gentoo/2023/x86-64-v3/usr/lib/python-exec/python3.11/python3 /lustre07/scratch/taegyoem/dp-llm-experiments/train/submit_wandb_sweep.py --model-profile mistral_7b_instruct --lm-loss-input clean --script-dir /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_seen --learning-rates 2e-5 --total-epochs 1 --skip-embedded-eval --time 2:30:00 --record-job-ids /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/training_job_ids.txt
+Submitted batch job 60516696 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_seen/m7_run_lr2e-05_lam0_eps0.sh
+Submitted batch job 60516697 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_seen/m7_run_lr2e-05_lam0.1_eps-1.sh
+Submitted batch job 60516698 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_seen/m7_run_lr2e-05_lam0.1_eps-0.5.sh
+Submitted batch job 60516699 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_seen/m7_run_lr2e-05_lam0.1_eps0.sh
+Submitted batch job 60516700 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_seen/m7_run_lr2e-05_lam0.1_eps0.5.sh
+Submitted batch job 60516701 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_seen/m7_run_lr2e-05_lam0.1_eps1.sh
+Submitted batch job 60516702 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_seen/m7_run_lr2e-05_lam0.3_eps-1.sh
+Submitted batch job 60516703 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_seen/m7_run_lr2e-05_lam0.3_eps-0.5.sh
+Submitted batch job 60516704 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_seen/m7_run_lr2e-05_lam0.3_eps0.sh
+Submitted batch job 60516705 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_seen/m7_run_lr2e-05_lam0.3_eps0.5.sh
+Submitted batch job 60516706 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_seen/m7_run_lr2e-05_lam0.3_eps1.sh
+Submitted batch job 60516707 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_seen/m7_run_lr2e-05_lam1_eps-1.sh
+Submitted batch job 60516708 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_seen/m7_run_lr2e-05_lam1_eps-0.5.sh
+Submitted batch job 60516709 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_seen/m7_run_lr2e-05_lam1_eps0.sh
+Submitted batch job 60516710 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_seen/m7_run_lr2e-05_lam1_eps0.5.sh
+Submitted batch job 60516711 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_seen/m7_run_lr2e-05_lam1_eps1.sh
+Submitted batch job 60516712 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_seen/m7_run_lr2e-05_lam3_eps-1.sh
+Submitted batch job 60516713 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_seen/m7_run_lr2e-05_lam3_eps-0.5.sh
+Submitted batch job 60516714 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_seen/m7_run_lr2e-05_lam3_eps0.sh
+Submitted batch job 60516715 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_seen/m7_run_lr2e-05_lam3_eps0.5.sh
+Submitted batch job 60516716 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_seen/m7_run_lr2e-05_lam3_eps1.sh
+Submitted batch job 60516717 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_seen/m7_run_lr2e-05_lam10_eps-1.sh
+Submitted batch job 60516718 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_seen/m7_run_lr2e-05_lam10_eps-0.5.sh
+Submitted batch job 60516719 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_seen/m7_run_lr2e-05_lam10_eps0.sh
+Submitted batch job 60516720 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_seen/m7_run_lr2e-05_lam10_eps0.5.sh
+Submitted batch job 60516721 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_seen/m7_run_lr2e-05_lam10_eps1.sh
+Submitted batch job 60516722 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_seen/m7_run_lr2e-05_lam30_eps-1.sh
+Submitted batch job 60516723 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_seen/m7_run_lr2e-05_lam30_eps-0.5.sh
+Submitted batch job 60516724 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_seen/m7_run_lr2e-05_lam30_eps0.sh
+Submitted batch job 60516725 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_seen/m7_run_lr2e-05_lam30_eps0.5.sh
+Submitted batch job 60516726 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_seen/m7_run_lr2e-05_lam30_eps1.sh
+Wrote 31 job scripts to /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_seen
+Manifest: /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_seen/sweep_manifest.txt
+Submitted 31 jobs.
+
+Inference: each run saves 1 checkpoints; latest is ${FINETUNED_BASE}_epoch1 (see manifest).
+W&B: set WANDB_MODE=offline in jobs (already in scripts). After jobs finish, from a machine
+with network access, run: wandb sync <offline-run-folder> under your WANDB_DIR.
+
+=== submit_wandb_sweep (seen-family, perturbed LM) ===
+  /cvmfs/soft.computecanada.ca/gentoo/2023/x86-64-v3/usr/lib/python-exec/python3.11/python3 /lustre07/scratch/taegyoem/dp-llm-experiments/train/submit_wandb_sweep.py --model-profile mistral_7b_instruct --lm-loss-input perturbed --script-dir /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_perturbed_seen --perturbed-sweep-subset lambda0_only --learning-rates 2e-5 --total-epochs 1 --skip-embedded-eval --time 2:30:00 --record-job-ids /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/training_job_ids.txt
+Submitted batch job 60516727 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_perturbed_seen/m7_run_lr2e-05_lam0_eps0_pertlm.sh
+Wrote 1 job scripts to /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_perturbed_seen
+Manifest: /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_perturbed_seen/sweep_manifest.txt
+Submitted 1 jobs.
+
+Inference: each run saves 1 checkpoints; latest is ${FINETUNED_BASE}_epoch1 (see manifest).
+W&B: set WANDB_MODE=offline in jobs (already in scripts). After jobs finish, from a machine
+with network access, run: wandb sync <offline-run-folder> under your WANDB_DIR.
+
+=== submit_wandb_sweep (held-out, clean LM; gcg,autodan,pair) ===
+  /cvmfs/soft.computecanada.ca/gentoo/2023/x86-64-v3/usr/lib/python-exec/python3.11/python3 /lustre07/scratch/taegyoem/dp-llm-experiments/train/submit_wandb_sweep.py --model-profile mistral_7b_instruct --lm-loss-input clean --held-out-families gcg,autodan,pair --script-dir /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout --learning-rates 2e-5 --total-epochs 1 --skip-embedded-eval --time 2:30:00 --record-job-ids /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/training_job_ids.txt
+Submitted batch job 60516728 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_gcg_m7_run_lr2e-05_lam0_eps0.sh
+Submitted batch job 60516729 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_autodan_m7_run_lr2e-05_lam0_eps0.sh
+Submitted batch job 60516730 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_pair_m7_run_lr2e-05_lam0_eps0.sh
+Submitted batch job 60516731 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_gcg_m7_run_lr2e-05_lam0.1_eps-1.sh
+Submitted batch job 60516732 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_autodan_m7_run_lr2e-05_lam0.1_eps-1.sh
+Submitted batch job 60516733 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_pair_m7_run_lr2e-05_lam0.1_eps-1.sh
+Submitted batch job 60516734 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_gcg_m7_run_lr2e-05_lam0.1_eps-0.5.sh
+Submitted batch job 60516735 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_autodan_m7_run_lr2e-05_lam0.1_eps-0.5.sh
+Submitted batch job 60516736 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_pair_m7_run_lr2e-05_lam0.1_eps-0.5.sh
+Submitted batch job 60516737 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_gcg_m7_run_lr2e-05_lam0.1_eps0.sh
+Submitted batch job 60516738 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_autodan_m7_run_lr2e-05_lam0.1_eps0.sh
+Submitted batch job 60516739 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_pair_m7_run_lr2e-05_lam0.1_eps0.sh
+Submitted batch job 60516740 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_gcg_m7_run_lr2e-05_lam0.1_eps0.5.sh
+Submitted batch job 60516741 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_autodan_m7_run_lr2e-05_lam0.1_eps0.5.sh
+Submitted batch job 60516742 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_pair_m7_run_lr2e-05_lam0.1_eps0.5.sh
+Submitted batch job 60516743 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_gcg_m7_run_lr2e-05_lam0.1_eps1.sh
+Submitted batch job 60516744 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_autodan_m7_run_lr2e-05_lam0.1_eps1.sh
+Submitted batch job 60516745 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_pair_m7_run_lr2e-05_lam0.1_eps1.sh
+Submitted batch job 60516746 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_gcg_m7_run_lr2e-05_lam0.3_eps-1.sh
+Submitted batch job 60516747 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_autodan_m7_run_lr2e-05_lam0.3_eps-1.sh
+Submitted batch job 60516748 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_pair_m7_run_lr2e-05_lam0.3_eps-1.sh
+Submitted batch job 60516749 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_gcg_m7_run_lr2e-05_lam0.3_eps-0.5.sh
+Submitted batch job 60516750 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_autodan_m7_run_lr2e-05_lam0.3_eps-0.5.sh
+Submitted batch job 60516751 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_pair_m7_run_lr2e-05_lam0.3_eps-0.5.sh
+Submitted batch job 60516752 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_gcg_m7_run_lr2e-05_lam0.3_eps0.sh
+Submitted batch job 60516753 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_autodan_m7_run_lr2e-05_lam0.3_eps0.sh
+Submitted batch job 60516754 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_pair_m7_run_lr2e-05_lam0.3_eps0.sh
+Submitted batch job 60516755 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_gcg_m7_run_lr2e-05_lam0.3_eps0.5.sh
+Submitted batch job 60516756 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_autodan_m7_run_lr2e-05_lam0.3_eps0.5.sh
+Submitted batch job 60516757 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_pair_m7_run_lr2e-05_lam0.3_eps0.5.sh
+Submitted batch job 60516759 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_gcg_m7_run_lr2e-05_lam0.3_eps1.sh
+Submitted batch job 60516760 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_autodan_m7_run_lr2e-05_lam0.3_eps1.sh
+Submitted batch job 60516761 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_pair_m7_run_lr2e-05_lam0.3_eps1.sh
+Submitted batch job 60516762 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_gcg_m7_run_lr2e-05_lam1_eps-1.sh
+Submitted batch job 60516763 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_autodan_m7_run_lr2e-05_lam1_eps-1.sh
+Submitted batch job 60516764 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_pair_m7_run_lr2e-05_lam1_eps-1.sh
+Submitted batch job 60516765 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_gcg_m7_run_lr2e-05_lam1_eps-0.5.sh
+Submitted batch job 60516766 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_autodan_m7_run_lr2e-05_lam1_eps-0.5.sh
+Submitted batch job 60516767 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_pair_m7_run_lr2e-05_lam1_eps-0.5.sh
+Submitted batch job 60516768 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_gcg_m7_run_lr2e-05_lam1_eps0.sh
+Submitted batch job 60516769 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_autodan_m7_run_lr2e-05_lam1_eps0.sh
+Submitted batch job 60516770 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_pair_m7_run_lr2e-05_lam1_eps0.sh
+Submitted batch job 60516771 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_gcg_m7_run_lr2e-05_lam1_eps0.5.sh
+Submitted batch job 60516772 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_autodan_m7_run_lr2e-05_lam1_eps0.5.sh
+Submitted batch job 60516773 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_pair_m7_run_lr2e-05_lam1_eps0.5.sh
+Submitted batch job 60516774 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_gcg_m7_run_lr2e-05_lam1_eps1.sh
+Submitted batch job 60516775 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_autodan_m7_run_lr2e-05_lam1_eps1.sh
+Submitted batch job 60516776 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_pair_m7_run_lr2e-05_lam1_eps1.sh
+Submitted batch job 60516777 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_gcg_m7_run_lr2e-05_lam3_eps-1.sh
+Submitted batch job 60516778 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_autodan_m7_run_lr2e-05_lam3_eps-1.sh
+Submitted batch job 60516779 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_pair_m7_run_lr2e-05_lam3_eps-1.sh
+Submitted batch job 60516780 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_gcg_m7_run_lr2e-05_lam3_eps-0.5.sh
+Submitted batch job 60516781 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_autodan_m7_run_lr2e-05_lam3_eps-0.5.sh
+Submitted batch job 60516782 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_pair_m7_run_lr2e-05_lam3_eps-0.5.sh
+Submitted batch job 60516784 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_gcg_m7_run_lr2e-05_lam3_eps0.sh
+Submitted batch job 60516785 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_autodan_m7_run_lr2e-05_lam3_eps0.sh
+Submitted batch job 60516787 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_pair_m7_run_lr2e-05_lam3_eps0.sh
+Submitted batch job 60516788 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_gcg_m7_run_lr2e-05_lam3_eps0.5.sh
+Submitted batch job 60516790 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_autodan_m7_run_lr2e-05_lam3_eps0.5.sh
+Submitted batch job 60516793 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_pair_m7_run_lr2e-05_lam3_eps0.5.sh
+Submitted batch job 60516795 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_gcg_m7_run_lr2e-05_lam3_eps1.sh
+Submitted batch job 60516796 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_autodan_m7_run_lr2e-05_lam3_eps1.sh
+Submitted batch job 60516797 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_pair_m7_run_lr2e-05_lam3_eps1.sh
+Submitted batch job 60516798 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_gcg_m7_run_lr2e-05_lam10_eps-1.sh
+Submitted batch job 60516799 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_autodan_m7_run_lr2e-05_lam10_eps-1.sh
+Submitted batch job 60516800 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_pair_m7_run_lr2e-05_lam10_eps-1.sh
+Submitted batch job 60516801 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_gcg_m7_run_lr2e-05_lam10_eps-0.5.sh
+Submitted batch job 60516802 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_autodan_m7_run_lr2e-05_lam10_eps-0.5.sh
+Submitted batch job 60516803 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_pair_m7_run_lr2e-05_lam10_eps-0.5.sh
+Submitted batch job 60516804 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_gcg_m7_run_lr2e-05_lam10_eps0.sh
+Submitted batch job 60516805 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_autodan_m7_run_lr2e-05_lam10_eps0.sh
+Submitted batch job 60516806 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_pair_m7_run_lr2e-05_lam10_eps0.sh
+Submitted batch job 60516807 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_gcg_m7_run_lr2e-05_lam10_eps0.5.sh
+Submitted batch job 60516808 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_autodan_m7_run_lr2e-05_lam10_eps0.5.sh
+Submitted batch job 60516809 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_pair_m7_run_lr2e-05_lam10_eps0.5.sh
+Submitted batch job 60516810 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_gcg_m7_run_lr2e-05_lam10_eps1.sh
+Submitted batch job 60516811 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_autodan_m7_run_lr2e-05_lam10_eps1.sh
+Submitted batch job 60516812 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_pair_m7_run_lr2e-05_lam10_eps1.sh
+Submitted batch job 60516813 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_gcg_m7_run_lr2e-05_lam30_eps-1.sh
+Submitted batch job 60516814 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_autodan_m7_run_lr2e-05_lam30_eps-1.sh
+Submitted batch job 60516815 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_pair_m7_run_lr2e-05_lam30_eps-1.sh
+Submitted batch job 60516816 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_gcg_m7_run_lr2e-05_lam30_eps-0.5.sh
+Submitted batch job 60516817 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_autodan_m7_run_lr2e-05_lam30_eps-0.5.sh
+Submitted batch job 60516818 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_pair_m7_run_lr2e-05_lam30_eps-0.5.sh
+Submitted batch job 60516819 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_gcg_m7_run_lr2e-05_lam30_eps0.sh
+Submitted batch job 60516820 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_autodan_m7_run_lr2e-05_lam30_eps0.sh
+Submitted batch job 60516821 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_pair_m7_run_lr2e-05_lam30_eps0.sh
+Submitted batch job 60516822 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_gcg_m7_run_lr2e-05_lam30_eps0.5.sh
+Submitted batch job 60516823 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_autodan_m7_run_lr2e-05_lam30_eps0.5.sh
+Submitted batch job 60516824 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_pair_m7_run_lr2e-05_lam30_eps0.5.sh
+Submitted batch job 60516825 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_gcg_m7_run_lr2e-05_lam30_eps1.sh
+Submitted batch job 60516826 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_autodan_m7_run_lr2e-05_lam30_eps1.sh
+Submitted batch job 60516827 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/heldout_pair_m7_run_lr2e-05_lam30_eps1.sh
+Wrote 93 job scripts to /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout
+Manifest: /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_clean_heldout/sweep_manifest.txt
+Submitted 93 jobs.
+
+Inference: each run saves 1 checkpoints; latest is ${FINETUNED_BASE}_epoch1 (see manifest).
+W&B: set WANDB_MODE=offline in jobs (already in scripts). After jobs finish, from a machine
+with network access, run: wandb sync <offline-run-folder> under your WANDB_DIR.
+
+=== submit_wandb_sweep (held-out, perturbed LM; gcg,autodan,pair) ===
+  /cvmfs/soft.computecanada.ca/gentoo/2023/x86-64-v3/usr/lib/python-exec/python3.11/python3 /lustre07/scratch/taegyoem/dp-llm-experiments/train/submit_wandb_sweep.py --model-profile mistral_7b_instruct --lm-loss-input perturbed --held-out-families gcg,autodan,pair --script-dir /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_perturbed_heldout --perturbed-sweep-subset lambda0_only --learning-rates 2e-5 --total-epochs 1 --skip-embedded-eval --time 2:30:00 --record-job-ids /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/training_job_ids.txt
+Submitted batch job 60516828 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_perturbed_heldout/heldout_gcg_m7_run_lr2e-05_lam0_eps0_pertlm.sh
+Submitted batch job 60516829 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_perturbed_heldout/heldout_autodan_m7_run_lr2e-05_lam0_eps0_pertlm.sh
+Submitted batch job 60516831 /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_perturbed_heldout/heldout_pair_m7_run_lr2e-05_lam0_eps0_pertlm.sh
+Wrote 3 job scripts to /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_perturbed_heldout
+Manifest: /lustre07/scratch/taegyoem/dp-llm-experiments/sweep_jobs/lm_perturbed_heldout/sweep_manifest.txt
+Submitted 3 jobs.
+
+Inference: each run saves 1 checkpoints; latest is ${FINETUNED_BASE}_epoch1 (see manifest).
+W&B: set WANDB_MODE=offline in jobs (already in scripts). After jobs finish, from a machine
+with network access, run: wandb sync <offline-run-folder> under your WANDB_DIR.
+
+=== sbatch test_eval_matrix array (seen + unseen × 3 families) ===
+  sbatch --dependency=after:60516696:60516697:60516698:60516699:60516700:60516701:60516702:60516703:60516704:60516705:60516706:60516707:60516708:60516709:60516710:60516711:60516712:60516713:60516714:60516715:60516716:60516717:60516718:60516719:60516720:60516721:60516722:60516723:60516724:60516725:60516726:60516727:60516728:60516729:60516730:60516731:60516732:60516733:60516734:60516735:60516736:60516737:60516738:60516739:60516740:60516741:60516742:60516743:60516744:60516745:60516746:60516747:60516748:60516749:60516750:60516751:60516752:60516753:60516754:60516755:60516756:60516757:60516759:60516760:60516761:60516762:60516763:60516764:60516765:60516766:60516767:60516768:60516769:60516770:60516771:60516772:60516773:60516774:60516775:60516776:60516777:60516778:60516779:60516780:60516781:60516782:60516784:60516785:60516787:60516788:60516790:60516793:60516795:60516796:60516797:60516798:60516799:60516800:60516801:60516802:60516803:60516804:60516805:60516806:60516807:60516808:60516809:60516810:60516811:60516812:60516813:60516814:60516815:60516816:60516817:60516818:60516819:60516820:60516821:60516822:60516823:60516824:60516825:60516826:60516827:60516828:60516829:60516831 /lustre07/scratch/taegyoem/dp-llm-experiments/eval/submit_test_eval_matrix.sh
+  (eval matrix EPOCH=1 → *_finetuned_llm_epoch1)
+Submitted batch job 60516832
+
+=== sbatch plot hyperparameter heatmaps (after eval array) ===
+  sbatch --dependency=afterok:60516832 /lustre07/scratch/taegyoem/dp-llm-experiments/eval/submit_plot_heatmaps.sh
+Submitted batch job 60516833
+sbatch: NOTE: Your memory request of 8192.0M was likely submitted as 8.0G. Please note that Slurm interprets memory requests denominated in G as multiples of 1024M, not 1000M.
+
+Done. Eval + metrics TSVs + CSVs: ``$CHECKPOINT_ROOT/test_eval_outputs/`` (default ``$SCRATCH/dp-llm-sweep/test_eval_outputs``). Heatmaps: ``…/test_eval_outputs/heatmaps_<MODEL_PROFILE>_lr<LR>/{aggregate,by_dataset}/`` (names from metrics TSVs unless ``HEATMAP_OUT_DIR`` is set). Override ``CHECKPOINT_ROOT`` / ``METRICS_DIR`` / ``HEATMAP_OUT_DIR`` when sbatching ``submit_plot_heatmaps.sh`` manually.

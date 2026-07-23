@@ -630,13 +630,19 @@ def main(argv: list[str] | None = None) -> int:
     by_ds: dict[str, list[dict[str, Any]]] = {}
     if labels_path and labels_path.is_file():
         labels_df = pd.read_csv(labels_path)
-        for c in ("goal", "target", "dataset"):
-            if c not in labels_df.columns:
-                print(f"ERROR: --labels must contain column {c!r}", file=sys.stderr)
-                return 2
-        by_ds = _collect_per_dataset_rows(mdir, labels_df)
-        if not by_ds:
-            print("[warn] no per-dataset rows (check seen_harmful_csv paths vs labels)", file=sys.stderr)
+        missing_label_cols = [c for c in ("goal", "target", "dataset") if c not in labels_df.columns]
+        if missing_label_cols:
+            # e.g. a validation set with only 'goal' cannot be split by benchmark; still
+            # produce the aggregate heatmaps (ASR + FRR) instead of failing the whole job.
+            print(
+                f"[warn] labels file {labels_path} missing column(s) {missing_label_cols}; "
+                "skipping by_dataset/ (aggregate heatmaps only).",
+                file=sys.stderr,
+            )
+        else:
+            by_ds = _collect_per_dataset_rows(mdir, labels_df)
+            if not by_ds:
+                print("[warn] no per-dataset rows (check seen_harmful_csv paths vs labels)", file=sys.stderr)
     elif args.labels:
         print(f"[warn] labels file not found ({labels_path}); skipping by_dataset/", file=sys.stderr)
 

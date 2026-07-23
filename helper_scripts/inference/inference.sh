@@ -8,6 +8,8 @@
 #SBATCH --output=output/inference.out
 
 set -euo pipefail
+cd "${SLURM_SUBMIT_DIR:-.}"
+mkdir -p output
 
 # Load environment
 module load StdEnv/2023 python/3.11
@@ -22,5 +24,9 @@ export HF_HOME=$SLURM_TMPDIR/hf_home
 mkdir -p $TRANSFORMERS_CACHE
 mkdir -p $HF_HOME
 
-# Run training
-python $SCRATCH/dp-llm-experiments/helper_scripts/inference/inference.py
+# Generate base-model Original Response completions and merge them into the relevant
+# dataset CSVs. Override the model via MODEL_PROFILE (default: llama_3_8b_instruct).
+MODEL_PROFILE="${MODEL_PROFILE:-llama_3_8b_instruct}"
+
+python $SCRATCH/dp-llm-experiments/helper_scripts/inference/inference.py \
+    --model-profile "${MODEL_PROFILE}"

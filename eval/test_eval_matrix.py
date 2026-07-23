@@ -255,6 +255,7 @@ def run_eval_py(
     harmful_stem: Path,
     benign_stem: Path,
     system_prompt_mode: str,
+    benign_system_prompt_mode: str | None,
     model_profile: str,
 ) -> None:
     cmd = [
@@ -277,6 +278,8 @@ def run_eval_py(
         "--benign-output-file",
         str(benign_stem),
     ]
+    if benign_system_prompt_mode is not None:
+        cmd.extend(["--benign-system-prompt-mode", benign_system_prompt_mode])
     if eval_mode == "unseen-family":
         if not unseen_family:
             raise ValueError("unseen_family required")
@@ -303,6 +306,7 @@ def run_one_task(
     benign_test: Path,
     out_dir: Path,
     system_prompt_mode: str,
+    benign_system_prompt_mode: str | None,
     model_profile: str,
     tmp_benign: Path,
     dry_run: bool,
@@ -349,6 +353,7 @@ def run_one_task(
             harmful_stem=seen_h_stem,
             benign_stem=seen_b_stem,
             system_prompt_mode=system_prompt_mode,
+            benign_system_prompt_mode=benign_system_prompt_mode,
             model_profile=model_profile,
         )
 
@@ -380,6 +385,7 @@ def run_one_task(
             harmful_stem=h_stem,
             benign_stem=b_stem,
             system_prompt_mode=system_prompt_mode,
+            benign_system_prompt_mode=benign_system_prompt_mode,
             model_profile=model_profile,
         )
 
@@ -529,6 +535,15 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="Must match training/eval protocol (default empty = nosys, same as your sweep).",
     )
     p.add_argument(
+        "--benign-system-prompt-mode",
+        choices=("default", "empty"),
+        default=None,
+        help=(
+            "System-prompt policy for benign/FRR eval only (passed to eval.py). If unset, "
+            "mirrors --system-prompt-mode. Set 'empty' to force no system prompt for FRR."
+        ),
+    )
+    p.add_argument(
         "--model-profile",
         default=os.environ.get("MODEL_PROFILE", DEFAULT_MODEL_PROFILE),
         choices=list(MODEL_PROFILE_CHOICES),
@@ -604,6 +619,7 @@ def main(argv: list[str] | None = None) -> int:
         benign_test=benign_test,
         out_dir=out_dir,
         system_prompt_mode=args.system_prompt_mode,
+        benign_system_prompt_mode=args.benign_system_prompt_mode,
         model_profile=args.model_profile,
         tmp_benign=tmp_benign,
         dry_run=args.dry_run,
