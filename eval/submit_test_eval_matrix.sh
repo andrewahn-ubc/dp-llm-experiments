@@ -5,7 +5,7 @@
 #SBATCH --cpus-per-task=6
 #SBATCH --mem=48G
 #SBATCH --time=2:15:00
-#SBATCH --array=0-1
+#SBATCH --array=0-0
 #SBATCH --output=output/test_eval_matrix_%A_%a.out
 #
 # ---------------------------------------------------------------------------
@@ -33,10 +33,11 @@
 #
 # ---------------------------------------------------------------------------
 #
-# One array task = one (mode, λ, ε) cell: clean grid + one perturbed LM run at λ=0
-# (default --perturbed-reg-subset lambda0_only), running 1× seen-family + 3× unseen eval.
-# Default task_count matches train/submit_wandb_sweep.py (pipeline: 1 clean + 1 perturbed@λ=0 = 2).
-# Wider grids: raise --array upper bound to len(tasks)-1 from: python eval/test_eval_matrix.py --list-tasks
+# One array task = one (λ, ε) cell of the clean grid (λ=0 baseline + λ>0 regularized),
+# running 1× seen-family + 3× unseen eval. Default --perturbed-reg-subset none (no separate
+# perturbed-LM task; clean/perturbed is purely λ=0 vs λ>0).
+# Set --array to len(tasks)-1 from: python eval/test_eval_matrix.py --list-tasks
+# (run_final_pipeline.py sets --array automatically to match the sweep grid).
 #
 # Prerequisites:
 #   • Seen checkpoints under CHECKPOINT_ROOT (same as submit_wandb_sweep):
@@ -76,13 +77,16 @@ MODEL_PROFILE="${MODEL_PROFILE:-llama_2_7b_chat}"
 #   OUT_DIR                     metrics + per-example CSV output dir
 #   SYSTEM_PROMPT_MODE          system-prompt policy for harmful eval (default: empty)
 #   BENIGN_SYSTEM_PROMPT_MODE   system-prompt policy for FRR eval (e.g. empty = no sys prompt)
+# clean/perturbed is λ-based now: the clean grid (λ=0 baseline + λ>0 regularized) covers
+# everything, so there is no separate perturbed-LM task. Override with
+# PERTURBED_REG_SUBSET=lambda0_only|full only for the legacy R2D2 perturbed-LM sweep.
 PY_ARGS=(
     --repo-root "${REPO_ROOT}"
     --checkpoint-root "${CHECKPOINT_ROOT}"
     --model-profile "${MODEL_PROFILE}"
     --epoch "${EPOCH:-5}"
     --lr "${LR:-2e-5}"
-    --perturbed-reg-subset lambda0_only
+    --perturbed-reg-subset "${PERTURBED_REG_SUBSET:-none}"
 )
 # Use --opt=value form: EPSILONS can start with '-' (e.g. -1,-0.5,...), which argparse
 # would otherwise misread as a flag.

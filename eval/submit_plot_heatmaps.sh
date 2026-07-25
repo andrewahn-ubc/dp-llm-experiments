@@ -9,10 +9,12 @@
 # Default account is RAS (def-mijungp). If you use RAC instead, submit with:
 #   sbatch --account=rrg-mijungp eval/submit_plot_heatmaps.sh
 #
-# CPU-only: reads test_eval_matrix ``*_metrics.tsv`` and runs ``plot_hyperparameter_heatmaps.py``.
+# CPU-only: reads test_eval_matrix ``*_metrics.tsv`` and runs ``plot_hyperparameter_heatmaps.py``,
+# then ``select_best_hyperparams.py`` (summary table + Pareto frontier + recommended (λ, ε)).
 # Default output: ``<METRICS_DIR>/heatmaps_<model>_lr<rate>/{aggregate,by_dataset}/`` — the Python
 # script infers ``<model>`` and ``<rate>`` from the first ``clean_reg`` metrics TSV (no exports needed).
 # Each of those folders gets per-metric PNGs plus ``combined_clean_lm_dashboard.png`` (single stitched figure).
+# Selection artifacts land in ``<METRICS_DIR>/selection/``.
 # Override the root only with HEATMAP_OUT_DIR (passed through as ``--output-dir``).
 #
 # Environment (defaults match submit_test_eval_matrix.sh):
@@ -40,3 +42,15 @@ if [[ -n "${HEATMAP_OUT_DIR:-}" ]]; then
 fi
 
 python "${REPO_ROOT}/eval/plot_hyperparameter_heatmaps.py" "${PY_ARGS[@]}"
+
+# Hyperparameter selection: summary table + Pareto frontier + recommended (λ, ε).
+# Writes to ${METRICS_DIR}/selection/. Override the policy via:
+#   SELECT_OBJECTIVE (seen|heldout|combined, default seen), FRR_CAP (default 0.10),
+#   ASR_WEIGHT (default 0.5). Set SKIP_SELECTION=1 to skip.
+if [[ "${SKIP_SELECTION:-0}" != "1" ]]; then
+  python "${REPO_ROOT}/eval/select_best_hyperparams.py" \
+    --metrics-dir "${METRICS_DIR}" \
+    --objective "${SELECT_OBJECTIVE:-seen}" \
+    --frr-cap "${FRR_CAP:-0.10}" \
+    --asr-weight "${ASR_WEIGHT:-0.5}"
+fi

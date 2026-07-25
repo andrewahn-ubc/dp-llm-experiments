@@ -1,34 +1,29 @@
 #!/usr/bin/env python3
 """
-Single entry point for the **final** experiment on Narval:
+Single entry point for the **final** experiment on Narval.
 
-  1. Submit **seen-family** training with **clean** LM (λ×ε grid via
-     ``train/submit_wandb_sweep.LAMBDAS`` / ``EPSILONS`` and ``lambda_epsilon_pairs``). Each cell is **one** SLURM job that runs **only**
-     ``train.py`` once by default on the **first half** of the shuffled CSV (``--training-halves-phase first``,
-     ``--total-epochs 1`` in the sweep sense → checkpoint ``…_finetuned_llm_epoch1``). Use
-     ``python run_final_pipeline.py --training-half second`` (same ``--model`` / ``--lr``) for the
-     second half → ``…_epoch2``. SLURM wall time defaults to **3 hours** (``--time 3:00:00``) per
-     training job (each half-epoch pass or a single full-data pass when using ``--training-half full``).
-     Test metrics use ``submit_test_eval_matrix.sh`` with ``EPOCH`` matching the half (1 or 2).
+**clean/perturbed is purely λ-based** (all runs use ``--lm-loss-input clean``): **λ=0** is the
+"clean" baseline (stability regularizer OFF — no perturbed prompts), and **λ>0** are the
+"perturbed" runs (stability regularizer ON, regularizes with perturbed prompts). There is no
+separate R2D2 adversarial-SFT (``--lm-loss-input perturbed``) pass.
 
-  2. Submit **seen-family** training with **perturbed** LM only at **λ=0** (one run;
-     representative ε matches ``lambda_epsilon_pairs`` for λ=0), via
-     ``--lm-loss-input perturbed --perturbed-sweep-subset lambda0_only``; slugs use ``_pertlm``.
+  1. Submit **seen-family** training over the λ×ε grid (via
+     ``train/submit_wandb_sweep.LAMBDAS`` / ``EPSILONS`` and ``lambda_epsilon_pairs``; λ=0 collapses
+     to one representative ε). Each cell is **one** SLURM job. By default (``--training-half both``)
+     that job trains the **first half** of the shuffled CSV → ``…_finetuned_llm_epoch1`` then resumes
+     and trains the **second half** → ``…_epoch2`` (evaluated). SLURM wall time defaults to **6 hours**
+     for ``both`` (**3 hours** for a single ``first``/``second``/``full`` pass).
 
-  3. Submit **held-out** training for **clean** LM (three families × same grid as (1)).
+  2. Submit **held-out** training over the same grid (three families × grid).
 
-  4. Submit **held-out** training for **perturbed** LM at λ=0 only (same as (2)).
+  3. Submit the SLURM array for ``test_eval_matrix.py`` on the **validation** set (task count =
+     number of (λ, ε) cells; 1× seen + 3× unseen eval per task; FRR measured WITHOUT a system
+     prompt). ``EPOCH`` matches the trained checkpoint (``2`` for ``both``).
 
-  5. Submit the SLURM array for ``test_eval_matrix.py`` (task count matches the grid in
-     ``submit_wandb_sweep`` / ``eval/test_eval_matrix.py``; default pipeline: **2** tasks:
-     1 clean (λ=0.1, ε=-1) + 1 perturbed-at-λ=0; 1× seen + 3× unseen eval per task).
-
-  6. Submit **CPU** heatmaps: **13** per-metric panel PNGs plus **combined_clean_lm_dashboard.png**
-     under ``…/heatmaps_<MODEL>_lr<LR>/aggregate/`` and each
-     ``…/heatmaps_<MODEL>_lr<LR>/by_dataset/<benchmark>/``. Folder names come from the eval
-     ``*_metrics.tsv`` files (no manual exports). Labels default to
-     ``official_data/combined_test_dataset.csv`` (must include ``dataset``). Eval artifacts live under
-     ``$CHECKPOINT_ROOT/test_eval_outputs`` (same as ``test_eval_matrix``).
+  4. Submit **CPU** heatmaps (per-metric panel PNGs + combined dashboard) under
+     ``…/heatmaps_<MODEL>_lr<LR>/aggregate/`` and ``…/by_dataset/<benchmark>/``, then run
+     **hyperparameter selection** (``eval/select_best_hyperparams.py``) → a summary table,
+     Pareto frontier, and recommended (λ, ε) under ``…/val_eval_outputs/lr<LR>/selection/``.
 
 By default the eval array waits on training (``--dependency=after:<ids>``). Use
 ``--parallel-eval`` to overlap eval with training.
@@ -46,7 +41,7 @@ Run from the repo root on the cluster::
 ``submit_test_eval_matrix.sh`` (one eval array + heatmap job per LR). Omit to use the
 default (``2e-5``).
 
-Forward extra arguments to ``train/submit_wandb_sweep.py`` (all **four** training passes) after ``--``::
+Forward extra arguments to ``train/submit_wandb_sweep.py`` (both training passes) after ``--``::
 
   python run_final_pipeline.py --model mistral_7b_instruct -- --dry-run --limit 2
 
@@ -67,9 +62,10 @@ Launcher-only flags (before ``--``)::
   --skip-heatmaps          Do not submit ``eval/submit_plot_heatmaps.sh`` after eval.
   --parallel-eval          Submit eval immediately; do not wait for training jobs to finish.
 
-  --training-half {first,second,full}
-                           Default ``first``: first shuffled half → ``*_epoch1``. ``second``: resume
-                           ``*_epoch1``, second half → ``*_epoch2``. ``full``: legacy one pass on all rows.
+  --training-half {both,first,second,full}
+                           Default ``both``: one job trains first half → ``*_epoch1`` then second
+                           half → ``*_epoch2`` (evaluated). ``first``/``second``: only that half.
+                           ``full``: legacy one pass on all rows.
 """
 
 from __future__ import annotations
@@ -120,13 +116,15 @@ def _parse_lr_list(raw: str | None) -> list[str] | None:
             out.append(p)
     return out
 
-# Single SLURM script per (lr,λ,ε) cell; train-only; default **first half** of one data
-# pass (``--total-epochs 1`` + ``--training-halves-phase first`` → ``*_epoch1``), then run
-# ``python run_final_pipeline.py --training-half second`` for the second half → ``*_epoch2``.
-# ``submit_test_eval_matrix.sh`` reads ``EPOCH``; we set ``EPOCH`` from ``--training-half``
-# and any ``--total-epochs`` override after ``--``.
+# Single SLURM script per (lr,λ,ε) cell; train-only. Default ``--training-half both`` runs
+# ``--training-halves-phase both`` → first half (``*_epoch1``) then second half (``*_epoch2``)
+# in one job. ``submit_test_eval_matrix.sh`` reads ``EPOCH``; we set ``EPOCH`` from
+# ``--training-half`` (``2`` for ``both``) and any ``--total-epochs`` override after ``--``.
 _PIPELINE_TRAIN_EPOCHS = "1"
+# One half-pass fits in ~3h; "both" trains two halves back to back in one job, so it
+# gets double the wall time.
 _TRAIN_WALL_TIME = "3:00:00"
+_TRAIN_WALL_TIME_BOTH = "6:00:00"
 
 # Llama 3 data on the compute node ($SCRATCH sync of the repo's official/ dir).
 # training-data: llama3 train split; validation-data: llama3 validation split (same
@@ -148,37 +146,34 @@ def _eval_grid_str() -> tuple[str, str]:
 def _eval_task_count() -> int:
     """Number of test_eval_matrix tasks for the pipeline's grid.
 
-    Matches eval/test_eval_matrix.build_tasks with --perturbed-reg-subset lambda0_only:
-    one clean_reg task per (λ, ε) cell, plus one perturbed λ=0 task.
+    Matches eval/test_eval_matrix.build_tasks with --perturbed-reg-subset none:
+    one clean_reg task per (λ, ε) cell (λ=0 collapsed to one representative ε). No
+    separate perturbed-LM task — clean/perturbed is purely λ=0 vs λ>0.
     """
-    return len(lambda_epsilon_pairs(SWEEP_LAMBDAS, SWEEP_EPSILONS)) + 1
+    return len(lambda_epsilon_pairs(SWEEP_LAMBDAS, SWEEP_EPSILONS))
 
 
 def _default_submit_train_args(training_half: str) -> list[str]:
-    base = [
-        "--total-epochs",
-        _PIPELINE_TRAIN_EPOCHS,
-        "--skip-embedded-eval",
-        "--time",
-        _TRAIN_WALL_TIME,
-    ]
-    if training_half == "first":
-        return base[:2] + ["--training-halves-phase", "first"] + base[2:]
-    if training_half == "second":
-        return base[:2] + ["--training-halves-phase", "second"] + base[2:]
-    return base
+    wall = _TRAIN_WALL_TIME_BOTH if training_half == "both" else _TRAIN_WALL_TIME
+    # Train-only jobs (--skip-embedded-eval): the dedicated validation eval array runs after
+    # training. Embedded per-epoch eval only emits for --training-halves-phase full anyway.
+    args = ["--total-epochs", _PIPELINE_TRAIN_EPOCHS]
+    if training_half in ("first", "second", "both"):
+        args += ["--training-halves-phase", training_half]
+    args += ["--skip-embedded-eval", "--time", wall]
+    return args
 
 
 def _epoch_env_for_matrix(training_half: str, forward: list[str]) -> str:
     """``test_eval_matrix`` checkpoint suffix ``_epoch{N}``.
 
-    After the default first-half training, evaluate ``_epoch1``. After ``--training-half
-    second``, evaluate ``_epoch2``. Otherwise ``N`` comes from the effective ``--total-epochs``
-    in merged defaults + ``forward`` (after ``--``).
+    Default ``--training-half both`` trains both halves and evaluates ``_epoch2``. ``first``
+    evaluates ``_epoch1``; ``second`` evaluates ``_epoch2``. Otherwise ``N`` comes from the
+    effective ``--total-epochs`` in merged defaults + ``forward`` (after ``--``).
     """
     if training_half == "first":
         return "1"
-    if training_half == "second":
+    if training_half in ("second", "both"):
         return "2"
     merged = list(_default_submit_train_args("full")) + list(forward)
     last: str | None = None
@@ -371,7 +366,7 @@ def main(argv: list[str] | None = None) -> int:
     lp.add_argument(
         "--skip-held-out-training",
         action="store_true",
-        help="Only submit seen-family sweeps (clean + perturbed@λ=0); skip held-out training.",
+        help="Only submit the seen-family sweep (full λ×ε grid); skip held-out training.",
     )
     lp.add_argument(
         "--skip-eval",
@@ -393,13 +388,13 @@ def main(argv: list[str] | None = None) -> int:
     )
     lp.add_argument(
         "--training-half",
-        choices=("first", "second", "full"),
-        default="first",
+        choices=("both", "first", "second", "full"),
+        default="both",
         help=(
-            "Training data slice for each sweep job: default ``first`` runs train.py on the "
-            "first half of the shuffled rows (checkpoint *_epoch1). ``second`` resumes *_epoch1 "
-            "and trains the second half (*_epoch2). ``full`` uses the whole CSV in one pass "
-            "(``--training-halves-phase full``; legacy behavior)."
+            "Training data slice for each sweep job. Default ``both``: one SLURM job trains the "
+            "first half → *_epoch1 then resumes and trains the second half → *_epoch2 (evaluated). "
+            "``first`` runs only the first half (*_epoch1); ``second`` resumes *_epoch1 and trains "
+            "the second half (*_epoch2). ``full`` uses the whole CSV in one pass (legacy)."
         ),
     )
     lp.add_argument(
@@ -472,23 +467,14 @@ def main(argv: list[str] | None = None) -> int:
         print(f"ERROR: missing {heatmap_sh} (use --skip-heatmaps if you do not want plots)", file=sys.stderr)
         return 2
 
+    # λ-based clean/perturbed: one --lm-loss-input clean sweep over the full λ×ε grid
+    # (λ=0 = clean baseline, λ>0 = perturbed / stability-regularized). No separate
+    # --lm-loss-input perturbed (R2D2 adversarial-SFT) pass.
     seen_sweeps = [
-        ("clean", "seen-family", sweep_root / "lm_clean_seen", ()),
-        (
-            "perturbed",
-            "seen-family",
-            sweep_root / "lm_perturbed_seen",
-            ("--perturbed-sweep-subset", "lambda0_only"),
-        ),
+        ("clean", "seen-family", sweep_root / "lm_seen", ()),
     ]
     held_sweeps = [
-        ("clean", "held-out", sweep_root / "lm_clean_heldout", ()),
-        (
-            "perturbed",
-            "held-out",
-            sweep_root / "lm_perturbed_heldout",
-            ("--perturbed-sweep-subset", "lambda0_only"),
-        ),
+        ("clean", "held-out", sweep_root / "lm_heldout", ()),
     ]
 
     chain_eval = not args.parallel_eval and not args.skip_eval
@@ -641,9 +627,12 @@ def main(argv: list[str] | None = None) -> int:
         "``$CHECKPOINT_ROOT/val_eval_outputs/lr<LR>/`` (default "
         "``$SCRATCH/dp-llm-sweep/val_eval_outputs/lr<LR>``). Validation heatmaps (aggregate "
         "ASR + FRR): ``…/val_eval_outputs/lr<LR>/heatmaps_<MODEL_PROFILE>_lr<LR>/aggregate/``. "
-        "FRR was measured WITHOUT a system prompt. Pick the best (λ, ε, lr) from these, then "
-        "run the TEST eval separately (e.g. sbatch eval/submit_test_eval_matrix.sh with the "
-        "test CSVs) for the final numbers.",
+        "FRR was measured WITHOUT a system prompt.\n"
+        "Hyperparameter selection (auto, after heatmaps): a summary table + Pareto frontier + "
+        "recommended (λ, ε) land in ``…/val_eval_outputs/lr<LR>/selection/`` "
+        "(hyperparameter_summary.csv, pareto_frontier.csv, recommendation.md). Use those to "
+        "pick (λ, ε, lr), then run the TEST eval separately (sbatch eval/submit_test_eval_matrix.sh "
+        "with the test CSVs) for the final numbers.",
         flush=True,
     )
     return 0

@@ -5,9 +5,10 @@ Submit a grid of SLURM training jobs (Narval / Compute Canada friendly).
 Defaults target **final** runs (not train/val hyperparameter search):
 
   • Learning rate: ``2e-5`` (override via ``--learning-rates``).
-  • λ × ε grid: ``LAMBDAS = (0.1, 1, 3, 10, 30)`` × ``EPSILONS = (-1, -0.5, 0, 0.5, 1)``
-    (see ``lambda_epsilon_pairs``). When **λ=0** appears in ``LAMBDAS``, only one
-    representative ε is used; ε does not affect training at λ=0.
+  • λ × ε grid: ``LAMBDAS = (0, 0.1, 1, 3, 10, 30)`` × ``EPSILONS = (-1, -0.5, 0, 0.5, 1)``
+    (see ``lambda_epsilon_pairs``). **λ=0** is the "clean" baseline (stability regularizer
+    off) and uses only one representative ε (ε is inert at λ=0); **λ>0** are the
+    "perturbed" runs (stability regularizer on). All runs use ``--lm-loss-input clean``.
   • Training CSV: ``official_data/train_plus_validation.csv`` (row order is not
     semantically meaningful; ``train.py`` shuffles after load by default).
   • Embedded ``eval.py`` after selected epochs (default ``--eval-epochs 5``) using **test**
@@ -64,7 +65,10 @@ from train.model_profiles import DEFAULT_MODEL_PROFILE, MODEL_PROFILE_CHOICES, m
 
 # (λ, ε) grid for clean LM (plus λ=0 perturbed via --perturbed-sweep-subset lambda0_only;
 # representative ε follows lambda_epsilon_pairs).
-LAMBDAS = (0.1, 1.0, 3.0, 10.0, 30.0)
+# λ=0 is the "clean" baseline (stability regularizer OFF — no perturbed prompts used).
+# λ>0 are the "perturbed" runs (stability regularizer ON, regularizes with perturbed prompts).
+# All runs use --lm-loss-input clean; the clean/perturbed distinction is purely λ=0 vs λ>0.
+LAMBDAS = (0.0, 0.1, 1.0, 3.0, 10.0, 30.0)
 EPSILONS = (-1.0, -0.5, 0.0, 0.5, 1.0)
 
 
@@ -252,6 +256,10 @@ def render_job_script(
         train_rounds = [(1, None, 0.0, 0.5, 2)]
     elif training_halves_phase == "second":
         train_rounds = [(2, 1, 0.5, 1.0, 2)]
+    elif training_halves_phase == "both":
+        # One SLURM job trains both halves back to back: first half -> *_epoch1, then
+        # resume and train the second half -> *_epoch2 (final checkpoint to evaluate).
+        train_rounds = [(1, None, 0.0, 0.5, 2), (2, 1, 0.5, 1.0, 2)]
     else:
         train_rounds = [
             (
@@ -384,9 +392,10 @@ def render_job_script(
         lines.append(f"    --epsilon {eps} \\")
         lines.append("    --lora-rank 8 \\")
         lines.append(f"    --total-epochs {train_te_label} \\")
-        if training_halves_phase in ("first", "second"):
-            # Same seed for first vs second half re-submits: derived from slug (stable), not
-            # WANDB_RUN_ID (new uuid each submission).
+        if training_halves_phase in ("first", "second", "both"):
+            # Same seed across halves (first/second re-submits, or both rounds in one job):
+            # derived from slug (stable), not WANDB_RUN_ID (new uuid each submission), so the
+            # two halves partition the same shuffled order.
             shuf = zlib.crc32(run_slug.encode("utf-8")) & 0x7FFFFFFF
             lines.append(f"    --training-shuffle-seed {shuf} \\")
         if resume_prev is not None:
@@ -693,15 +702,17 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     )
     p.add_argument(
         "--training-halves-phase",
-        choices=("full", "first", "second"),
+        choices=("full", "first", "second", "both"),
         default="full",
         help=(
             "full: honor --total-epochs and optional --train-data-frac-* on each step. "
             "first: one train.py pass on the first half of rows [0,0.5) → *_epoch1 "
             "(--total-epochs must be 1). "
             "second: resume *_epoch1, second half [0.5,1) → *_epoch2 (--total-epochs 1). "
-            "first|second also set --training-shuffle-seed from the run slug so re-submitting "
-            "the second half matches the first half's shuffle."
+            "both: one SLURM job trains the first half → *_epoch1 then resumes and trains the "
+            "second half → *_epoch2 (--total-epochs 1). "
+            "first|second|both set --training-shuffle-seed from the run slug so both halves "
+            "partition the same shuffled order."
         ),
     )
     p.add_argument(
@@ -721,11 +732,11 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     if args.embed_sweep_eval:
         args.skip_embedded_eval = False
 
-    if args.training_halves_phase in ("first", "second"):
+    if args.training_halves_phase in ("first", "second", "both"):
         if args.total_epochs != 1:
             raise SystemExit(
-                "--training-halves-phase first|second requires --total-epochs 1 "
-                "(one train.py invocation per Slurm script)."
+                "--training-halves-phase first|second|both requires --total-epochs 1 "
+                "(the halves schedule is fixed to *_epoch1 / *_epoch2)."
             )
     else:
         if not (
@@ -976,7 +987,7 @@ def main(argv: list[str]) -> int:
             flush=True,
         )
     te = args.total_epochs
-    if args.training_halves_phase == "second":
+    if args.training_halves_phase in ("second", "both"):
         te = 2
     if args.training_halves_phase == "first":
         print(
@@ -987,6 +998,12 @@ def main(argv: list[str]) -> int:
     elif args.training_halves_phase == "second":
         print(
             "Inference: each job resumes *_epoch1 and saves *_epoch2 after the second half.",
+            flush=True,
+        )
+    elif args.training_halves_phase == "both":
+        print(
+            "Inference: each job trains both halves back to back and saves *_epoch1 then "
+            "*_epoch2 (evaluate *_epoch2).",
             flush=True,
         )
     else:
