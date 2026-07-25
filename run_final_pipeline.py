@@ -43,7 +43,8 @@ Run from the repo root on the cluster::
 
 ``--lr`` is a comma-separated subset of ``{2e-5, 1e-5}``: passed to
 ``submit_wandb_sweep --learning-rates`` and used as ``LR`` for
-``submit_test_eval_matrix.sh`` (one eval array + heatmap job per LR). Omit to use both LRs.
+``submit_test_eval_matrix.sh`` (one eval array + heatmap job per LR). Omit to use the
+default (``2e-5``).
 
 Forward extra arguments to ``train/submit_wandb_sweep.py`` (all **four** training passes) after ``--``::
 
@@ -57,7 +58,8 @@ Launcher-only flags (before ``--``)::
   --model NAME             Base LLM preset (default: llama_2_7b_chat); see train/model_profiles.py.
 
   --lr RATE[,RATE...]      Comma-separated subset of {2e-5, 1e-5} for all training sweeps +
-                           eval array (one eval array + heatmap per LR). Omit to use both.
+                           eval array (one eval array + heatmap per LR). Omit to use the
+                           default (2e-5).
 
   --skip-training          Skip all ``submit_wandb_sweep`` calls (only sbatch eval array).
   --skip-held-out-training Submit seen-family sweeps only (no held-out training jobs).
@@ -95,7 +97,7 @@ HELD_OUT_FAMS = "gcg,autodan,pair"
 # Learning rates accepted by --lr. Default (when --lr is omitted) matches the
 # submit_wandb_sweep --learning-rates default so the eval arrays cover every trained LR.
 _ALLOWED_LRS = ("2e-5", "1e-5")
-_DEFAULT_SWEEP_LRS = ("2e-5", "1e-5")
+_DEFAULT_SWEEP_LRS = ("2e-5",)
 
 
 def _parse_lr_list(raw: str | None) -> list[str] | None:
@@ -446,7 +448,7 @@ def main(argv: list[str] | None = None) -> int:
             "Comma-separated learning rate(s) from {2e-5, 1e-5} for all submit_wandb_sweep "
             "passes (--learning-rates) and for the eval SLURM array (one array + heatmap job "
             "per LR; LR env → test_eval_matrix --lr). Omit to use the submit_wandb_sweep "
-            "default (2e-5,1e-5) for both training and eval."
+            "default (2e-5) for both training and eval."
         ),
     )
     args = lp.parse_args(launcher_args)

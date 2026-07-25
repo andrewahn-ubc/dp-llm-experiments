@@ -4,8 +4,8 @@ Submit a grid of SLURM training jobs (Narval / Compute Canada friendly).
 
 Defaults target **final** runs (not train/val hyperparameter search):
 
-  • Learning rates: ``2e-5,1e-5`` (override via ``--learning-rates``).
-  • λ × ε grid: ``LAMBDAS = (0.1, 1, 3, 10)`` × ``EPSILONS = (-1, -0.5, 0, 0.5, 1)``
+  • Learning rate: ``2e-5`` (override via ``--learning-rates``).
+  • λ × ε grid: ``LAMBDAS = (0.1, 1, 3, 10, 30)`` × ``EPSILONS = (-1, -0.5, 0, 0.5, 1)``
     (see ``lambda_epsilon_pairs``). When **λ=0** appears in ``LAMBDAS``, only one
     representative ε is used; ε does not affect training at λ=0.
   • Training CSV: ``official_data/train_plus_validation.csv`` (row order is not
@@ -64,7 +64,7 @@ from train.model_profiles import DEFAULT_MODEL_PROFILE, MODEL_PROFILE_CHOICES, m
 
 # (λ, ε) grid for clean LM (plus λ=0 perturbed via --perturbed-sweep-subset lambda0_only;
 # representative ε follows lambda_epsilon_pairs).
-LAMBDAS = (0.1, 1.0, 3.0, 10.0)
+LAMBDAS = (0.1, 1.0, 3.0, 10.0, 30.0)
 EPSILONS = (-1.0, -0.5, 0.0, 0.5, 1.0)
 
 
@@ -651,9 +651,9 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     )
     p.add_argument(
         "--learning-rates",
-        default="2e-5,1e-5",
+        default="2e-5",
         help=(
-            "Comma-separated learning rates for the sweep (default: 2e-5,1e-5). "
+            "Comma-separated learning rates for the sweep (default: 2e-5). "
             "Example for search: '1e-6,1e-5,2e-5'."
         ),
     )
