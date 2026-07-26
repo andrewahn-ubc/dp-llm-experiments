@@ -607,6 +607,10 @@ def main(argv: list[str] | None = None) -> int:
     harmful_test = Path(expand_path(args.harmful_test))
     benign_test = Path(expand_path(args.benign_test))
     out_dir = Path(expand_path(args.out_dir))
+    # eval.py writes harmful/benign CSVs directly into out_dir, so it must exist before we
+    # launch it (the metrics-TSV writer only mkdirs later, which is too late).
+    if not args.dry_run:
+        out_dir.mkdir(parents=True, exist_ok=True)
 
     tmp_benign = Path(os.environ.get("SLURM_TMPDIR", "/tmp")) / f"frr_test_eval_task{args.task_id}.csv"
 
