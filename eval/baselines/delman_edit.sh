@@ -39,6 +39,21 @@ DELMAN_DIR="${REPO_ROOT}/third_party/DELMAN"
 cd "${DELMAN_DIR}"
 mkdir -p output
 
+# run_delman.py writes edited checkpoints to a RESULTS_DIR that globals.yml
+# sets as the *relative* path "results" (resolved from cwd, i.e. DELMAN_DIR).
+# Left as-is that would write multi-GB model checkpoints under $HOME, which
+# is typically small-quota on HPC clusters. Redirect via a symlink into
+# $SCRATCH instead of touching the vendored globals.yml/run_delman.py.
+DELMAN_RESULTS_DIR="${DELMAN_RESULTS_DIR:-${SCRATCH}/dp-llm-experiments/third_party_delman_results}"
+mkdir -p "${DELMAN_RESULTS_DIR}"
+if [[ -e "results" && ! -L "results" ]]; then
+  echo "ERROR: ${DELMAN_DIR}/results already exists and is not a symlink." >&2
+  echo "Move or remove it, then re-run (refusing to clobber existing output)." >&2
+  exit 2
+fi
+ln -sfn "${DELMAN_RESULTS_DIR}" results
+echo "results/ -> ${DELMAN_RESULTS_DIR}"
+
 module load StdEnv/2023 python/3.11
 # shellcheck source=/dev/null
 source "${VENV_ACTIVATE:-${SCRATCH}/venv/delman/bin/activate}"
@@ -69,7 +84,7 @@ python3 -m run_delman \
   --data_name "HarmBench.json" \
   --out_name "${OUT_NAME}"
 
-EDITED_MODEL_DIR="${DELMAN_DIR}/results/${OUT_NAME}"
+EDITED_MODEL_DIR="${DELMAN_RESULTS_DIR}/${OUT_NAME}"
 echo "Done. Edited model saved to:"
 echo "  ${EDITED_MODEL_DIR}"
 echo ""
