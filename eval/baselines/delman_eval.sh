@@ -29,7 +29,8 @@
 #                       (e.g. $SCRATCH/dp-llm-experiments/third_party/DELMAN/results/DELMAN_llama2_7b_chat)
 #
 # Optional env:
-#   REPO_ROOT       default: ${SCRATCH}/dp-llm-experiments
+#   REPO_ROOT       default: ${HOME}/repos/dp-llm-experiments  (code lives on $HOME on
+#                   Vulcan, not $SCRATCH -- override if your checkout is elsewhere)
 #   OFFICIAL_DATA_DIR  default: ${REPO_ROOT}/official_data
 #   HARMFUL_DATA / BENIGN_DATA  override full paths to test CSVs
 #   OUT_DIR         default: ${SCRATCH}/dp-llm-eval/delman
@@ -50,7 +51,7 @@ if [[ ! -d "${DELMAN_MODEL_DIR}" ]]; then
   exit 2
 fi
 
-REPO_ROOT="${REPO_ROOT:-${SLURM_SUBMIT_DIR:-${SCRATCH}/dp-llm-experiments}}"
+REPO_ROOT="${REPO_ROOT:-${HOME}/repos/dp-llm-experiments}"
 cd "${REPO_ROOT}"
 mkdir -p output
 

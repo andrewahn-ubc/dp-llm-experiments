@@ -16,7 +16,8 @@
 # pipeline used for DCL and Adv. SFT.
 #
 # Optional env:
-#   REPO_ROOT       default: ${SCRATCH}/dp-llm-experiments
+#   REPO_ROOT       default: ${HOME}/repos/dp-llm-experiments  (code lives on $HOME on
+#                   Vulcan, not $SCRATCH -- override if your checkout is elsewhere)
 #   BASE_MODEL      default: ${SCRATCH}/hf_models/Llama-2-7b-chat-hf  (must be HF-format dir)
 #   OUT_NAME        default: DELMAN_llama2_7b_chat
 #   VENV_ACTIVATE   default: ${SCRATCH}/venv/delman/bin/activate  (separate venv;
@@ -33,7 +34,7 @@
 
 set -euo pipefail
 
-REPO_ROOT="${REPO_ROOT:-${SLURM_SUBMIT_DIR:-${SCRATCH}/dp-llm-experiments}}"
+REPO_ROOT="${REPO_ROOT:-${HOME}/repos/dp-llm-experiments}"
 DELMAN_DIR="${REPO_ROOT}/third_party/DELMAN"
 cd "${DELMAN_DIR}"
 mkdir -p output
