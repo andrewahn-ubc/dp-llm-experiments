@@ -1,10 +1,10 @@
 #!/bin/bash
 #SBATCH --job-name=delman_edit
 #SBATCH --account=aip-mijungp
-#SBATCH --gres=gpu:1
+#SBATCH --gpus-per-node=l40s:1
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=40G
-#SBATCH --time=03:00:00
+#SBATCH --time=06:00:00
 #SBATCH --output=output/delman_edit_%j.out
 #SBATCH --mail-type=FAIL,TIME_LIMIT
 #SBATCH --mail-user=ammany01@cs.ubc.ca

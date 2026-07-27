@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name=delman_eval
 #SBATCH --account=aip-mijungp
-#SBATCH --gres=gpu:1
+#SBATCH --gpus-per-node=l40s:1
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=40G
 #SBATCH --time=10:00:00
