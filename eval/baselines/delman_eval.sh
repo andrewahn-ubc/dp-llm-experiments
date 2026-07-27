@@ -34,10 +34,15 @@
 #   OFFICIAL_DATA_DIR  default: ${REPO_ROOT}/official_data
 #   HARMFUL_DATA / BENIGN_DATA  override full paths to test CSVs
 #   OUT_DIR         default: ${SCRATCH}/dp-llm-eval/delman
-#   VENV_ACTIVATE   default: ${SCRATCH}/venv/nanogcg/bin/activate
-#                   (eval.py runs fine under the existing nanogcg venv --
-#                   only the DELMAN edit step itself needs the separate
-#                   delman venv with transformers==4.49)
+#   VENV_ACTIVATE   default: ${SCRATCH}/venv/delman/bin/activate
+#                   (reuses the same venv as delman_edit.sh -- eval.py needs
+#                   peft + psutil on top of DELMAN's requirements.txt; see
+#                   the one-time setup note below)
+#
+# One-time setup: eval.py imports peft/psutil at module load, which are not
+# in DELMAN's requirements.txt. Add them to the delman venv once:
+#   source ${SCRATCH}/venv/delman/bin/activate
+#   pip install peft psutil
 
 set -euo pipefail
 
@@ -57,7 +62,7 @@ mkdir -p output
 
 module load StdEnv/2023 python/3.11
 # shellcheck source=/dev/null
-source "${VENV_ACTIVATE:-${SCRATCH}/venv/nanogcg/bin/activate}"
+source "${VENV_ACTIVATE:-${SCRATCH}/venv/delman/bin/activate}"
 
 export TRANSFORMERS_CACHE="${SLURM_TMPDIR:-/tmp}/hf_cache"
 export HF_HOME="${SLURM_TMPDIR:-/tmp}/hf_home"
