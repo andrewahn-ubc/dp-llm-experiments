@@ -4,7 +4,7 @@
 #SBATCH --gres=gpu:1
 #SBATCH --cpus-per-task=6
 #SBATCH --mem=48G
-#SBATCH --time=2:15:00
+#SBATCH --time=4:30:00
 #SBATCH --array=0-0
 #SBATCH --output=output/test_eval_matrix_%A_%a.out
 #

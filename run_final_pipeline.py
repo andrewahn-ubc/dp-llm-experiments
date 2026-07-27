@@ -125,6 +125,9 @@ _PIPELINE_TRAIN_EPOCHS = "1"
 # gets double the wall time.
 _TRAIN_WALL_TIME = "3:00:00"
 _TRAIN_WALL_TIME_BOTH = "6:00:00"
+# Validation eval array (test_eval_matrix): was 2:15:00 for the original val set; doubled
+# to 4:30:00 after the validation set grew ~2×.
+_EVAL_WALL_TIME = "4:30:00"
 
 # Llama 3 data on the compute node ($SCRATCH sync of the repo's official/ dir).
 # training-data: llama3 train split; validation-data: llama3 validation split (same
@@ -264,7 +267,7 @@ def _submit_eval_array(
     array can evaluate the validation set (harmful ASR + FRR) over the full λ×ε grid,
     with an independent system-prompt policy for FRR.
     """
-    cmd: list[str] = ["sbatch"]
+    cmd: list[str] = ["sbatch", f"--time={_EVAL_WALL_TIME}"]
     if dependency_job_ids:
         cmd.append(f"--dependency=after:{':'.join(dependency_job_ids)}")
     if array_range:
