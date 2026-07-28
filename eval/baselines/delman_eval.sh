@@ -31,6 +31,10 @@
 # Optional env:
 #   REPO_ROOT       default: ${HOME}/repos/dp-llm-experiments  (code lives on $HOME on
 #                   Vulcan, not $SCRATCH -- override if your checkout is elsewhere)
+#   MODEL_PROFILE   default: llama_2_7b_chat  (selects judges/eval conventions from
+#                   train/model_profiles.py; use llama_3_8b_instruct for Llama-3.1.
+#                   Does NOT select which model is scored -- that's DELMAN_MODEL_DIR
+#                   via --base-llm; this only picks the judge models + RUN_TAG.)
 #   OFFICIAL_DATA_DIR  default: ${REPO_ROOT}/official_data
 #   HARMFUL_DATA / BENIGN_DATA  override full paths to test CSVs
 #   OUT_DIR         default: ${SCRATCH}/dp-llm-eval/delman
@@ -38,6 +42,12 @@
 #                   (reuses the same venv as delman_edit.sh -- eval.py needs
 #                   peft + psutil on top of DELMAN's requirements.txt; see
 #                   the one-time setup note below)
+#
+# Example for Llama-3.1-8B-Instruct (after running delman_edit.sh with the
+# Llama-3.1 BASE_MODEL/HPARAMS_FNAME/OUT_NAME overrides):
+#   DELMAN_MODEL_DIR=${SCRATCH}/dp-llm-experiments/third_party_delman_results/DELMAN_llama3_1_8b_instruct \
+#   MODEL_PROFILE=llama_3_8b_instruct \
+#     sbatch eval/baselines/delman_eval.sh
 #
 # One-time setup: eval.py imports peft/psutil at module load, which are not
 # in DELMAN's requirements.txt. Add them to the delman venv once:
@@ -81,9 +91,10 @@ if [[ ! -f "${BENIGN_DATA}" ]]; then
   exit 2
 fi
 
+MODEL_PROFILE="${MODEL_PROFILE:-llama_2_7b_chat}"
 OUT_DIR="${OUT_DIR:-${SCRATCH}/dp-llm-eval/delman}"
 mkdir -p "${OUT_DIR}"
-RUN_TAG="delman_llama2_7b_chat"
+RUN_TAG="delman_${MODEL_PROFILE}"
 
 # Vulcan keeps models under $SCRATCH/hf_models/, not directly under $SCRATCH/
 # as model_profiles.py's llama_2_7b_chat profile assumes (that default was
@@ -122,7 +133,7 @@ BENIGN_OUT="${OUT_DIR}/${RUN_TAG}_benign.csv"
 
 python "${REPO_ROOT}/eval/eval.py" \
   --eval-mode "seen-family" \
-  --model-profile "llama_2_7b_chat" \
+  --model-profile "${MODEL_PROFILE}" \
   --base-llm "${DELMAN_MODEL_DIR}" \
   --refusal-judge-path "${REFUSAL_JUDGE_PATH}" \
   --jailbreak-classifier-path "${JAILBREAK_CLASSIFIER_PATH}" \
@@ -136,7 +147,7 @@ python "${REPO_ROOT}/eval/write_base_model_test_metrics.py" \
   "${HARMFUL_OUT}" \
   "${BENIGN_OUT}" \
   "${OUT_DIR}/${RUN_TAG}_metrics.tsv" \
-  --model-profile "llama_2_7b_chat"
+  --model-profile "${MODEL_PROFILE}"
 
 echo "Done."
 echo "  harmful: ${HARMFUL_OUT}"

@@ -101,9 +101,12 @@ def get_words_idxs_in_templates(
     # Compute indices of last tokens
 
 
-    # NOTE: For Llama 3.1, set offset to 2.
-    # For other models, use 1.
-    offset = 1
+    # NOTE: Llama 3.1's tokenizer needs offset=2 here; other models (incl.
+    # Llama-2) need offset=1. Keyed off the tokenizer's model path rather
+    # than hardcoded, so this file doesn't need hand-editing when switching
+    # backbones (see DELMAN README's "Llama 3.1 Configuration" note).
+    _name = str(getattr(tok, "name_or_path", "")).lower()
+    offset = 2 if ("llama-3.1" in _name or "llama3.1" in _name or "llama3_1" in _name) else 1
 
     if subtoken == "last" or subtoken == "first_after_last":
         return [

@@ -19,10 +19,21 @@
 #   REPO_ROOT       default: ${HOME}/repos/dp-llm-experiments  (code lives on $HOME on
 #                   Vulcan, not $SCRATCH -- override if your checkout is elsewhere)
 #   BASE_MODEL      default: ${SCRATCH}/hf_models/Llama-2-7b-chat-hf  (must be HF-format dir)
+#   HPARAMS_FNAME   default: Llama-2-7b-chat-hf.json  (must exist under
+#                   third_party/DELMAN/hparams/; for Llama-3.1-8B-Instruct use
+#                   Llama-3.1-8B-Instruct.json -- also needs its own mom2 cov-stats
+#                   cache under data/stats/<model_name>/wikipedia_stats/, model_name
+#                   being BASE_MODEL with "/" -> "_")
 #   OUT_NAME        default: DELMAN_llama2_7b_chat
 #   VENV_ACTIVATE   default: ${SCRATCH}/venv/delman/bin/activate  (separate venv;
 #                   DELMAN pins transformers==4.49, which may conflict with the
 #                   nanogcg venv used elsewhere in this repo)
+#
+# Example for Llama-3.1-8B-Instruct:
+#   BASE_MODEL=${SCRATCH}/hf_models/llama3_1_8b_instruct \
+#   HPARAMS_FNAME=Llama-3.1-8B-Instruct.json \
+#   OUT_NAME=DELMAN_llama3_1_8b_instruct \
+#     sbatch eval/baselines/delman_edit.sh
 #
 # Prereqs (one-time, on a login node with internet):
 #   cd third_party/DELMAN
@@ -63,24 +74,42 @@ export HF_HOME="${SLURM_TMPDIR:-/tmp}/hf_home"
 mkdir -p "${TRANSFORMERS_CACHE}" "${HF_HOME}"
 
 BASE_MODEL="${BASE_MODEL:-${SCRATCH}/hf_models/Llama-2-7b-chat-hf}"
+HPARAMS_FNAME="${HPARAMS_FNAME:-Llama-2-7b-chat-hf.json}"
 OUT_NAME="${OUT_NAME:-DELMAN_llama2_7b_chat}"
 
 if [[ ! -d "${BASE_MODEL}" ]]; then
   echo "ERROR: BASE_MODEL not found: ${BASE_MODEL}" >&2
-  echo "Expected an HF-format Llama-2-7b-chat-hf directory." >&2
+  echo "Expected an HF-format model directory." >&2
   exit 2
+fi
+if [[ ! -f "hparams/${HPARAMS_FNAME}" ]]; then
+  echo "ERROR: hparams file not found: ${DELMAN_DIR}/hparams/${HPARAMS_FNAME}" >&2
+  exit 2
+fi
+
+# Sanity check the cov-stats cache is present before spending time loading the
+# model -- a miss silently falls back to a slow live Wikipedia computation
+# inside layer_stats() rather than failing fast.
+MODEL_NAME_KEY="$(python3 -c "print('${BASE_MODEL}'.replace('/', '_'))")"
+STATS_CHECK_DIR="data/stats/${MODEL_NAME_KEY}/wikipedia_stats"
+if [[ ! -d "${STATS_CHECK_DIR}" ]]; then
+  echo "WARNING: no cached mom2 cov-stats found at ${DELMAN_DIR}/${STATS_CHECK_DIR}" >&2
+  echo "         This run will fall back to a slow live Wikipedia stats computation." >&2
+  echo "         See third_party/DELMAN/README.md for precomputed stats, or expect" >&2
+  echo "         a much longer runtime than the ~13min seen for Llama-2-7B-chat." >&2
 fi
 
 echo "=== DELMAN edit ==="
 echo "DELMAN_DIR=${DELMAN_DIR}"
 echo "BASE_MODEL=${BASE_MODEL}"
+echo "HPARAMS_FNAME=${HPARAMS_FNAME}"
 echo "OUT_NAME=${OUT_NAME}"
 echo "Edit set: data/HarmBench.json (DELMAN's own, 200 prompts)"
 
 python3 -m run_delman \
   --model_name "${BASE_MODEL}" \
   --model_path "${BASE_MODEL}" \
-  --hparams_fname "Llama-2-7b-chat-hf.json" \
+  --hparams_fname "${HPARAMS_FNAME}" \
   --data_name "HarmBench.json" \
   --out_name "${OUT_NAME}"
 
