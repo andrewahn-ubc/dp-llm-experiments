@@ -65,7 +65,7 @@ fi
 ln -sfn "${DELMAN_RESULTS_DIR}" results
 echo "results/ -> ${DELMAN_RESULTS_DIR}"
 
-module load StdEnv/2023 python/3.11
+module load StdEnv/2023 python/3.11 pyarrow
 # shellcheck source=/dev/null
 source "${VENV_ACTIVATE:-${SCRATCH}/venv/delman/bin/activate}"
 
