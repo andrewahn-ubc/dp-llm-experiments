@@ -1,0 +1,2 @@
+# slug	lr	lambda	epsilon	lm_loss_input	system_prompt_mode	held_out_family	wandb_run_id	finetuned_base	job_script(s)_semicolon_sep_if_chunked
+heldout_autodan_l3_run_lr2e-05_lam3_eps0	2e-05	3.0	0.0	clean	empty	autodan	5d27705511c94cc0baa296d50695e3f5	$SCRATCH/dp-llm-sweep/heldout_autodan_l3_run_lr2e-05_lam3_eps0_finetuned_llm	/Users/andrewahn/Desktop/DP-LLM-Safety Research/dp-llm-experiments/sweep_jobs/test_heldout_autodan/heldout_autodan_l3_run_lr2e-05_lam3_eps0.sh

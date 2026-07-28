@@ -106,6 +106,25 @@ def sweep_lr_lambda_epsilon_combos(
     return [(lr, lam, eps) for lr in learning_rates for lam, eps in pairs]
 
 
+def parse_lambda_epsilon_pairs(raw: str) -> list[tuple[float, float]]:
+    """Parse ``lam:eps,lam:eps,...`` into explicit (λ, ε) cells (no λ=0 collapse)."""
+    pairs: list[tuple[float, float]] = []
+    for tok in raw.split(","):
+        tok = tok.strip()
+        if not tok:
+            continue
+        if ":" not in tok:
+            raise ValueError(
+                f"--lambda-epsilon-pairs entry {tok!r} must look like 'lam:eps' "
+                "(e.g. '3:0' or '1:-0.5')"
+            )
+        lam_s, eps_s = tok.split(":", 1)
+        pairs.append((float(lam_s.strip()), float(eps_s.strip())))
+    if not pairs:
+        raise ValueError("--lambda-epsilon-pairs must list at least one lam:eps pair")
+    return pairs
+
+
 def split_epochs_into_chunks(total_epochs: int, n_chunks: int) -> list[list[int]]:
     """Partition ``1..total_epochs`` into ``n_chunks`` contiguous groups as evenly as possible."""
     if n_chunks < 1:
@@ -667,6 +686,15 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         ),
     )
     p.add_argument(
+        "--lambda-epsilon-pairs",
+        default="",
+        help=(
+            "Optional explicit (λ, ε) cells as 'lam:eps,lam:eps,...' (e.g. "
+            "'1:-0.5,3:0'). When set, overrides the default LAMBDAS×EPSILONS grid "
+            "(and the λ=0 collapse). Used by run_final_pipeline.py --mode test."
+        ),
+    )
+    p.add_argument(
         "--perturbed-sweep-subset",
         default="full",
         choices=("full", "lambda0_only"),
@@ -778,6 +806,15 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         raise SystemExit("--learning-rates must list at least one value")
     args.learning_rates_tuple = tuple(lr_parts)
 
+    args.explicit_lambda_epsilon_pairs: list[tuple[float, float]] | None = None
+    if args.lambda_epsilon_pairs.strip():
+        try:
+            args.explicit_lambda_epsilon_pairs = parse_lambda_epsilon_pairs(
+                args.lambda_epsilon_pairs
+            )
+        except ValueError as exc:
+            raise SystemExit(str(exc)) from exc
+
     held_parts = [x.strip().lower() for x in args.held_out_families.split(",") if x.strip()]
     valid_fams = {"gcg", "autodan", "pair"}
     for x in held_parts:
@@ -831,7 +868,13 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
 
 def main(argv: list[str]) -> int:
     args = parse_args(argv)
-    if args.lm_loss_input == "perturbed" and args.perturbed_sweep_subset == "lambda0_only":
+    if args.explicit_lambda_epsilon_pairs is not None:
+        combos = [
+            (lr, lam, eps)
+            for lr in args.learning_rates_tuple
+            for lam, eps in args.explicit_lambda_epsilon_pairs
+        ]
+    elif args.lm_loss_input == "perturbed" and args.perturbed_sweep_subset == "lambda0_only":
         pz = lambda_epsilon_pairs((0.0,), EPSILONS)
         combos = [(lr, lam, eps) for lr in args.learning_rates_tuple for lam, eps in pz]
     else:

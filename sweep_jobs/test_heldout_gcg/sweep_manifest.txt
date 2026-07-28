@@ -1,0 +1,2 @@
+# slug	lr	lambda	epsilon	lm_loss_input	system_prompt_mode	held_out_family	wandb_run_id	finetuned_base	job_script(s)_semicolon_sep_if_chunked
+heldout_gcg_l3_run_lr2e-05_lam3_eps1	2e-05	3.0	1.0	clean	empty	gcg	72ce0f4f07fe49918772e0dd2626c9b1	$SCRATCH/dp-llm-sweep/heldout_gcg_l3_run_lr2e-05_lam3_eps1_finetuned_llm	/Users/andrewahn/Desktop/DP-LLM-Safety Research/dp-llm-experiments/sweep_jobs/test_heldout_gcg/heldout_gcg_l3_run_lr2e-05_lam3_eps1.sh
