@@ -70,7 +70,9 @@ REPO_ROOT="${REPO_ROOT:-${HOME}/repos/dp-llm-experiments}"
 cd "${REPO_ROOT}"
 mkdir -p output
 
-module load StdEnv/2023 python/3.11 pyarrow
+echo "[INFO] Setting up Python environment"
+module purge
+module load StdEnv/2023 cuda/12.2 python/3.11 gcc arrow/21.0.0 scipy-stack
 # shellcheck source=/dev/null
 source "${VENV_ACTIVATE:-${SCRATCH}/venv/delman/bin/activate}"
 
