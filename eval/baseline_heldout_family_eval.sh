@@ -9,7 +9,7 @@
 #   SYSTEM_PROMPT_MODE=default sbatch eval/baseline_heldout_family_eval.sh
 #
 #SBATCH --job-name=baseline_heldout
-#SBATCH --account=rrg-mijungp
+#SBATCH --account=def-mijungp
 #SBATCH --gres=gpu:1
 #SBATCH --cpus-per-task=6
 #SBATCH --mem=40G

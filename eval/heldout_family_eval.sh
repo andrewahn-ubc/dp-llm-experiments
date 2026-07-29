@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --job-name=heldout_family_eval
-#SBATCH --account=rrg-mijungp
+#SBATCH --account=def-mijungp
 #SBATCH --gres=gpu:1
 #SBATCH --cpus-per-task=6
 #SBATCH --mem=40G

@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --job-name=final_pareto
-#SBATCH --account=rrg-mijungp
+#SBATCH --account=def-mijungp
 #SBATCH --cpus-per-task=2
 #SBATCH --mem=8G
 #SBATCH --time=0:30:00

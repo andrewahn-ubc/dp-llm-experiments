@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --job-name=test_eval_mx
-#SBATCH --account=rrg-mijungp
+#SBATCH --account=def-mijungp
 #SBATCH --gres=gpu:1
 #SBATCH --cpus-per-task=6
 #SBATCH --mem=48G

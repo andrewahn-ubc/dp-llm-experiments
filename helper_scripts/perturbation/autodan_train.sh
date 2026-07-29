@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --job-name=autodan_train
-#SBATCH  --account=rrg-mijungp
+#SBATCH  --account=def-mijungp
 #SBATCH --array=0-299
 #SBATCH --gres=gpu:1
 #SBATCH --cpus-per-task=6

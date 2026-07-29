@@ -226,7 +226,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         help="Which training epochs to evaluate per config.",
     )
 
-    p.add_argument("--account", default="rrg-mijungp")
+    p.add_argument("--account", default="def-mijungp")
     p.add_argument("--gres", default="gpu:1")
     p.add_argument("--cpus-per-task", type=int, default=6)
     p.add_argument("--mem", default="40G")

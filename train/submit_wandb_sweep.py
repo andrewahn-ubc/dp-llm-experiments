@@ -584,7 +584,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     )
     p.add_argument(
         "--account",
-        default="rrg-mijungp",
+        default="def-mijungp",
         help="SLURM --account (see submit_all_train / your allocation).",
     )
     p.add_argument("--gres", default="gpu:1", help="SLURM --gres string.")

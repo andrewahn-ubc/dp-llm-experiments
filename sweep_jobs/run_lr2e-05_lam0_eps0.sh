@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --job-name=sw_run_lr2e-05_lam0_eps0
-#SBATCH --account=rrg-mijungp
+#SBATCH --account=def-mijungp
 #SBATCH --gres=gpu:1
 #SBATCH --cpus-per-task=6
 #SBATCH --mem=40G

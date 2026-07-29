@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --job-name=reclassify_frr
-#SBATCH --account=rrg-mijungp
+#SBATCH --account=def-mijungp
 #SBATCH --gres=gpu:1
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=40G
