@@ -4,20 +4,24 @@
 #SBATCH --gres=gpu:1
 #SBATCH --cpus-per-task=6
 #SBATCH --mem=48G
-#SBATCH --time=6:00:00
-#SBATCH --output=output/final_test_eval_%j.out
+#SBATCH --time=3:00:00
+#SBATCH --array=0-5
+#SBATCH --output=output/final_test_eval_%A_%a.out
 #
-# Final test-mode eval: one job runs seen + 3 held-out evals with the mapped
-# (λ, ε) checkpoints, then writes SEEN-FAMILY / HELDOUT-FAMILY tables.
+# Final test-mode eval array: one task = one (λ, ε) cell.
+# Each task runs seen + held-out gcg/autodan/pair for that cell on the test set.
 #
 #   cd $SCRATCH/dp-llm-experiments && mkdir -p output
 #   sbatch eval/submit_final_test_eval.sh
 #
+# Task map (see eval/run_final_test_eval.py --list-tasks):
+#   0: λ=1,ε=-0.5   1: λ=3,ε=0   2: λ=3,ε=1
+#   3: λ=1,ε=-1     4: λ=30,ε=0  5: λ=30,ε=1
+#
 # Env overrides (also set by run_final_pipeline.py --mode test):
 #   REPO_ROOT, CHECKPOINT_ROOT, MODEL_PROFILE, EPOCH, LR
 #   HARMFUL_TEST, BENIGN_TEST, LABELS_CSV, OUT_DIR
-#   SYSTEM_PROMPT_MODE, BENIGN_SYSTEM_PROMPT_MODE
-#   EXTRA_ARGS  (extra flags for run_final_test_eval.py)
+#   EXTRA_ARGS
 
 set -euo pipefail
 
@@ -45,6 +49,7 @@ PY_ARGS=(
     --model-profile "${MODEL_PROFILE}"
     --epoch "${EPOCH:-2}"
     --lr "${LR:-2e-5}"
+    --task-id "${SLURM_ARRAY_TASK_ID}"
     --system-prompt-mode "${SYSTEM_PROMPT_MODE:-empty}"
     --benign-system-prompt-mode "${BENIGN_SYSTEM_PROMPT_MODE:-empty}"
 )

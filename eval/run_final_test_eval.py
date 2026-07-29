@@ -1,34 +1,31 @@
 #!/usr/bin/env python3
 """
-Final **test-mode** evaluation: run the four chosen (λ, ε) checkpoints with the
-per-family mapping from hyperparameter search, then write SEEN-FAMILY and
-HELDOUT-FAMILY summary tables.
+Final **test-mode** evaluation for **one** (λ, ε) cell.
 
-Model mapping (default; override via CLI)::
+Each SLURM array task evaluates four checkpoints that share the same (λ, ε):
 
-  SEEN (gcg / autodan / pair):   λ=1, ε=-0.5   → seen adapter
-  HELDOUT autodan:               λ=3, ε=0      → heldout_autodan adapter
-  HELDOUT gcg:                   λ=3, ε=1      → heldout_gcg adapter
-  HELDOUT pair:                  λ=1, ε=-1     → heldout_pair adapter
+  • seen-family adapter
+  • held-out gcg / autodan / pair adapters
 
-Outputs under ``--out-dir``:
+Default grid (task-id → cell), matching ``run_final_pipeline._TEST_SWEEP_PAIRS``::
 
-  * per-eval harmful/benign CSVs (same naming as test_eval_matrix)
-  * ``final_test_metrics.tsv`` — scalar ASR/FRR used for the tables
-  * ``seen_family_table.{md,csv}`` / ``heldout_family_table.{md,csv}``
+  0: λ=1, ε=-0.5
+  1: λ=3, ε=0
+  2: λ=3, ε=1
+  3: λ=1, ε=-1
+  4: λ=30, ε=0
+  5: λ=30, ε=1
 
-Table layout (ASR / FRR in each cell)::
+Writes under ``--out-dir / lam{lam}_eps{eps}/``:
 
-  rows:    all attack families | gcg | autodan | pair
-  columns: advbench | harmbench | jailbreakbench | mean across benchmarks
+  * harmful/benign CSVs
+  * ``metrics.tsv``
+  * ``points.csv`` — long-form rows for Pareto plotting
+    (mode ∈ {seen, heldout}, family ∈ {all,gcg,autodan,pair},
+     benchmark ∈ {advbench,harmbench,jailbreakbench,mean}, asr, frr, …)
 
-FRR is computed on the benign CSV (``frr_test.csv`` / ``frr_text.csv``) and is
-**not** split by benchmark — the same FRR is shown in every benchmark column for
-a given row. For HELDOUT "all attack families", FRR is the mean of the three
-held-out models' FRRs.
-
-Benchmark labels: if the harmful CSV lacks a ``dataset`` column, rows are joined
-to ``--labels-csv`` on ``goal`` (default: ``combined_test_dataset.csv``).
+After all array tasks finish, run ``eval/plot_final_test_pareto.py`` to build
+the 32 Pareto charts (2 modes × 4 families × 4 benchmarks).
 """
 
 from __future__ import annotations
@@ -43,9 +40,6 @@ import pandas as pd
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 _EVAL_DIR = Path(__file__).resolve().parent
-# Prefer the eval/ directory for sibling imports (test_eval_matrix), then repo root
-# for train.*. Do NOT leave this file's parent alone at sys.path[0] under the name
-# "eval" — that shadows the package and pulls in eval/eval.py (heavy deps).
 if str(_EVAL_DIR) in sys.path:
     sys.path.remove(str(_EVAL_DIR))
 if str(_REPO_ROOT) not in sys.path:
@@ -69,26 +63,20 @@ from test_eval_matrix import (  # noqa: E402
     seen_ckpt,
     write_metrics_tsv,
 )
-from train.model_profiles import (  # noqa: E402
-    MODEL_PROFILE_CHOICES,
-)
+from train.model_profiles import MODEL_PROFILE_CHOICES  # noqa: E402
+
+# Must match run_final_pipeline._TEST_SWEEP_PAIRS (order = SLURM array index).
+TEST_PAIRS: list[tuple[float, float]] = [
+    (1.0, -0.5),
+    (3.0, 0.0),
+    (3.0, 1.0),
+    (1.0, -1.0),
+    (30.0, 0.0),
+    (30.0, 1.0),
+]
 
 BENCHMARKS = ("advbench", "harmbench", "jailbreakbench")
-ROW_KEYS = ("all", "gcg", "autodan", "pair")
-ROW_LABELS = {
-    "all": "all attack families",
-    "gcg": "gcg",
-    "autodan": "autodan",
-    "pair": "pair",
-}
-
-# Default hyperparameter → eval mapping from validation selection.
-DEFAULT_SEEN_LAM, DEFAULT_SEEN_EPS = 1.0, -0.5
-DEFAULT_HELDOUT: dict[str, tuple[float, float]] = {
-    "autodan": (3.0, 0.0),
-    "gcg": (3.0, 1.0),
-    "pair": (1.0, -1.0),
-}
+FAMILY_KEYS = ("all",) + FAMILIES
 
 
 def _parse_pair(raw: str) -> tuple[float, float]:
@@ -100,20 +88,19 @@ def _parse_pair(raw: str) -> tuple[float, float]:
 
 def _load_labels(path: Path | None) -> pd.DataFrame | None:
     if path is None:
-        print("[final_test_eval] WARN: no --labels-csv; benchmark ASR columns will be n/a.", flush=True)
+        print("[final_test_eval] WARN: no --labels-csv; benchmark ASR may be n/a.", flush=True)
         return None
     if not path.is_file():
         print(
             f"[final_test_eval] WARN: labels CSV not found: {path}; "
-            "benchmark ASR columns will be n/a (overall ASR is still in metrics TSV).",
+            "benchmark ASR may be n/a.",
             flush=True,
         )
         return None
     df = pd.read_csv(path)
     if "goal" not in df.columns or "dataset" not in df.columns:
         print(
-            f"[final_test_eval] WARN: labels CSV {path} missing goal/dataset; "
-            "benchmark columns may be empty.",
+            f"[final_test_eval] WARN: labels CSV {path} missing goal/dataset.",
             flush=True,
         )
         return None
@@ -133,42 +120,27 @@ def _attach_dataset(df: pd.DataFrame, labels: pd.DataFrame | None) -> pd.DataFra
     lab["dataset"] = lab["dataset"].astype(str).str.strip().str.lower()
     lab = lab.drop_duplicates(subset=["goal"], keep="first")
     out["goal"] = out["goal"].astype(str)
-    # Drop empty/placeholder dataset col before merge so we don't get dataset_x/y.
     if "dataset" in out.columns:
         out = out.drop(columns=["dataset"])
     out = out.merge(lab[["goal", "dataset"]], on="goal", how="left")
     out["dataset"] = out["dataset"].fillna("").astype(str)
     n_ok = int((out["dataset"] != "").sum())
-    if n_ok == 0:
-        print(
-            "[final_test_eval] WARN: 0 rows matched labels on goal; "
-            "benchmark ASR cells will be n/a.",
-            flush=True,
-        )
-    else:
-        print(
-            f"[final_test_eval] attached dataset labels to {n_ok}/{len(out)} harmful rows",
-            flush=True,
-        )
+    print(
+        f"[final_test_eval] attached dataset labels to {n_ok}/{len(out)} harmful rows",
+        flush=True,
+    )
     return out
 
 
-def _asr_on_subset(h: pd.DataFrame, family: str | None) -> float | None:
-    """family=None → mean over available family safety columns."""
+def _asr_family(h: pd.DataFrame, family: str | None) -> float | None:
     if h is None or len(h) == 0:
         return None
-    if family is None:
+    if family is None or family == "all":
         return mean_asr_harmful(h)
     col = SAFETY_COL[family]
     if col not in h.columns:
         return None
     return float((h[col].astype(str).str.lower() == "unsafe").mean())
-
-
-def _fmt_cell(asr: float | None, frr: float | None) -> str:
-    asr_s = f"{asr:.4f}" if asr is not None and asr == asr else "n/a"
-    frr_s = f"{frr:.4f}" if frr is not None and frr == frr else "n/a"
-    return f"ASR {asr_s} / FRR {frr_s}"
 
 
 def _mean_skip_nan(vals: list[float | None]) -> float | None:
@@ -178,44 +150,45 @@ def _mean_skip_nan(vals: list[float | None]) -> float | None:
     return sum(good) / len(good)
 
 
-def build_family_table(
+def _cell_tag(lam: float, eps: float) -> str:
+    return f"lam{lam:g}_eps{eps:g}"
+
+
+def _make_task(lr: float, lam: float, eps: float, model_profile: str) -> Task:
+    return Task(0, "clean_reg", lr, lam, eps, "clean", model_profile)
+
+
+def build_points_for_mode(
     *,
+    mode: str,
     per_family_harmful: dict[str, pd.DataFrame],
     per_family_frr: dict[str, float | None],
     labels: pd.DataFrame | None,
-    shared_frr: float | None = None,
-) -> pd.DataFrame:
-    """Build one SEEN or HELDOUT table.
+    shared_frr: float | None,
+    lam: float,
+    eps: float,
+    lr: float,
+) -> list[dict[str, Any]]:
+    """Build long-form points for one mode (seen or heldout)."""
+    labeled = {fam: _attach_dataset(df, labels) for fam, df in per_family_harmful.items()}
+    rows: list[dict[str, Any]] = []
 
-    ``per_family_harmful`` maps family → harmful eval CSV (with safety cols).
-    For SEEN, all three families share one CSV (same DataFrame thrice) and
-    ``shared_frr`` is used for every row. For HELDOUT, each family has its own
-    CSV + FRR; the "all" row averages ASRs and FRRs across families.
-    """
-    labeled: dict[str, pd.DataFrame] = {
-        fam: _attach_dataset(df, labels) for fam, df in per_family_harmful.items()
-    }
-
-    rows_out: list[dict[str, str]] = []
-    for row_key in ROW_KEYS:
-        cells: dict[str, str] = {"family": ROW_LABELS[row_key]}
-        bench_asrs: list[float | None] = []
-        bench_frrs: list[float | None] = []
-
+    for fam_key in FAMILY_KEYS:
         for bench in list(BENCHMARKS) + ["mean"]:
-            if bench == "mean":
-                asr = _mean_skip_nan(bench_asrs)
-                frr = _mean_skip_nan(bench_frrs)
-                cells["mean across benchmarks"] = _fmt_cell(asr, frr)
-                continue
-
-            if row_key == "all":
+            if fam_key == "all":
                 fam_asrs: list[float | None] = []
                 fam_frrs: list[float | None] = []
                 for fam in FAMILIES:
                     hdf = labeled[fam]
-                    sub = hdf[hdf["dataset"] == bench]
-                    fam_asrs.append(_asr_on_subset(sub, fam))
+                    if bench == "mean":
+                        # mean across benchmarks for this family first, then average families
+                        bench_asrs = [
+                            _asr_family(hdf[hdf["dataset"] == b], fam) for b in BENCHMARKS
+                        ]
+                        fam_asrs.append(_mean_skip_nan(bench_asrs))
+                    else:
+                        sub = hdf[hdf["dataset"] == bench]
+                        fam_asrs.append(_asr_family(sub, fam))
                     if shared_frr is not None:
                         fam_frrs.append(shared_frr)
                     else:
@@ -223,30 +196,31 @@ def build_family_table(
                 asr = _mean_skip_nan(fam_asrs)
                 frr = _mean_skip_nan(fam_frrs)
             else:
-                hdf = labeled[row_key]
-                sub = hdf[hdf["dataset"] == bench]
-                asr = _asr_on_subset(sub, row_key)
-                frr = shared_frr if shared_frr is not None else per_family_frr.get(row_key)
+                hdf = labeled[fam_key]
+                if bench == "mean":
+                    bench_asrs = [
+                        _asr_family(hdf[hdf["dataset"] == b], fam_key) for b in BENCHMARKS
+                    ]
+                    asr = _mean_skip_nan(bench_asrs)
+                else:
+                    sub = hdf[hdf["dataset"] == bench]
+                    asr = _asr_family(sub, fam_key)
+                frr = shared_frr if shared_frr is not None else per_family_frr.get(fam_key)
 
-            bench_asrs.append(asr)
-            bench_frrs.append(frr)
-            cells[bench] = _fmt_cell(asr, frr)
-
-        rows_out.append(cells)
-
-    cols = ["family"] + list(BENCHMARKS) + ["mean across benchmarks"]
-    return pd.DataFrame(rows_out, columns=cols)
-
-
-def table_to_markdown(df: pd.DataFrame, title: str) -> str:
-    lines = [f"## {title}", ""]
-    headers = list(df.columns)
-    lines.append("| " + " | ".join(headers) + " |")
-    lines.append("| " + " | ".join("---" for _ in headers) + " |")
-    for _, row in df.iterrows():
-        lines.append("| " + " | ".join(str(row[c]) for c in headers) + " |")
-    lines.append("")
-    return "\n".join(lines)
+            rows.append(
+                {
+                    "mode": mode,
+                    "family": fam_key,
+                    "benchmark": bench,
+                    "asr": asr,
+                    "frr": frr,
+                    "lambda": lam,
+                    "epsilon": eps,
+                    "lr": lr,
+                    "cell": _cell_tag(lam, eps),
+                }
+            )
+    return rows
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -256,6 +230,19 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p.add_argument("--dry-run", action="store_true")
     p.add_argument("--skip-missing", action="store_true", default=True)
     p.add_argument("--no-skip-missing", action="store_false", dest="skip_missing")
+    p.add_argument("--list-tasks", action="store_true", help="Print task grid and exit.")
+    p.add_argument(
+        "--task-id",
+        type=int,
+        default=None,
+        help="Index into TEST_PAIRS (or SLURM_ARRAY_TASK_ID). Ignored if --pair is set.",
+    )
+    p.add_argument(
+        "--pair",
+        type=_parse_pair,
+        default=None,
+        help="Explicit lam:eps (overrides --task-id).",
+    )
     p.add_argument("--lr", type=float, default=2e-5)
     p.add_argument("--epoch", type=int, default=2)
     p.add_argument(
@@ -266,35 +253,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p.add_argument("--checkpoint-root", default="$SCRATCH/dp-llm-sweep")
     p.add_argument("--repo-root", default=default_repo)
     p.add_argument("--eval-py", default="")
-    p.add_argument(
-        "--harmful-test",
-        default="",
-        help="Harmful ASR test CSV (default: official_data/llama3_test.csv).",
-    )
-    p.add_argument(
-        "--benign-test",
-        default="",
-        help=(
-            "Benign FRR test CSV. Default: official_data/frr_test.csv "
-            "(alias often called frr_text.csv)."
-        ),
-    )
-    p.add_argument(
-        "--labels-csv",
-        default="",
-        help=(
-            "CSV with goal+dataset for benchmark splits (default: "
-            "official_data/combined_test_dataset.csv). Ignored if harmful CSV "
-            "already has a dataset column."
-        ),
-    )
+    p.add_argument("--harmful-test", default="")
+    p.add_argument("--benign-test", default="")
+    p.add_argument("--labels-csv", default="")
     p.add_argument("--out-dir", default="")
     p.add_argument("--system-prompt-mode", choices=("default", "empty"), default="empty")
     p.add_argument("--benign-system-prompt-mode", choices=("default", "empty"), default="empty")
-    p.add_argument("--seen-pair", type=_parse_pair, default=(DEFAULT_SEEN_LAM, DEFAULT_SEEN_EPS))
-    p.add_argument("--heldout-autodan-pair", type=_parse_pair, default=DEFAULT_HELDOUT["autodan"])
-    p.add_argument("--heldout-gcg-pair", type=_parse_pair, default=DEFAULT_HELDOUT["gcg"])
-    p.add_argument("--heldout-pair-pair", type=_parse_pair, default=DEFAULT_HELDOUT["pair"])
     args = p.parse_args(argv)
 
     repo = Path(expand_path(args.repo_root))
@@ -303,7 +267,6 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     if not args.harmful_test:
         args.harmful_test = str(repo / "official_data" / "llama3_test.csv")
     if not args.benign_test:
-        # Prefer frr_text.csv if present (user naming); else frr_test.csv.
         text = repo / "official_data" / "frr_text.csv"
         test = repo / "official_data" / "frr_test.csv"
         args.benign_test = str(text if text.is_file() else test)
@@ -311,53 +274,82 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         args.labels_csv = str(repo / "official_data" / "combined_test_dataset.csv")
     if not args.out_dir:
         args.out_dir = str(Path(expand_path(args.checkpoint_root)) / "final_test_outputs")
-
-    held = {
-        "autodan": args.heldout_autodan_pair,
-        "gcg": args.heldout_gcg_pair,
-        "pair": args.heldout_pair_pair,
-    }
-    args.heldout_map = held
     return args
-
-
-def _make_task(lr: float, lam: float, eps: float, model_profile: str) -> Task:
-    return Task(0, "clean_reg", lr, lam, eps, "clean", model_profile)
 
 
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
+
+    if args.list_tasks:
+        print(f"task_count={len(TEST_PAIRS)}")
+        for i, (lam, eps) in enumerate(TEST_PAIRS):
+            print(f"  {i}\tλ={lam:g}\tε={eps:g}\t{_cell_tag(lam, eps)}")
+        return 0
+
+    if args.pair is not None:
+        lam, eps = args.pair
+        task_id = None
+    else:
+        task_id = args.task_id
+        if task_id is None and os.environ.get("SLURM_ARRAY_TASK_ID") is not None:
+            task_id = int(os.environ["SLURM_ARRAY_TASK_ID"])
+        if task_id is None:
+            print(
+                "ERROR: pass --task-id N, --pair lam:eps, --list-tasks, "
+                "or run under SLURM with SLURM_ARRAY_TASK_ID",
+                file=sys.stderr,
+            )
+            return 2
+        if task_id < 0 or task_id >= len(TEST_PAIRS):
+            print(
+                f"ERROR: task_id {task_id} out of range [0, {len(TEST_PAIRS) - 1}]",
+                file=sys.stderr,
+            )
+            return 2
+        lam, eps = TEST_PAIRS[task_id]
+
+    cell = _cell_tag(lam, eps)
     ck_root = Path(expand_path(args.checkpoint_root))
     eval_py = Path(expand_path(args.eval_py))
     harmful_test = Path(expand_path(args.harmful_test))
     benign_test = Path(expand_path(args.benign_test))
-    out_dir = Path(expand_path(args.out_dir))
+    base_out = Path(expand_path(args.out_dir))
+    out_dir = base_out / cell
     labels_path = Path(expand_path(args.labels_csv)) if args.labels_csv else None
     labels = _load_labels(labels_path)
+
+    print(
+        f"[final_test_eval] cell={cell} λ={lam:g} ε={eps:g} "
+        f"(task_id={task_id if task_id is not None else 'pair'})",
+        flush=True,
+    )
 
     if not args.dry_run:
         out_dir.mkdir(parents=True, exist_ok=True)
 
-    tmp_benign = Path(os.environ.get("SLURM_TMPDIR", "/tmp")) / "frr_final_test_eval.csv"
-    prep_benign_csv(benign_test, tmp_benign) if not args.dry_run else None
+    tmp_benign = (
+        Path(os.environ.get("SLURM_TMPDIR", "/tmp"))
+        / f"frr_final_test_eval_{cell}.csv"
+    )
+    if not args.dry_run:
+        prep_benign_csv(benign_test, tmp_benign)
 
-    seen_lam, seen_eps = args.seen_pair
-    seen_task = _make_task(args.lr, seen_lam, seen_eps, args.model_profile)
-    seen_model = seen_ckpt(ck_root, seen_task, args.epoch)
+    task = _make_task(args.lr, lam, eps, args.model_profile)
+    seen_model = seen_ckpt(ck_root, task, args.epoch)
 
     metrics_rows: list[tuple[str, Any]] = [
         ("lr", args.lr),
         ("epoch", args.epoch),
         ("model_profile", args.model_profile),
-        ("seen_lambda", seen_lam),
-        ("seen_epsilon", seen_eps),
-        ("seen_slug", seen_task.slug()),
+        ("lambda", lam),
+        ("epsilon", eps),
+        ("cell", cell),
+        ("slug", task.slug()),
         ("harmful_test", str(harmful_test)),
         ("benign_test", str(benign_test)),
         ("labels_csv", str(labels_path) if labels_path else ""),
     ]
 
-    # --- Seen-family (one adapter for all three attack families) ---
     if not seen_model.is_dir():
         msg = f"[final_test_eval] Missing seen checkpoint: {seen_model}"
         if args.dry_run:
@@ -368,7 +360,7 @@ def main(argv: list[str] | None = None) -> int:
         else:
             raise FileNotFoundError(msg)
 
-    seen_tag = f"final_seen_{seen_task.slug()}_ep{args.epoch}"
+    seen_tag = f"seen_{task.slug()}_ep{args.epoch}"
     seen_h_stem = out_dir / f"{seen_tag}_harmful"
     seen_b_stem = out_dir / f"{seen_tag}_benign"
 
@@ -389,20 +381,10 @@ def main(argv: list[str] | None = None) -> int:
             model_profile=args.model_profile,
         )
 
-    # --- Held-out per family (each with its own (λ, ε)) ---
     held_h: dict[str, Path] = {}
     held_b: dict[str, Path] = {}
     for fam in FAMILIES:
-        lam, eps = args.heldout_map[fam]
-        task = _make_task(args.lr, lam, eps, args.model_profile)
         h_model = heldout_ckpt(ck_root, fam, task, args.epoch)
-        metrics_rows.extend(
-            [
-                (f"heldout_{fam}_lambda", lam),
-                (f"heldout_{fam}_epsilon", eps),
-                (f"heldout_{fam}_slug", task.slug()),
-            ]
-        )
         if not h_model.is_dir():
             msg = f"[final_test_eval] Missing held-out checkpoint for {fam}: {h_model}"
             if args.dry_run:
@@ -413,17 +395,12 @@ def main(argv: list[str] | None = None) -> int:
             else:
                 raise FileNotFoundError(msg)
 
-        tag = f"final_heldout_{fam}_{task.slug()}_ep{args.epoch}"
-        h_stem = out_dir / f"{tag}_harmful"
-        b_stem = out_dir / f"{tag}_benign"
-        held_h[fam] = h_stem
-        held_b[fam] = b_stem
+        tag = f"heldout_{fam}_{task.slug()}_ep{args.epoch}"
+        held_h[fam] = out_dir / f"{tag}_harmful"
+        held_b[fam] = out_dir / f"{tag}_benign"
 
         if args.dry_run:
-            print(
-                f"[dry-run] unseen-family {fam} λ={lam:g} ε={eps:g} resume_from={h_model}",
-                flush=True,
-            )
+            print(f"[dry-run] unseen-family {fam} resume_from={h_model}", flush=True)
             continue
 
         run_eval_py(
@@ -433,18 +410,17 @@ def main(argv: list[str] | None = None) -> int:
             unseen_family=fam,
             harmful_csv=harmful_test,
             benign_csv=tmp_benign,
-            harmful_stem=h_stem,
-            benign_stem=b_stem,
+            harmful_stem=held_h[fam],
+            benign_stem=held_b[fam],
             system_prompt_mode=args.system_prompt_mode,
             benign_system_prompt_mode=args.benign_system_prompt_mode,
             model_profile=args.model_profile,
         )
 
     if args.dry_run:
-        print("[dry-run] skipping table build", flush=True)
+        print("[dry-run] skipping metrics / points", flush=True)
         return 0
 
-    # Load outputs
     sh = resolve_output(seen_h_stem)
     sb = resolve_output(seen_b_stem)
     if sh is None or sb is None:
@@ -483,52 +459,42 @@ def main(argv: list[str] | None = None) -> int:
             ]
         )
 
-    write_metrics_tsv(out_dir / "final_test_metrics.tsv", metrics_rows)
+    write_metrics_tsv(out_dir / "metrics.tsv", metrics_rows)
 
-    # Tables: SEEN uses the same harmful CSV for every family column.
-    seen_table = build_family_table(
-        per_family_harmful={fam: h_seen for fam in FAMILIES},
-        per_family_frr={fam: seen_frr for fam in FAMILIES},
-        labels=labels,
-        shared_frr=seen_frr,
-    )
-    held_table = build_family_table(
-        per_family_harmful=held_dfs,
-        per_family_frr=held_frrs,
-        labels=labels,
-        shared_frr=None,
-    )
-
-    seen_csv = out_dir / "seen_family_table.csv"
-    held_csv = out_dir / "heldout_family_table.csv"
-    seen_md = out_dir / "seen_family_table.md"
-    held_md = out_dir / "heldout_family_table.md"
-    report_md = out_dir / "final_test_report.md"
-
-    seen_table.to_csv(seen_csv, index=False)
-    held_table.to_csv(held_csv, index=False)
-    seen_md.write_text(table_to_markdown(seen_table, "SEEN-FAMILY"), encoding="utf-8")
-    held_md.write_text(table_to_markdown(held_table, "HELDOUT-FAMILY"), encoding="utf-8")
-    report_md.write_text(
-        "# Final test results\n\n"
-        f"Seen model: λ={seen_lam:g}, ε={seen_eps:g} (`{seen_task.slug()}`)\n\n"
-        + "\n".join(
-            f"Held-out {fam}: λ={args.heldout_map[fam][0]:g}, "
-            f"ε={args.heldout_map[fam][1]:g}"
-            for fam in FAMILIES
+    points = []
+    points.extend(
+        build_points_for_mode(
+            mode="seen",
+            per_family_harmful={fam: h_seen for fam in FAMILIES},
+            per_family_frr={fam: seen_frr for fam in FAMILIES},
+            labels=labels,
+            shared_frr=seen_frr,
+            lam=lam,
+            eps=eps,
+            lr=args.lr,
         )
-        + "\n\n"
-        + table_to_markdown(seen_table, "SEEN-FAMILY")
-        + "\n"
-        + table_to_markdown(held_table, "HELDOUT-FAMILY"),
-        encoding="utf-8",
     )
+    points.extend(
+        build_points_for_mode(
+            mode="heldout",
+            per_family_harmful=held_dfs,
+            per_family_frr=held_frrs,
+            labels=labels,
+            shared_frr=None,
+            lam=lam,
+            eps=eps,
+            lr=args.lr,
+        )
+    )
+    points_df = pd.DataFrame(points)
+    points_path = out_dir / "points.csv"
+    points_df.to_csv(points_path, index=False)
+    # Also copy to base out-dir for easy globbing by the plotter.
+    base_out.mkdir(parents=True, exist_ok=True)
+    points_df.to_csv(base_out / f"points_{cell}.csv", index=False)
 
-    print(f"[final_test_eval] Wrote {seen_csv}", flush=True)
-    print(f"[final_test_eval] Wrote {held_csv}", flush=True)
-    print(f"[final_test_eval] Wrote {report_md}", flush=True)
-    print(table_to_markdown(seen_table, "SEEN-FAMILY"), flush=True)
-    print(table_to_markdown(held_table, "HELDOUT-FAMILY"), flush=True)
+    print(f"[final_test_eval] Wrote {out_dir / 'metrics.tsv'}", flush=True)
+    print(f"[final_test_eval] Wrote {points_path}", flush=True)
     return 0
 
 

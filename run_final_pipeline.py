@@ -20,9 +20,11 @@ Modes
   **held-out gcg / autodan / pair** (4 modes). Default grid is 6 cells → **24**
   models; four already-trained checkpoints are skipped by default → **20** jobs.
 
-  Optional eval (``eval/run_final_test_eval.py``) on ``llama3_test.csv`` can be
-  chained after training; use ``--skip-eval`` while the test set is still being
-  updated (e.g. JBB variants).
+  Optional eval: SLURM array over the 6 (λ, ε) cells (3h each). Every task
+  runs seen + held-out gcg/autodan/pair for **that** cell on ``llama3_test.csv``,
+  then a CPU job builds **32** ASR–FRR Pareto charts
+  (seen/heldout × {all,gcg,autodan,pair} × {advbench,harmbench,jailbreakbench,mean}).
+  Use ``--skip-eval`` while the test set is still being updated.
 
 **clean/perturbed is purely λ-based** (all runs use ``--lm-loss-input clean``):
 **λ=0** = regularizer OFF; **λ>0** = regularizer ON.
@@ -68,7 +70,7 @@ _TRAIN_WALL_TIME = "3:00:00"
 _TRAIN_WALL_TIME_BOTH = "9:00:00"
 _TEST_TRAIN_WALL_TIME = "4:00:00"
 _EVAL_WALL_TIME = "4:30:00"
-_FINAL_TEST_EVAL_WALL_TIME = "6:00:00"
+_FINAL_TEST_EVAL_WALL_TIME = "3:00:00"
 
 # Sweep-mode (validation) defaults
 _L3_TRAINING_DATA = "$SCRATCH/dp-llm-experiments/official_data/llama3_train.csv"
@@ -94,6 +96,7 @@ _TEST_SWEEP_PAIRS: list[tuple[float, float]] = [
     (30.0, 0.0),
     (30.0, 1.0),
 ]
+_FINAL_TEST_EVAL_ARRAY = f"0-{len(_TEST_SWEEP_PAIRS) - 1}"  # one eval task per (λ, ε)
 _TEST_TRAIN_FAMILIES: tuple[str | None, ...] = (None, "gcg", "autodan", "pair")
 # Already trained in the earlier 4-model final run; skipped unless
 # --no-skip-existing-test-jobs is set. Keys: (held_out_family|None, λ, ε).
@@ -295,7 +298,12 @@ def _submit_final_test_eval(
     labels_csv: str,
     out_dir: str,
 ) -> str | None:
-    cmd: list[str] = ["sbatch", f"--time={_FINAL_TEST_EVAL_WALL_TIME}"]
+    """Submit the 6-task final-test eval array (one task per (λ, ε))."""
+    cmd: list[str] = [
+        "sbatch",
+        f"--time={_FINAL_TEST_EVAL_WALL_TIME}",
+        f"--array={_FINAL_TEST_EVAL_ARRAY}",
+    ]
     if dependency_job_ids:
         cmd.append(f"--dependency=after:{':'.join(dependency_job_ids)}")
     cmd.append(str(eval_sh))
@@ -312,10 +320,43 @@ def _submit_final_test_eval(
     run_env["SYSTEM_PROMPT_MODE"] = "empty"
     run_env["BENIGN_SYSTEM_PROMPT_MODE"] = "empty"
     print(
-        f"  (final test eval EPOCH={matrix_epoch}; out={out_dir})",
+        f"  (final test eval array={_FINAL_TEST_EVAL_ARRAY}, "
+        f"EPOCH={matrix_epoch}, wall={_FINAL_TEST_EVAL_WALL_TIME}; out={out_dir})",
         flush=True,
     )
     return _submit_sbatch(repo, cmd, env=run_env)
+
+
+def _submit_final_test_pareto(
+    *,
+    repo: Path,
+    pareto_sh: Path,
+    after_job_id: str,
+    points_dir: str,
+) -> None:
+    """Chain the 32-chart Pareto CPU job after the final-test eval array."""
+    env = {
+        "REPO_ROOT": str(repo.resolve()),
+        "POINTS_DIR": points_dir,
+        "PARETO_OUT_DIR": f"{points_dir.rstrip('/')}/pareto_charts",
+    }
+    dep_styles = (
+        f"afterok:{after_job_id}",
+        f"afterany:{after_job_id}",
+        f"after:{after_job_id}",
+    )
+    for dep in dep_styles:
+        cmd = ["sbatch", f"--dependency={dep}", str(pareto_sh)]
+        print(" ", " ".join(cmd), flush=True)
+        jid = _submit_sbatch(repo, cmd, env=env)
+        if jid is not None:
+            return
+        print(f"[WARN] Pareto sbatch with --dependency={dep} failed; trying next...", flush=True)
+    print(
+        "[WARN] Could not submit final-test Pareto job. After eval finishes, run:\n"
+        f"  POINTS_DIR={points_dir} sbatch {pareto_sh}",
+        flush=True,
+    )
 
 
 def _submit_heatmap_job(
@@ -445,14 +486,16 @@ def _run_test_mode(
 
         matrix_epoch = _epoch_env_for_matrix(args.training_half, forward)
         base_ck = os.environ.get("CHECKPOINT_ROOT") or "$SCRATCH/dp-llm-sweep"
+        pareto_sh = repo / "eval" / "submit_plot_final_test_pareto.sh"
         for lr in eval_lrs:
             out_dir = f"{base_ck}/final_test_outputs/lr{lr}"
             print(
-                f"\n=== sbatch FINAL TEST eval (lr={lr}; mapped (λ,ε) per family; "
-                f"SEEN/HELDOUT tables) ===",
+                f"\n=== sbatch FINAL TEST eval array (lr={lr}; "
+                f"{len(_TEST_SWEEP_PAIRS)} (λ,ε) cells × seen+3 heldout; "
+                f"wall={_FINAL_TEST_EVAL_WALL_TIME}) ===",
                 flush=True,
             )
-            _submit_final_test_eval(
+            eval_job_id = _submit_final_test_eval(
                 repo=repo,
                 eval_sh=eval_sh,
                 dependency_job_ids=train_ids if use_dep else None,
@@ -464,15 +507,35 @@ def _run_test_mode(
                 labels_csv=args.dataset_labels,
                 out_dir=out_dir,
             )
+            if eval_job_id is None:
+                print(
+                    f"[WARN] Could not parse final-test eval job id for lr={lr}; "
+                    "skip Pareto submission. After eval finishes, run:\n"
+                    f"  POINTS_DIR={out_dir} sbatch eval/submit_plot_final_test_pareto.sh",
+                    flush=True,
+                )
+            elif not pareto_sh.is_file():
+                print(f"[WARN] missing {pareto_sh}; skip Pareto submission.", flush=True)
+            else:
+                print(
+                    f"\n=== sbatch FINAL TEST Pareto charts (lr={lr}, after eval array) ===",
+                    flush=True,
+                )
+                _submit_final_test_pareto(
+                    repo=repo,
+                    pareto_sh=pareto_sh,
+                    after_job_id=eval_job_id,
+                    points_dir=out_dir,
+                )
     else:
         print("\n=== TEST mode: --skip-eval set; not submitting final test eval ===", flush=True)
 
     print(
-        f"\nDone (TEST mode). Submitted/planned {len(jobs)} training jobs "
-        f"(wall {_TEST_TRAIN_WALL_TIME} each). "
-        "Checkpoints under ``$CHECKPOINT_ROOT/`` "
-        "(`l3_run_…` / `heldout_{fam}_l3_run_…`). "
-        "No hyperparameter heatmaps in test mode.\n",
+        f"\nDone (TEST mode). Training jobs use wall {_TEST_TRAIN_WALL_TIME}; "
+        f"final-test eval array uses wall {_FINAL_TEST_EVAL_WALL_TIME} "
+        f"(array {_FINAL_TEST_EVAL_ARRAY}). "
+        "Per-cell outputs under ``$CHECKPOINT_ROOT/final_test_outputs/lr<LR>/lam*_eps*/``; "
+        "32 Pareto PNGs under ``…/pareto_charts/``.\n",
         flush=True,
     )
     return 0
