@@ -1,2 +1,2 @@
 # slug	lr	lambda	epsilon	lm_loss_input	system_prompt_mode	held_out_family	wandb_run_id	finetuned_base	job_script(s)_semicolon_sep_if_chunked
-l3_run_lr2e-05_lam1_eps-0.5	2e-05	1.0	-0.5	clean	empty		afa716198c3e4164830901547708feba	$SCRATCH/dp-llm-sweep/l3_run_lr2e-05_lam1_eps-0.5_finetuned_llm	/Users/andrewahn/Desktop/DP-LLM-Safety Research/dp-llm-experiments/sweep_jobs/test_seen/l3_run_lr2e-05_lam1_eps-0.5.sh
+l3_run_lr2e-05_lam3_eps0	2e-05	3.0	0.0	clean	empty		a468e19788564a08a7921f1854aca8f8	$SCRATCH/dp-llm-sweep/l3_run_lr2e-05_lam3_eps0_finetuned_llm	/Users/andrewahn/Desktop/DP-LLM-Safety Research/dp-llm-experiments/sweep_jobs/test_seen/l3_run_lr2e-05_lam3_eps0.sh

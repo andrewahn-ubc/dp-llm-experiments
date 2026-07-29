@@ -15,19 +15,14 @@ Modes
      ``…/val_eval_outputs/lr<LR>/selection/``.
 
 ``--mode test``
-  Final models + benchmark tables (no hyperparam heatmaps):
+  Final test-set hyperparameter sweep on ``llama3_train_plus_validation.csv``
+  (no validation heatmaps). For each (λ, ε) in the test grid, trains **seen** +
+  **held-out gcg / autodan / pair** (4 modes). Default grid is 6 cells → **24**
+  models; four already-trained checkpoints are skipped by default → **20** jobs.
 
-  1. Train **four** checkpoints on ``llama3_train_plus_validation.csv``:
-       • seen-family          λ=1, ε=-0.5
-       • held-out autodan     λ=3, ε=0
-       • held-out gcg         λ=3, ε=1
-       • held-out pair        λ=1, ε=-1
-  2. Evaluate on ``llama3_test.csv`` (+ FRR on ``frr_test.csv`` / ``frr_text.csv``)
-     with the mapping above (seen attacks all use the λ=1/ε=-0.5 model).
-  3. Write SEEN-FAMILY and HELDOUT-FAMILY tables
-     (columns: advbench, harmbench, jailbreakbench, mean; rows: all / gcg /
-     autodan / pair; cells: ASR / FRR) under
-     ``$CHECKPOINT_ROOT/final_test_outputs/``.
+  Optional eval (``eval/run_final_test_eval.py``) on ``llama3_test.csv`` can be
+  chained after training; use ``--skip-eval`` while the test set is still being
+  updated (e.g. JBB variants).
 
 **clean/perturbed is purely λ-based** (all runs use ``--lm-loss-input clean``):
 **λ=0** = regularizer OFF; **λ>0** = regularizer ON.
@@ -35,13 +30,12 @@ Modes
 Run from the repo root on the cluster::
 
   python run_final_pipeline.py --mode sweep --model llama_3_8b_instruct
-  python run_final_pipeline.py --mode test  --model llama_3_8b_instruct
+  python run_final_pipeline.py --mode test --model llama_3_8b_instruct --skip-eval
+  python run_final_pipeline.py --mode test --model llama_3_8b_instruct --skip-eval -- --dry-run
 
 ``--lr`` is a comma-separated subset of ``{2e-5, 1e-5}``. Omit to use ``2e-5``.
 
-Forward extra arguments to ``train/submit_wandb_sweep.py`` after ``--``::
-
-  python run_final_pipeline.py --mode test -- --dry-run
+Forward extra arguments to ``train/submit_wandb_sweep.py`` after ``--``.
 """
 
 from __future__ import annotations
@@ -72,6 +66,7 @@ _DEFAULT_SWEEP_LRS = ("2e-5",)
 _PIPELINE_TRAIN_EPOCHS = "1"
 _TRAIN_WALL_TIME = "3:00:00"
 _TRAIN_WALL_TIME_BOTH = "9:00:00"
+_TEST_TRAIN_WALL_TIME = "4:00:00"
 _EVAL_WALL_TIME = "4:30:00"
 _FINAL_TEST_EVAL_WALL_TIME = "6:00:00"
 
@@ -90,13 +85,39 @@ _L3_DATASET_LABELS = (
     "$SCRATCH/dp-llm-experiments/official_data/combined_test_dataset.csv"
 )
 
-# Final test-mode train jobs: (description, held_out_family|None, lam, eps)
-_TEST_TRAIN_JOBS: list[tuple[str, str | None, float, float]] = [
-    ("seen-family λ=1 ε=-0.5", None, 1.0, -0.5),
-    ("held-out autodan λ=3 ε=0", "autodan", 3.0, 0.0),
-    ("held-out gcg λ=3 ε=1", "gcg", 3.0, 1.0),
-    ("held-out pair λ=1 ε=-1", "pair", 1.0, -1.0),
+# Test-mode (λ, ε) grid: each cell × {seen, heldout gcg/autodan/pair} = 24 models.
+_TEST_SWEEP_PAIRS: list[tuple[float, float]] = [
+    (1.0, -0.5),
+    (3.0, 0.0),
+    (3.0, 1.0),
+    (1.0, -1.0),
+    (30.0, 0.0),
+    (30.0, 1.0),
 ]
+_TEST_TRAIN_FAMILIES: tuple[str | None, ...] = (None, "gcg", "autodan", "pair")
+# Already trained in the earlier 4-model final run; skipped unless
+# --no-skip-existing-test-jobs is set. Keys: (held_out_family|None, λ, ε).
+_TEST_SKIP_TRAIN_JOBS: set[tuple[str | None, float, float]] = {
+    (None, 1.0, -0.5),       # seen-family
+    ("autodan", 3.0, 0.0),   # held-out autodan
+    ("gcg", 3.0, 1.0),       # held-out gcg
+    ("pair", 1.0, -1.0),     # held-out pair
+}
+
+
+def _iter_test_train_jobs(
+    *,
+    skip_existing: bool,
+) -> list[tuple[str, str | None, float, float]]:
+    """Return (description, held_out_family|None, lam, eps) jobs for test mode."""
+    jobs: list[tuple[str, str | None, float, float]] = []
+    for lam, eps in _TEST_SWEEP_PAIRS:
+        for fam in _TEST_TRAIN_FAMILIES:
+            if skip_existing and (fam, lam, eps) in _TEST_SKIP_TRAIN_JOBS:
+                continue
+            label = "seen-family" if fam is None else f"held-out {fam}"
+            jobs.append((f"{label} λ={lam:g} ε={eps:g}", fam, lam, eps))
+    return jobs
 
 
 def _parse_lr_list(raw: str | None) -> list[str] | None:
@@ -126,8 +147,13 @@ def _eval_task_count() -> int:
     return len(lambda_epsilon_pairs(SWEEP_LAMBDAS, SWEEP_EPSILONS))
 
 
-def _default_submit_train_args(training_half: str) -> list[str]:
-    wall = _TRAIN_WALL_TIME_BOTH if training_half == "both" else _TRAIN_WALL_TIME
+def _default_submit_train_args(
+    training_half: str,
+    *,
+    wall: str | None = None,
+) -> list[str]:
+    if wall is None:
+        wall = _TRAIN_WALL_TIME_BOTH if training_half == "both" else _TRAIN_WALL_TIME
     args = ["--total-epochs", _PIPELINE_TRAIN_EPOCHS]
     if training_half in ("first", "second", "both"):
         args += ["--training-halves-phase", training_half]
@@ -341,26 +367,45 @@ def _run_test_mode(
     job_ids_path: Path,
     forward: list[str],
 ) -> int:
-    """Train the four mapped checkpoints and run final test eval + tables."""
+    """Train the test-mode (λ, ε) × {seen, held-out ×3} grid; optional final eval."""
     chain_eval = not args.parallel_eval and not args.skip_eval
     lr_list = _parse_lr_list(args.learning_rate)
     lr_train_args: list[str] = (
         ["--learning-rates", ",".join(lr_list)] if lr_list is not None else []
     )
     eval_lrs = lr_list if lr_list is not None else list(_DEFAULT_SWEEP_LRS)
-    train_submit_args = _default_submit_train_args(args.training_half)
+    # Test-mode wall is fixed at 4h (overrides the longer sweep-mode "both" budget).
+    train_submit_args = _default_submit_train_args(
+        args.training_half, wall=_TEST_TRAIN_WALL_TIME
+    )
     data_args = [
         "--training-data",
         args.training_data,
-        # Embedded eval is skipped; still pass a harmless placeholder so the
-        # sweep CLI stays happy if someone re-enables embedded eval.
+        # Embedded eval is skipped; placeholder keeps the sweep CLI happy.
         "--validation-data",
         args.test_data,
     ]
 
+    jobs = _iter_test_train_jobs(skip_existing=not args.no_skip_existing_test_jobs)
+    n_full = len(_TEST_SWEEP_PAIRS) * len(_TEST_TRAIN_FAMILIES)
+    n_skip = n_full - len(jobs)
+    print(
+        f"\n=== TEST mode training plan: {len(jobs)} jobs "
+        f"({n_full} full grid − {n_skip} skipped; wall={_TEST_TRAIN_WALL_TIME}) ===",
+        flush=True,
+    )
+    if not args.no_skip_existing_test_jobs and n_skip:
+        for fam, lam, eps in sorted(
+            _TEST_SKIP_TRAIN_JOBS, key=lambda t: (t[0] or "", t[1], t[2])
+        ):
+            label = "seen-family" if fam is None else f"held-out {fam}"
+            print(f"  skip (already trained): {label} λ={lam:g} ε={eps:g}", flush=True)
+    for desc, fam, lam, eps in jobs:
+        print(f"  train: {desc}", flush=True)
+
     if not args.skip_training:
         job_ids_path.write_text("", encoding="utf-8")
-        for desc, fam, lam, eps in _TEST_TRAIN_JOBS:
+        for desc, fam, lam, eps in jobs:
             pair = f"{lam:g}:{eps:g}"
             script_dir = (
                 sweep_root / "test_seen"
@@ -419,14 +464,15 @@ def _run_test_mode(
                 labels_csv=args.dataset_labels,
                 out_dir=out_dir,
             )
+    else:
+        print("\n=== TEST mode: --skip-eval set; not submitting final test eval ===", flush=True)
 
     print(
-        "\nDone (TEST mode). Final tables land in "
-        "``$CHECKPOINT_ROOT/final_test_outputs/lr<LR>/`` "
-        "(seen_family_table.md / heldout_family_table.md / final_test_report.md). "
-        "No hyperparameter heatmaps are submitted in test mode.\n"
-        "Model mapping: seen → λ=1,ε=-0.5; heldout autodan → λ=3,ε=0; "
-        "heldout gcg → λ=3,ε=1; heldout pair → λ=1,ε=-1.\n",
+        f"\nDone (TEST mode). Submitted/planned {len(jobs)} training jobs "
+        f"(wall {_TEST_TRAIN_WALL_TIME} each). "
+        "Checkpoints under ``$CHECKPOINT_ROOT/`` "
+        "(`l3_run_…` / `heldout_{fam}_l3_run_…`). "
+        "No hyperparameter heatmaps in test mode.\n",
         flush=True,
     )
     return 0
@@ -618,8 +664,8 @@ def main(argv: list[str] | None = None) -> int:
         default="sweep",
         help=(
             "sweep = hyperparameter search on validation (heatmaps + selection). "
-            "test = train the 4 selected (λ,ε) models on train+val and evaluate on "
-            "the test set with SEEN/HELDOUT tables (no heatmaps)."
+            "test = train the test (λ,ε) grid × {seen, held-out×3} on train+val "
+            "(default skips 4 already-trained cells); optional test-set eval."
         ),
     )
     lp.add_argument(
@@ -636,6 +682,15 @@ def main(argv: list[str] | None = None) -> int:
         "--skip-eval",
         action="store_true",
         help="Only run training sweep submissions (skip eval sbatch).",
+    )
+    lp.add_argument(
+        "--no-skip-existing-test-jobs",
+        action="store_true",
+        help=(
+            "TEST mode only: do not skip the 4 checkpoints already trained "
+            "(seen λ=1/ε=-0.5; held-out autodan λ=3/ε=0; gcg λ=3/ε=1; pair λ=1/ε=-1). "
+            "Default skips those 4 → 20 jobs instead of 24."
+        ),
     )
     lp.add_argument(
         "--skip-heatmaps",

@@ -98,26 +98,16 @@ def _parse_pair(raw: str) -> tuple[float, float]:
     return float(a.strip()), float(b.strip())
 
 
-def _attach_dataset(df: pd.DataFrame, labels: pd.DataFrame | None) -> pd.DataFrame:
-    out = df.copy()
-    if "dataset" in out.columns:
-        out["dataset"] = out["dataset"].astype(str).str.strip().str.lower()
-        return out
-    if labels is None or "goal" not in out.columns:
-        out["dataset"] = ""
-        return out
-    lab = labels.copy()
-    lab["goal"] = lab["goal"].astype(str)
-    lab["dataset"] = lab["dataset"].astype(str).str.strip().str.lower()
-    lab = lab.drop_duplicates(subset=["goal"], keep="first")
-    out["goal"] = out["goal"].astype(str)
-    out = out.merge(lab[["goal", "dataset"]], on="goal", how="left")
-    out["dataset"] = out["dataset"].fillna("").astype(str)
-    return out
-
-
 def _load_labels(path: Path | None) -> pd.DataFrame | None:
-    if path is None or not path.is_file():
+    if path is None:
+        print("[final_test_eval] WARN: no --labels-csv; benchmark ASR columns will be n/a.", flush=True)
+        return None
+    if not path.is_file():
+        print(
+            f"[final_test_eval] WARN: labels CSV not found: {path}; "
+            "benchmark ASR columns will be n/a (overall ASR is still in metrics TSV).",
+            flush=True,
+        )
         return None
     df = pd.read_csv(path)
     if "goal" not in df.columns or "dataset" not in df.columns:
@@ -128,6 +118,39 @@ def _load_labels(path: Path | None) -> pd.DataFrame | None:
         )
         return None
     return df
+
+
+def _attach_dataset(df: pd.DataFrame, labels: pd.DataFrame | None) -> pd.DataFrame:
+    out = df.copy()
+    if "dataset" in out.columns and out["dataset"].astype(str).str.strip().ne("").any():
+        out["dataset"] = out["dataset"].astype(str).str.strip().str.lower()
+        return out
+    if labels is None or "goal" not in out.columns:
+        out["dataset"] = ""
+        return out
+    lab = labels.copy()
+    lab["goal"] = lab["goal"].astype(str)
+    lab["dataset"] = lab["dataset"].astype(str).str.strip().str.lower()
+    lab = lab.drop_duplicates(subset=["goal"], keep="first")
+    out["goal"] = out["goal"].astype(str)
+    # Drop empty/placeholder dataset col before merge so we don't get dataset_x/y.
+    if "dataset" in out.columns:
+        out = out.drop(columns=["dataset"])
+    out = out.merge(lab[["goal", "dataset"]], on="goal", how="left")
+    out["dataset"] = out["dataset"].fillna("").astype(str)
+    n_ok = int((out["dataset"] != "").sum())
+    if n_ok == 0:
+        print(
+            "[final_test_eval] WARN: 0 rows matched labels on goal; "
+            "benchmark ASR cells will be n/a.",
+            flush=True,
+        )
+    else:
+        print(
+            f"[final_test_eval] attached dataset labels to {n_ok}/{len(out)} harmful rows",
+            flush=True,
+        )
+    return out
 
 
 def _asr_on_subset(h: pd.DataFrame, family: str | None) -> float | None:
