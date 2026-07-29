@@ -26,13 +26,26 @@ Modes
   (seen/heldout × {all,gcg,autodan,pair} × {advbench,harmbench,jailbreakbench,mean}).
   Use ``--skip-eval`` while the test set is still being updated.
 
-**clean/perturbed is purely λ-based** (all runs use ``--lm-loss-input clean``):
-**λ=0** = regularizer OFF; **λ>0** = regularizer ON.
+``--mode adv-sft``
+  Standard **adversarial SFT** baseline (R2D2-style): ``--lm-loss-input perturbed``
+  at **λ=0** (stability regularizer off; ε inert). Trains on
+  ``llama3_train_plus_validation.csv``:
+
+    • seen-family adapter
+    • held-out gcg / autodan / pair adapters (unless ``--skip-held-out-training``)
+
+  Then evaluates those ``*_pertlm`` checkpoints on ``llama3_test.csv`` /
+  ``frr_test.csv`` via ``test_eval_matrix.py --perturbed-reg-subset perturbed_only``.
+
+**clean/perturbed is purely λ-based** for ``sweep`` / ``test`` (``--lm-loss-input clean``):
+**λ=0** = regularizer OFF; **λ>0** = regularizer ON. ``adv-sft`` is the separate
+perturbed-LM baseline.
 
 Run from the repo root on the cluster::
 
   python run_final_pipeline.py --mode sweep --model llama_3_8b_instruct
   python run_final_pipeline.py --mode test --model llama_3_8b_instruct --skip-eval
+  python run_final_pipeline.py --mode adv-sft --model llama_3_8b_instruct
   python run_final_pipeline.py --mode test --model llama_3_8b_instruct --skip-eval -- --dry-run
 
 ``--lr`` is a comma-separated subset of ``{2e-5, 1e-5}``. Omit to use ``2e-5``.
@@ -251,6 +264,8 @@ def _submit_eval_array(
     system_prompt_mode: str | None = None,
     benign_system_prompt_mode: str | None = None,
     wall_time: str | None = None,
+    perturbed_reg_subset: str | None = None,
+    extra_args: str | None = None,
 ) -> str | None:
     cmd: list[str] = ["sbatch", f"--time={wall_time or _EVAL_WALL_TIME}"]
     if dependency_job_ids:
@@ -278,8 +293,19 @@ def _submit_eval_array(
         run_env["SYSTEM_PROMPT_MODE"] = system_prompt_mode
     if benign_system_prompt_mode is not None:
         run_env["BENIGN_SYSTEM_PROMPT_MODE"] = benign_system_prompt_mode
+    if perturbed_reg_subset is not None:
+        run_env["PERTURBED_REG_SUBSET"] = perturbed_reg_subset
+    if extra_args is not None:
+        run_env["EXTRA_ARGS"] = extra_args
     print(
-        f"  (eval matrix EPOCH={run_env['EPOCH']} → *_finetuned_llm_epoch{run_env['EPOCH']})",
+        f"  (eval matrix EPOCH={run_env['EPOCH']} → *_finetuned_llm_epoch{run_env['EPOCH']}"
+        + (
+            f"; PERTURBED_REG_SUBSET={perturbed_reg_subset}"
+            if perturbed_reg_subset is not None
+            else ""
+        )
+        + (f"; EXTRA_ARGS={extra_args}" if extra_args else "")
+        + ")",
         flush=True,
     )
     return _submit_sbatch(repo, cmd, env=run_env)
@@ -541,6 +567,145 @@ def _run_test_mode(
     return 0
 
 
+def _run_adv_sft_mode(
+    *,
+    args: argparse.Namespace,
+    repo: Path,
+    submit_py: Path,
+    eval_sh: Path,
+    sweep_root: Path,
+    job_ids_path: Path,
+    forward: list[str],
+) -> int:
+    """Train adversarial SFT (perturbed LM, λ=0) then eval on the test set."""
+    chain_eval = not args.parallel_eval and not args.skip_eval
+    lr_list = _parse_lr_list(args.learning_rate)
+    lr_train_args: list[str] = (
+        ["--learning-rates", ",".join(lr_list)] if lr_list is not None else []
+    )
+    eval_lrs = lr_list if lr_list is not None else list(_DEFAULT_SWEEP_LRS)
+    train_submit_args = _default_submit_train_args(
+        args.training_half, wall=_TEST_TRAIN_WALL_TIME
+    )
+    data_args = [
+        "--training-data",
+        args.training_data,
+        "--validation-data",
+        args.test_data,
+    ]
+
+    print(
+        "\n=== ADV-SFT mode: adversarial SFT (lm_loss=perturbed, λ=0) "
+        f"on train+val; wall={_TEST_TRAIN_WALL_TIME} ===",
+        flush=True,
+    )
+    print("  train: seen-family (perturbed λ=0)", flush=True)
+    if not args.skip_held_out_training:
+        print(f"  train: held-out {HELD_OUT_FAMS} (perturbed λ=0)", flush=True)
+    else:
+        print("  skip held-out training (--skip-held-out-training)", flush=True)
+
+    if not args.skip_training:
+        job_ids_path.write_text("", encoding="utf-8")
+        seen_cmd = [
+            sys.executable,
+            str(submit_py),
+            "--model-profile",
+            args.model_profile,
+            "--lm-loss-input",
+            "perturbed",
+            "--perturbed-sweep-subset",
+            "lambda0_only",
+            "--script-dir",
+            str(sweep_root / "test_adv_sft_seen"),
+        ] + lr_train_args + data_args + train_submit_args + forward
+        if chain_eval:
+            seen_cmd.extend(["--record-job-ids", str(job_ids_path)])
+        print("\n=== submit_wandb_sweep (ADV-SFT: seen-family) ===", flush=True)
+        print(" ", " ".join(seen_cmd), flush=True)
+        subprocess.run(seen_cmd, cwd=str(repo), check=True)
+
+        if not args.skip_held_out_training:
+            held_cmd = [
+                sys.executable,
+                str(submit_py),
+                "--model-profile",
+                args.model_profile,
+                "--lm-loss-input",
+                "perturbed",
+                "--perturbed-sweep-subset",
+                "lambda0_only",
+                "--held-out-families",
+                HELD_OUT_FAMS,
+                "--script-dir",
+                str(sweep_root / "test_adv_sft_heldout"),
+            ] + lr_train_args + data_args + train_submit_args + forward
+            if chain_eval:
+                held_cmd.extend(["--record-job-ids", str(job_ids_path)])
+            print(
+                f"\n=== submit_wandb_sweep (ADV-SFT: held-out {HELD_OUT_FAMS}) ===",
+                flush=True,
+            )
+            print(" ", " ".join(held_cmd), flush=True)
+            subprocess.run(held_cmd, cwd=str(repo), check=True)
+
+    if not args.skip_eval:
+        train_ids = _read_job_ids(job_ids_path) if chain_eval and not args.skip_training else []
+        use_dep = bool(train_ids) and chain_eval and not args.skip_training
+        if chain_eval and not args.skip_training and not train_ids:
+            print(
+                "\n[WARN] No training job ids recorded (e.g. --dry-run on sweeps). "
+                "Submitting adv-SFT test eval without SLURM dependency.",
+                flush=True,
+            )
+
+        matrix_epoch = _epoch_env_for_matrix(args.training_half, forward)
+        base_ck = os.environ.get("CHECKPOINT_ROOT") or "$SCRATCH/dp-llm-sweep"
+        seen_only_args = "--seen-only" if args.skip_held_out_training else None
+        for lr in eval_lrs:
+            out_dir = f"{base_ck}/adv_sft_test_outputs/lr{lr}"
+            print(
+                f"\n=== sbatch ADV-SFT test eval (lr={lr}; "
+                f"perturbed_only λ=0; wall={_EVAL_WALL_TIME}) ===",
+                flush=True,
+            )
+            eval_job_id = _submit_eval_array(
+                repo=repo,
+                eval_sh=eval_sh,
+                dependency_job_ids=train_ids if use_dep else None,
+                model_profile=args.model_profile,
+                lr=lr,
+                matrix_epoch=matrix_epoch,
+                array_range="0-0",
+                harmful_data=args.test_data,
+                benign_data=args.benign_test_data,
+                out_dir=out_dir,
+                lambdas="0",
+                epsilons="0",
+                system_prompt_mode="empty",
+                benign_system_prompt_mode="empty",
+                wall_time=_EVAL_WALL_TIME,
+                perturbed_reg_subset="perturbed_only",
+                extra_args=seen_only_args,
+            )
+            if eval_job_id is None:
+                print(
+                    f"[WARN] Could not parse adv-SFT eval job id for lr={lr}.",
+                    flush=True,
+                )
+    else:
+        print("\n=== ADV-SFT mode: --skip-eval set; not submitting test eval ===", flush=True)
+
+    print(
+        "\nDone (ADV-SFT mode). Checkpoints: "
+        "``$CHECKPOINT_ROOT/l3_run_lr…_lam0_eps0_pertlm_finetuned_llm_epoch*`` "
+        "(and ``heldout_{gcg,autodan,pair}_…``). "
+        "Test metrics: ``$CHECKPOINT_ROOT/adv_sft_test_outputs/lr<LR>/``.\n",
+        flush=True,
+    )
+    return 0
+
+
 def _run_sweep_mode(
     *,
     args: argparse.Namespace,
@@ -723,12 +888,14 @@ def main(argv: list[str] | None = None) -> int:
     )
     lp.add_argument(
         "--mode",
-        choices=("sweep", "test"),
+        choices=("sweep", "test", "adv-sft"),
         default="sweep",
         help=(
             "sweep = hyperparameter search on validation (heatmaps + selection). "
             "test = train the test (λ,ε) grid × {seen, held-out×3} on train+val "
-            "(default skips 4 already-trained cells); optional test-set eval."
+            "(default skips 4 already-trained cells); optional test-set eval. "
+            "adv-sft = adversarial SFT baseline (perturbed LM, λ=0) on train+val, "
+            "then test-set eval."
         ),
     )
     lp.add_argument(
@@ -739,7 +906,10 @@ def main(argv: list[str] | None = None) -> int:
     lp.add_argument(
         "--skip-held-out-training",
         action="store_true",
-        help="SWEEP mode only: seen-family sweep only (no held-out training).",
+        help=(
+            "SWEEP / ADV-SFT: seen-family only (no held-out training). "
+            "ADV-SFT also passes --seen-only to test eval."
+        ),
     )
     lp.add_argument(
         "--skip-eval",
@@ -794,7 +964,7 @@ def main(argv: list[str] | None = None) -> int:
         default=None,
         help=(
             "Training CSV for submit_wandb_sweep. Default depends on --mode: "
-            "sweep → llama3_train.csv; test → llama3_train_plus_validation.csv."
+            "sweep → llama3_train.csv; test/adv-sft → llama3_train_plus_validation.csv."
         ),
     )
     lp.add_argument(
@@ -810,13 +980,13 @@ def main(argv: list[str] | None = None) -> int:
     lp.add_argument(
         "--test-data",
         default=_L3_TEST_DATA,
-        help="TEST mode: harmful test CSV (ASR). Default: llama3_test.csv.",
+        help="TEST / ADV-SFT mode: harmful test CSV (ASR). Default: llama3_test.csv.",
     )
     lp.add_argument(
         "--benign-test-data",
         default=_L3_FRR_TEST_DATA,
         help=(
-            "TEST mode: benign FRR CSV. Default: frr_test.csv "
+            "TEST / ADV-SFT mode: benign FRR CSV. Default: frr_test.csv "
             "(use frr_text.csv if that is your local name)."
         ),
     )
@@ -841,7 +1011,9 @@ def main(argv: list[str] | None = None) -> int:
     # Mode-specific training-data default.
     if args.training_data is None:
         args.training_data = (
-            _L3_TRAIN_PLUS_VAL if args.mode == "test" else _L3_TRAINING_DATA
+            _L3_TRAIN_PLUS_VAL
+            if args.mode in ("test", "adv-sft")
+            else _L3_TRAINING_DATA
         )
 
     repo = Path(args.repo_root).resolve() if args.repo_root else Path(__file__).resolve().parent
@@ -861,6 +1033,21 @@ def main(argv: list[str] | None = None) -> int:
             print(f"ERROR: missing {eval_sh}", file=sys.stderr)
             return 2
         return _run_test_mode(
+            args=args,
+            repo=repo,
+            submit_py=submit_py,
+            eval_sh=eval_sh,
+            sweep_root=sweep_root,
+            job_ids_path=job_ids_path,
+            forward=forward,
+        )
+
+    if args.mode == "adv-sft":
+        eval_sh = repo / "eval" / "submit_test_eval_matrix.sh"
+        if not eval_sh.is_file():
+            print(f"ERROR: missing {eval_sh}", file=sys.stderr)
+            return 2
+        return _run_adv_sft_mode(
             args=args,
             repo=repo,
             submit_py=submit_py,

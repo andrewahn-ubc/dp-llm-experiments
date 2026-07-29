@@ -89,6 +89,15 @@ def plot_one(sub: pd.DataFrame, title: str, out_path: Path) -> None:
     ax.scatter(frrs, asrs, c="#9aa0a6", s=55, zorder=2, label="(λ, ε) cells")
 
     valid = [i for i, (a, f) in enumerate(zip(asrs, frrs)) if not (math.isnan(a) or math.isnan(f))]
+    if not valid:
+        n_nan_asr = sum(1 for a in asrs if math.isnan(a))
+        n_nan_frr = sum(1 for f in frrs if math.isnan(f))
+        print(
+            f"[plot] WARN: {title}: 0 valid points "
+            f"(nan ASR={n_nan_asr}/{len(asrs)}, nan FRR={n_nan_frr}/{len(frrs)}). "
+            "Usually means dataset labels failed to join when building points.csv.",
+            flush=True,
+        )
     front: list[int] = []
     if len(valid) >= 1:
         v_asr = [asrs[i] for i in valid]

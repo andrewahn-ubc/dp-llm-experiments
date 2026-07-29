@@ -26,8 +26,9 @@ Modes:
 
   pert_reg  — lm_loss_input=perturbed. With default ``--perturbed-reg-subset lambda0_only``,
               a **single** λ=0 checkpoint (representative ε, same rule as clean λ=0) matches
-              ``--perturbed-sweep-subset lambda0_only`` training. Use ``--perturbed-reg-subset full``
-              for the legacy full perturbed λ×ε grid (62 tasks total).
+              ``--perturbed-sweep-subset lambda0_only`` training. Use ``perturbed_only`` for
+              that adversarial-SFT cell alone (no clean tasks). Use ``full`` for the legacy
+              full perturbed λ×ε grid.
 
 For **clean** LM, when λ=0 only **one** ε is used (``lambda_epsilon_pairs``). The same
 representative ε is used for the lone **perturbed** λ=0 run when using ``lambda0_only``.
@@ -209,10 +210,15 @@ def build_tasks(
     *,
     perturbed_reg_subset: str = "lambda0_only",
 ) -> list[Task]:
-    """perturbed_reg_subset: 'none' | 'lambda0_only' | 'full' (must match training sweep)."""
+    """perturbed_reg_subset: 'none' | 'lambda0_only' | 'perturbed_only' | 'full'."""
     tasks: list[Task] = []
     tid = 0
     pairs = lambda_epsilon_pairs(lambdas, epsilons)
+
+    if perturbed_reg_subset == "perturbed_only":
+        lam, eps = lambda_epsilon_pairs((0.0,), epsilons)[0]
+        tasks.append(Task(tid, "pert_reg", lr, lam, eps, "perturbed", model_profile))
+        return tasks
 
     for lam, eps in pairs:
         tasks.append(Task(tid, "clean_reg", lr, lam, eps, "clean", model_profile))
@@ -467,10 +473,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--perturbed-reg-subset",
         dest="perturbed_reg_subset",
         default="lambda0_only",
-        choices=("none", "lambda0_only", "full"),
+        choices=("none", "lambda0_only", "perturbed_only", "full"),
         help=(
             "Which perturbed-LM checkpoints to evaluate. 'lambda0_only' (default): one "
             "task at λ=0 with the same representative ε as clean λ=0 (when λ=0 is in the λ list). "
+            "'perturbed_only': that λ=0 adversarial-SFT cell alone (no clean tasks). "
             "'full': one perturbed task per (λ, ε) clean cell. 'none': clean grid only."
         ),
     )

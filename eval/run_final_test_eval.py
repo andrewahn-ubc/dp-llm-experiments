@@ -86,23 +86,43 @@ def _parse_pair(raw: str) -> tuple[float, float]:
     return float(a.strip()), float(b.strip())
 
 
-def _load_labels(path: Path | None) -> pd.DataFrame | None:
+def _resolve_labels_path(repo: Path, explicit: str) -> Path | None:
+    """Prefer an explicit path; else try official/ then official_data/."""
+    if explicit:
+        return Path(expand_path(explicit))
+    for rel in (
+        Path("official") / "combined_test_dataset.csv",
+        Path("official_data") / "combined_test_dataset.csv",
+    ):
+        cand = repo / rel
+        if cand.is_file():
+            return cand
+    return repo / "official_data" / "combined_test_dataset.csv"
+
+
+def _load_labels(path: Path | None, *, required: bool = True) -> pd.DataFrame | None:
     if path is None:
-        print("[final_test_eval] WARN: no --labels-csv; benchmark ASR may be n/a.", flush=True)
+        msg = "[final_test_eval] no --labels-csv; cannot compute per-benchmark ASR."
+        if required:
+            raise SystemExit(f"ERROR: {msg}")
+        print(f"[final_test_eval] WARN: {msg}", flush=True)
         return None
     if not path.is_file():
-        print(
-            f"[final_test_eval] WARN: labels CSV not found: {path}; "
-            "benchmark ASR may be n/a.",
-            flush=True,
+        msg = (
+            f"labels CSV not found: {path}. "
+            "Per-benchmark ASR would be NaN and Pareto charts empty. "
+            "Copy combined_test_dataset.csv to the cluster path or pass --labels-csv."
         )
+        if required:
+            raise SystemExit(f"ERROR: {msg}")
+        print(f"[final_test_eval] WARN: {msg}", flush=True)
         return None
     df = pd.read_csv(path)
     if "goal" not in df.columns or "dataset" not in df.columns:
-        print(
-            f"[final_test_eval] WARN: labels CSV {path} missing goal/dataset.",
-            flush=True,
-        )
+        msg = f"labels CSV {path} missing goal/dataset columns."
+        if required:
+            raise SystemExit(f"ERROR: {msg}")
+        print(f"[final_test_eval] WARN: {msg}", flush=True)
         return None
     return df
 
@@ -129,6 +149,12 @@ def _attach_dataset(df: pd.DataFrame, labels: pd.DataFrame | None) -> pd.DataFra
         f"[final_test_eval] attached dataset labels to {n_ok}/{len(out)} harmful rows",
         flush=True,
     )
+    if len(out) > 0 and n_ok == 0:
+        raise SystemExit(
+            "ERROR: dataset label join matched 0 harmful rows; "
+            "check that --labels-csv goals match the harmful eval CSV. "
+            "Per-benchmark ASR would be NaN and Pareto charts empty."
+        )
     return out
 
 
@@ -271,7 +297,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         test = repo / "official_data" / "frr_test.csv"
         args.benign_test = str(text if text.is_file() else test)
     if not args.labels_csv:
-        args.labels_csv = str(repo / "official_data" / "combined_test_dataset.csv")
+        resolved = _resolve_labels_path(repo, "")
+        args.labels_csv = str(resolved) if resolved is not None else ""
     if not args.out_dir:
         args.out_dir = str(Path(expand_path(args.checkpoint_root)) / "final_test_outputs")
     return args
