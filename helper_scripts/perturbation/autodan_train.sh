@@ -14,6 +14,9 @@
 
 module load python cuda
 
+# protobuf>=4 breaks sentencepiece's bundled *_pb2.py (AutoDAN tokenizer load).
+export PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python
+
 source "$SCRATCH/venv/autodan/bin/activate"
 
 IDX=$(printf "%02d" "${SLURM_ARRAY_TASK_ID}")
