@@ -83,6 +83,7 @@ _TRAIN_WALL_TIME = "3:00:00"
 _TRAIN_WALL_TIME_BOTH = "9:00:00"
 _TEST_TRAIN_WALL_TIME = "4:00:00"
 _EVAL_WALL_TIME = "4:30:00"
+_ADV_SFT_EVAL_WALL_TIME = "5:30:00"
 _FINAL_TEST_EVAL_WALL_TIME = "3:00:00"
 
 # Sweep-mode (validation) defaults
@@ -666,7 +667,7 @@ def _run_adv_sft_mode(
             out_dir = f"{base_ck}/adv_sft_test_outputs/lr{lr}"
             print(
                 f"\n=== sbatch ADV-SFT test eval (lr={lr}; "
-                f"perturbed_only λ=0; wall={_EVAL_WALL_TIME}) ===",
+                f"perturbed_only λ=0; wall={_ADV_SFT_EVAL_WALL_TIME}) ===",
                 flush=True,
             )
             eval_job_id = _submit_eval_array(
@@ -684,7 +685,7 @@ def _run_adv_sft_mode(
                 epsilons="0",
                 system_prompt_mode="empty",
                 benign_system_prompt_mode="empty",
-                wall_time=_EVAL_WALL_TIME,
+                wall_time=_ADV_SFT_EVAL_WALL_TIME,
                 perturbed_reg_subset="perturbed_only",
                 extra_args=seen_only_args,
             )
