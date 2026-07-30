@@ -4,7 +4,7 @@
 #SBATCH --gres=gpu:1
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=40G
-#SBATCH --time=14:00:00
+#SBATCH --time=3:00:00
 #SBATCH --array=0-49
 #SBATCH --output=output/gcg_l2_merged_adaptive_%A_%a.out
 
