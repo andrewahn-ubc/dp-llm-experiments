@@ -29,4 +29,4 @@ echo "$EVAL_MSG"
 
 echo
 echo "Metrics will land under:"
-echo "  \${CHECKPOINT_ROOT:-$SCRATCH/dp-llm-sweep}/rollout_T_sensitivity/seen_run_lr2e-05_lam1_eps0.5_T{T}_ep1_metrics.tsv"
+echo "  \${CHECKPOINT_ROOT:-$SCRATCH/dp-llm-sweep}/rollout_T_sensitivity/seen_run_lr2e-05_lam0.1_eps-0.5_T{T}_ep1_metrics.tsv"

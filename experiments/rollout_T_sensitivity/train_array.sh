@@ -9,10 +9,10 @@
 #SBATCH --output=output/rollout_T_train_%A_%a.out
 
 # Train Llama-2-7B-Chat seen-family adapters for soft-rollout lengths T∈{1,3,5,10}.
-# Fixed: λ=1, ε=0.5, lr=2e-5, 1 epoch, lm_loss=clean.
+# Fixed: λ=0.1, ε=-0.5, lr=2e-5, 1 epoch, lm_loss=clean.
 #
 # Checkpoints:
-#   $CHECKPOINT_ROOT/run_lr2e-05_lam1_eps0.5_T{T}_finetuned_llm_epoch1
+#   $CHECKPOINT_ROOT/run_lr2e-05_lam0.1_eps-0.5_T{T}_finetuned_llm_epoch1
 
 set -euo pipefail
 
@@ -41,8 +41,8 @@ TS=(1 3 5 10)
 T="${TS[$SLURM_ARRAY_TASK_ID]}"
 
 LR="${LR:-2e-5}"
-LAM="${LAM:-1}"
-EPS="${EPS:-0.5}"
+LAM="${LAM:-0.1}"
+EPS="${EPS:--0.5}"
 EPOCHS="${EPOCHS:-1}"
 CHECKPOINT_ROOT="${CHECKPOINT_ROOT:-$SCRATCH/dp-llm-sweep}"
 TRAINING_DATA="${TRAINING_DATA:-$REPO_ROOT/official_data/train.csv}"

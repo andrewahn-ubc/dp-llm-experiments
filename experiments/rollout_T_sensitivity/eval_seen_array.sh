@@ -29,8 +29,8 @@ TS=(1 3 5 10)
 T="${TS[$SLURM_ARRAY_TASK_ID]}"
 
 LR="${LR:-2e-5}"
-LAM="${LAM:-1}"
-EPS="${EPS:-0.5}"
+LAM="${LAM:-0.1}"
+EPS="${EPS:--0.5}"
 EPOCH="${EPOCH:-1}"
 CHECKPOINT_ROOT="${CHECKPOINT_ROOT:-$SCRATCH/dp-llm-sweep}"
 MODEL_PROFILE="${MODEL_PROFILE:-llama_2_7b_chat}"

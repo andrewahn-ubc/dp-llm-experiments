@@ -1,12 +1,12 @@
 # Soft-rollout length T sensitivity (Llama-2-7B-Chat)
 
-Grid: **T ∈ {1, 3, 5, 10}** with fixed **λ=1, ε=0.5, lr=2e-5, 1 epoch**,
+Grid: **T ∈ {1, 3, 5, 10}** with fixed **λ=0.1, ε=-0.5, lr=2e-5, 1 epoch**,
 `lm_loss=clean`, **seen-family** train + **seen ASR/FRR on the test set**.
 
 Slugs / checkpoints:
 
 ```text
-$SCRATCH/dp-llm-sweep/run_lr2e-05_lam1_eps0.5_T{T}_finetuned_llm_epoch1
+$SCRATCH/dp-llm-sweep/run_lr2e-05_lam0.1_eps-0.5_T{T}_finetuned_llm_epoch1
 ```
 
 ## On Rorqual (fresh env)
