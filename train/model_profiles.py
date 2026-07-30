@@ -81,6 +81,7 @@ def make_run_slug(
     lm_loss_input: str = "clean",
     *,
     model_profile: str = DEFAULT_MODEL_PROFILE,
+    rollout_length: int | None = None,
 ) -> str:
     """Filesystem slug; optional profile prefix keeps checkpoints from different targets apart."""
     profile = resolve_profile(model_profile)
@@ -89,6 +90,8 @@ def make_run_slug(
         core = f"{base}_pertlm"
     else:
         core = base
+    if rollout_length is not None:
+        core = f"{core}_T{int(rollout_length)}"
     return f"{profile.slug_prefix}{core}"
 
 # Full hinge *header* text for --hinge-style mistral_self_twin (train.py footer matches llama_guard).

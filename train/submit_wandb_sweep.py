@@ -261,6 +261,7 @@ def render_job_script(
     training_halves_phase: str = "full",
     train_data_frac_start: float = 0.0,
     train_data_frac_end: float = 1.0,
+    rollout_length: int = 5,
 ) -> str:
     # W&B run display name (visible after sync)
     run_name = run_slug
@@ -404,6 +405,7 @@ def render_job_script(
         lines.append(f'    --system-prompt-mode "{system_prompt_mode}" \\')
         lines.append(f'    --lm-loss-input "{lm_loss_input}" \\')
         lines.append(f'    --model-profile "{model_profile}" \\')
+        lines.append(f"    --rollout-length {int(rollout_length)} \\")
         lines.append('    --finetuned-llm-path "$FINETUNED_BASE" \\')
         lines.append(f'    --training-data "{training_csv}" \\')
         lines.append(f"    --lr {lr} \\")
@@ -544,6 +546,16 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
             "(the strict-superset variant of the original method). When set to "
             "'perturbed' the per-run slug gets a '_pertlm' suffix so artifacts "
             "do not collide with the 'clean' variant."
+        ),
+    )
+    p.add_argument(
+        "--rollout-length",
+        type=int,
+        default=5,
+        metavar="T",
+        help=(
+            "Soft autoregressive rollout length T passed to train.py --rollout-length "
+            "(default: 5). Appended to the run slug as _T{T}."
         ),
     )
     p.add_argument(
@@ -910,7 +922,12 @@ def main(argv: list[str]) -> int:
 
         for lr, lam, eps in combos:
             base_slug = make_run_slug(
-                lr, lam, eps, lm_loss_input=args.lm_loss_input, model_profile=args.model_profile
+                lr,
+                lam,
+                eps,
+                lm_loss_input=args.lm_loss_input,
+                model_profile=args.model_profile,
+                rollout_length=args.rollout_length,
             )
             for fam in families:
                 if fam is None:
@@ -972,6 +989,7 @@ def main(argv: list[str]) -> int:
                         training_halves_phase=args.training_halves_phase,
                         train_data_frac_start=args.train_data_frac_start,
                         train_data_frac_end=args.train_data_frac_end,
+                        rollout_length=args.rollout_length,
                     )
 
                     sh_path = script_dir / f"{run_slug}{suffix}.sh"

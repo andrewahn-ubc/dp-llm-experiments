@@ -65,6 +65,7 @@ def _wandb_init(args, *, hinge_style: str):
             "lm_loss_input": getattr(args, "lm_loss_input", "clean"),
             "model_profile": getattr(args, "model_profile", DEFAULT_MODEL_PROFILE),
             "hinge_style": hinge_style,
+            "rollout_length": int(getattr(args, "rollout_length", MAX_GEN_TOKENS)),
             "shuffle_training_rows": getattr(args, "shuffle_training_rows", True),
             "training_shuffle_seed": getattr(args, "training_shuffle_seed", None),
             "train_data_frac_start": float(getattr(args, "train_data_frac_start", 0.0)),
@@ -101,6 +102,7 @@ print(f"GPU memory: {torch.cuda.get_device_properties(0).total_memory / 1e9:.1f}
 
 DEVICE = "cuda"
 DTYPE = torch.float16
+# Soft-rollout length T for the stability hinge (overridable via --rollout-length).
 MAX_GEN_TOKENS = 5
 batch_size = 1
 neighbour_names = {
@@ -328,7 +330,19 @@ def lm_loss(model, tokenizer, prompts, targets):
     return outputs.loss
 
 # Full Training Step
-def training_step(model, tokenizer, guard_model, guard_tokenizer, batch, GUARD_HEADER_EMBEDS, GUARD_FOOTER_EMBEDS, epsilon_term, LAMBDA, lm_loss_input="clean"):
+def training_step(
+    model,
+    tokenizer,
+    guard_model,
+    guard_tokenizer,
+    batch,
+    GUARD_HEADER_EMBEDS,
+    GUARD_FOOTER_EMBEDS,
+    epsilon_term,
+    LAMBDA,
+    lm_loss_input="clean",
+    max_gen_tokens=5,
+):
     h, r, h_p = batch
 
     # LM loss
@@ -344,7 +358,13 @@ def training_step(model, tokenizer, guard_model, guard_tokenizer, batch, GUARD_H
 
     # Safety scores
     hard_embeddings_clean_of_conversation = hard_response_embeddings_for_guard(model=model, tokenizer=tokenizer, prompts=h, responses=r)
-    soft_embeddings_pert_of_conversation = soft_autoregressive_generate(model=model, tokenizer=tokenizer, prompts=h_p, num_steps=MAX_GEN_TOKENS, keep_grad=True)
+    soft_embeddings_pert_of_conversation = soft_autoregressive_generate(
+        model=model,
+        tokenizer=tokenizer,
+        prompts=h_p,
+        num_steps=max_gen_tokens,
+        keep_grad=True,
+    )
     C_clean = safety_score(guard_model, guard_tokenizer, hard_embeddings_clean_of_conversation, GUARD_HEADER_EMBEDS, GUARD_FOOTER_EMBEDS, keep_grad=False)
     C_pert = safety_score(guard_model, guard_tokenizer, soft_embeddings_pert_of_conversation, GUARD_HEADER_EMBEDS, GUARD_FOOTER_EMBEDS, keep_grad=True)
 
@@ -382,7 +402,7 @@ def main(args):
     print(
         f"[train] lm_loss_input={args.lm_loss_input!r} "
         f"(CE conditions on {'PERTURBED prompt (adv-SFT-style)' if args.lm_loss_input == 'perturbed' else 'CLEAN prompt'}; "
-        f"lambda={args.lambda_val})",
+        f"lambda={args.lambda_val}; rollout_length T={args.rollout_length})",
         flush=True,
     )
     wandb_on = _wandb_init(args, hinge_style=hinge_style)
@@ -495,9 +515,19 @@ def _main_train(args, wandb_on):
         )
 
         model.train()
-        loss, lm_loss_val, stability_val = training_step(model, tokenizer, guard_model, guard_tokenizer, batch,
-                                           GUARD_HEADER_EMBEDS, GUARD_FOOTER_EMBEDS, epsilon_term, args.lambda_val,
-                                           lm_loss_input=args.lm_loss_input)
+        loss, lm_loss_val, stability_val = training_step(
+            model,
+            tokenizer,
+            guard_model,
+            guard_tokenizer,
+            batch,
+            GUARD_HEADER_EMBEDS,
+            GUARD_FOOTER_EMBEDS,
+            epsilon_term,
+            args.lambda_val,
+            lm_loss_input=args.lm_loss_input,
+            max_gen_tokens=args.rollout_length,
+        )
         if i % 10 == 0:
             print(f"Step {i}: total={loss.item():.4f}, lm={lm_loss_val.item():.4f}, stab={stability_val.item():.4f}", flush=True)
             if wandb_on:
@@ -741,10 +771,23 @@ if __name__ == "__main__":
             "+ stability regularizer (the strict-superset variant)."
         ),
     )
+    parser.add_argument(
+        "--rollout-length",
+        "-T",
+        type=int,
+        default=MAX_GEN_TOKENS,
+        metavar="T",
+        help=(
+            "Soft autoregressive rollout length T for the stability hinge "
+            f"(default: {MAX_GEN_TOKENS}). Sensitivity experiments typically use T∈{{1,3,5,10}}."
+        ),
+    )
     parser.add_argument("--resume-from", default=None)
     parser.add_argument("--start-epoch", default=1, type=int)
 
     args = parser.parse_args()
+    if args.rollout_length < 1:
+        raise SystemExit("--rollout-length / -T must be >= 1")
 
     main(args)
 
