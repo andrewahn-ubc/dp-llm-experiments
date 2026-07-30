@@ -36,5 +36,6 @@ cd "$SCRATCH/AutoDAN"
 
 python autodan_hga_eval.py \
     --dataset_path "$DATA_PATH" \
+    --tokenizer_path "$SCRATCH/llama2_7b_chat_hf" \
     --save_suffix "autodan_l2_merged_adaptive_$IDX" \
     --batch_size 8
