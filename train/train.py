@@ -13,9 +13,15 @@ import argparse
 import os
 import sys
 
-# train.py lives in train/; sibling package eval/ is at repo root. Slurm runs
-# `python .../train/train.py`, so sys.path[0] is train/ unless we add the root.
-_repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+# train.py lives in train/; Slurm often runs `python .../train/train.py`, which
+# puts train/ on sys.path[0]. That makes `import train` resolve to *this file*
+# (not the package), so `train.model_profiles` fails with "'train' is not a
+# package". Drop the script dir and put the repo root first instead.
+_train_dir = os.path.abspath(os.path.dirname(__file__))
+_repo_root = os.path.abspath(os.path.join(_train_dir, ".."))
+_script_path0 = os.path.abspath(sys.path[0]) if sys.path else ""
+if _script_path0 in {_train_dir, ""}:
+    sys.path.pop(0)
 if _repo_root not in sys.path:
     sys.path.insert(0, _repo_root)
 

@@ -68,7 +68,7 @@ echo "=== rollout-T train: T=$T slug=$SLUG ==="
 echo "training_data=$TRAINING_DATA"
 echo "finetuned_base=$FINETUNED_BASE"
 
-python "$REPO_ROOT/train/train.py" \
+python -m train.train \
   --eval-mode seen-family \
   --system-prompt-mode empty \
   --lm-loss-input clean \
