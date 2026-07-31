@@ -31,7 +31,9 @@
 #   VENV_ACTIVATE (default $SCRATCH/venv/dcl_train/bin/activate)
 #   BASE_LLM / HINGE_GUARD_PATH  override train/model_profiles.py's Narval-shaped
 #              defaults ($SCRATCH/llama2_7b_chat_hf etc.) -- Vulcan keeps HF
-#              snapshots under $SCRATCH/hf_models/ instead (see delman_eval.sh)
+#              snapshots under $SCRATCH/hf_models/ instead (see delman_eval.sh),
+#              with exact HF repo casing (e.g. Llama-2-7b-chat-hf) -- check with
+#              `ls $SCRATCH/hf_models/` before assuming the default below is right
 
 set -euo pipefail
 
@@ -83,8 +85,9 @@ TRAINING_DATA="${TRAINING_DATA:-${REPO_ROOT}/official_data/train_plus_validation
 
 # model_profiles.py's llama_2_7b_chat defaults ($SCRATCH/llama2_7b_chat_hf,
 # $SCRATCH/llama_guard_7b) are Narval-shaped. Vulcan keeps HF snapshots under
-# $SCRATCH/hf_models/ instead (same override pattern as delman_eval.sh).
-BASE_LLM="${BASE_LLM:-${SCRATCH}/hf_models/llama2_7b_chat_hf}"
+# $SCRATCH/hf_models/ instead (same override pattern as delman_eval.sh), with
+# exact HF repo casing for the base LLM directory name.
+BASE_LLM="${BASE_LLM:-${SCRATCH}/hf_models/Llama-2-7b-chat-hf}"
 HINGE_GUARD_PATH="${HINGE_GUARD_PATH:-${SCRATCH}/hf_models/llama_guard_7b}"
 
 if [[ ! -d "${BASE_LLM}" ]]; then

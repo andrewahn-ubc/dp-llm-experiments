@@ -28,7 +28,8 @@
 # Optional env:
 #   REPO_ROOT (default $HOME/repos/dp-llm-experiments)
 #   VENV_ACTIVATE (default $SCRATCH/venv/dcl_train/bin/activate)
-#   BASE_LLM (default $SCRATCH/hf_models/llama2_7b_chat_hf)
+#   BASE_LLM (default $SCRATCH/hf_models/Llama-2-7b-chat-hf -- check exact
+#             casing with `ls $SCRATCH/hf_models/` before relying on this default)
 #   REFUSAL_JUDGE_PATH (default $SCRATCH/hf_models/mistral_7b_instruct)
 #   JAILBREAK_CLASSIFIER_PATH (default $SCRATCH/hf_models/harmbench_mistral_val_cls)
 #   HARMFUL_DATA (default $REPO_ROOT/official_data/combined_test_dataset.csv)
@@ -53,7 +54,7 @@ if [[ ! -d "${CHECKPOINT}" ]]; then
   exit 2
 fi
 
-BASE_LLM="${BASE_LLM:-${SCRATCH}/hf_models/llama2_7b_chat_hf}"
+BASE_LLM="${BASE_LLM:-${SCRATCH}/hf_models/Llama-2-7b-chat-hf}"
 REFUSAL_JUDGE_PATH="${REFUSAL_JUDGE_PATH:-${SCRATCH}/hf_models/mistral_7b_instruct}"
 JAILBREAK_CLASSIFIER_PATH="${JAILBREAK_CLASSIFIER_PATH:-${SCRATCH}/hf_models/harmbench_mistral_val_cls}"
 HARMFUL_DATA="${HARMFUL_DATA:-${REPO_ROOT}/official_data/combined_test_dataset.csv}"
