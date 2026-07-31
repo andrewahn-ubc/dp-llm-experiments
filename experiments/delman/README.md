@@ -15,16 +15,18 @@ mkdir -p $SCRATCH/DELMAN/data/stats && unzip … -d $SCRATCH/DELMAN/data/stats
 # REQUIRED for Llama 3.1: in $SCRATCH/DELMAN/rome/repr_tools.py set
 #   offset = 2
 
-# install DELMAN deps into nanogcg (do NOT use upstream requirements.txt —
-# it pins torch==2.4.0 which is missing from the Alliance wheelhouse).
-# Load Arrow *before* activating the venv so pyarrow is real, not the dummy wheel:
+# Dedicated venv (do not reuse nanogcg — transformers pin conflicts with nanogcg).
+# Load Arrow *before* activating so pyarrow is real, not the dummy wheel:
 deactivate 2>/dev/null || true
-module load StdEnv/2023 gcc arrow
-source $SCRATCH/venv/nanogcg/bin/activate
+module load StdEnv/2023 gcc arrow python/3.11
+python -m venv $SCRATCH/venv/delman
+source $SCRATCH/venv/delman/bin/activate
+pip install --upgrade pip
+pip install --no-index torch
 pip install -r experiments/delman/requirements_cc.txt
 
 cd $SCRATCH/dp-llm-experiments && mkdir -p output
-sbatch experiments/delman/run_edit_llama31.sh
+sbatch experiments/delman/run_edit_llama31.sh   # defaults to $SCRATCH/venv/delman
 # → $SCRATCH/delman_llama31_8b_instruct
 ```
 

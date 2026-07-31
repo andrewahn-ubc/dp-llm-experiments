@@ -14,12 +14,11 @@
 #   git clone https://github.com/wanglne/DELMAN.git $SCRATCH/DELMAN
 #   # unpack cov zip into $SCRATCH/DELMAN/data/stats
 #   # set offset=2 in $SCRATCH/DELMAN/rome/repr_tools.py for Llama 3.1
-#   # reuse nanogcg (default) or another venv that has DELMAN's requirements:
-#   #   source $SCRATCH/venv/nanogcg/bin/activate && pip install -r $SCRATCH/DELMAN/requirements.txt
+#   # Use a dedicated DELMAN venv (default) — do not mix with nanogcg
+#   # (transformers pins conflict). See experiments/delman/README.md.
 #
 #   cd $SCRATCH/dp-llm-experiments && mkdir -p output
 #   sbatch experiments/delman/run_edit_llama31.sh
-#   # or: VENV_ACTIVATE=$SCRATCH/venv/other/bin/activate sbatch ...
 #
 # Base weights:   $SCRATCH/llama31_8b_instruct
 # Edited output:  $SCRATCH/delman_llama31_8b_instruct   (override with DELMAN_OUT)
@@ -36,11 +35,14 @@ DELMAN_OUT="${DELMAN_OUT:-$SCRATCH/delman_llama31_8b_instruct}"
 HPARAMS="${HPARAMS_FNAME:-Llama-3.1-8B-Instruct.json}"
 DATA_NAME="${DATA_NAME:-HarmBench.json}"
 OUT_NAME="${OUT_NAME:-DELMAN_llama3.1}"
-VENV_ACTIVATE="${VENV_ACTIVATE:-$SCRATCH/venv/nanogcg/bin/activate}"
+VENV_ACTIVATE="${VENV_ACTIVATE:-$SCRATCH/venv/delman/bin/activate}"
 
-module load StdEnv/2023 python/3.11 cuda/12.2 || module load StdEnv/2023 python/3.11
+# Arrow must be loaded before venv activate on Alliance (real pyarrow).
+module load StdEnv/2023 gcc arrow python/3.11
+module load cuda/12.2 2>/dev/null || true
 if [[ ! -f "$VENV_ACTIVATE" ]]; then
   echo "ERROR: venv activate script missing: $VENV_ACTIVATE" >&2
+  echo "Create it (see experiments/delman/README.md) or set VENV_ACTIVATE=..." >&2
   exit 2
 fi
 # shellcheck disable=SC1090
