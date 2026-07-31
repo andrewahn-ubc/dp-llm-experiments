@@ -97,11 +97,23 @@ python "$REPO_ROOT/eval/eval.py" \
 
 python - "$HARMFUL_OUT" "$BENIGN_OUT" "$METRICS_OUT" "$T" "$SLUG" "$EPOCH" <<'PY'
 import sys
+from pathlib import Path
 import pandas as pd
 
 harmful_csv, benign_csv, metrics_tsv, T, slug, epoch = sys.argv[1:7]
-h = pd.read_csv(harmful_csv)
-b = pd.read_csv(benign_csv)
+
+def resolve_csv(path: str) -> Path:
+    """Prefer path as given; fall back to legacy *.csv.csv double-suffix."""
+    p = Path(path)
+    if p.is_file():
+        return p
+    alt = Path(str(path) + ".csv")
+    if alt.is_file():
+        return alt
+    raise FileNotFoundError(f"missing {path} (also tried {alt})")
+
+h = pd.read_csv(resolve_csv(harmful_csv))
+b = pd.read_csv(resolve_csv(benign_csv))
 
 def mean_is_unsafe(df, col):
     return float((df[col].astype(str).str.lower() == "unsafe").mean())

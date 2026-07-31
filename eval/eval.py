@@ -157,10 +157,22 @@ def main(args):
         f"(FRR system_prompt={'custom' if benign_system_prompt else 'None / no system role'})"
     )
 
+    def _ensure_csv_path(path: str) -> str:
+        """Append .csv only if the caller passed a stem (legacy). Avoid foo.csv.csv."""
+        p = os.path.expandvars(os.path.expanduser(path))
+        # Collapse accidental *.csv.csv from older double-append bugs.
+        while p.endswith(".csv.csv"):
+            p = p[: -len(".csv")]
+        if p.endswith(".csv"):
+            return p
+        return f"{p}.csv"
+
     # Compute ASR on harmful prompts
     val_df = pd.read_csv(args.validation_data)
-    end_of_epoch_asr_path = f"{args.harmful_output_file}.csv"
-    end_of_epoch_frr_path = f"{args.benign_output_file}.csv"
+    end_of_epoch_asr_path = _ensure_csv_path(args.harmful_output_file)
+    end_of_epoch_frr_path = _ensure_csv_path(args.benign_output_file)
+    print(f"[eval] harmful_output={end_of_epoch_asr_path}", flush=True)
+    print(f"[eval] benign_output={end_of_epoch_frr_path}", flush=True)
     df_with_jb_responses =  generate_all_jb_responses(val_df, 
                             batch_size=8, 
                             finetuned_model=model, 
