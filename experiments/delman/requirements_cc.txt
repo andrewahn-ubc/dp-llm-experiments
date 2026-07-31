@@ -12,8 +12,10 @@
 #   better: omit datasets line and install the rest.
 
 transformers>=4.49,<5
-# Pin: datasets>=1.18 resolves to a new release that requires pyarrow>=21.
-datasets==1.18.3
+# Alliance `module load arrow` is often pyarrow>=21, which removed PyExtensionType.
+# datasets<2.19 still uses pa.PyExtensionType → AttributeError on import.
+# Need datasets>=2.20 with arrow loaded *before* venv activate.
+datasets>=2.20.0,<4
 matplotlib>=3.5
 numpy>=1.26,<2
 accelerate>=0.30

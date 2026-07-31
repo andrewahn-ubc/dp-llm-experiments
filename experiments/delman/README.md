@@ -24,6 +24,9 @@ source $SCRATCH/venv/delman/bin/activate
 pip install --upgrade pip
 pip install --no-index torch
 pip install -r experiments/delman/requirements_cc.txt
+# If you see: pyarrow has no attribute 'PyExtensionType'
+#   → old datasets vs arrow>=21; upgrade:
+#   pip install -U 'datasets>=2.20,<4'
 
 cd $SCRATCH/dp-llm-experiments && mkdir -p output
 sbatch experiments/delman/run_edit_llama31.sh   # defaults to $SCRATCH/venv/delman

@@ -23,7 +23,8 @@ Multi-turn [PyRIT](https://github.com/microsoft/PyRIT) `RedTeamingAttack` on a
 
 ```bash
 cd $SCRATCH/dp-llm-experiments
-# setup loads gcc+arrow before activate (Alliance pyarrow) and Rust for base2048
+# setup: gcc+arrow before activate; Rust for base2048; wheelhouse pillow;
+# pyodbc stub if unixODBC missing (not needed for local LLM attacks)
 bash experiments/pyrit_rorqual/setup_env.sh   # once
 bash experiments/pyrit_rorqual/submit_all.sh
 ```

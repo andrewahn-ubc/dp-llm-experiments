@@ -52,6 +52,22 @@ export TRANSFORMERS_CACHE="${SLURM_TMPDIR:-/tmp}/hf_cache"
 export HF_HOME="${SLURM_TMPDIR:-/tmp}/hf_home"
 mkdir -p "$TRANSFORMERS_CACHE" "$HF_HOME"
 
+# Fail fast if datasets/pyarrow are incompatible (arrow>=21 needs datasets>=2.20).
+python - <<'PY'
+import pyarrow as pa
+import datasets
+if not hasattr(pa, "PyExtensionType") and not hasattr(pa, "ExtensionType"):
+    raise SystemExit("broken pyarrow")
+try:
+    from datasets import load_dataset  # noqa: F401
+except AttributeError as e:
+    raise SystemExit(
+        "datasets/pyarrow mismatch (need datasets>=2.20 with module load arrow). "
+        f"pyarrow={pa.__version__} datasets={datasets.__version__}: {e}"
+    ) from e
+print(f"ok pyarrow={pa.__version__} datasets={datasets.__version__}")
+PY
+
 if [[ ! -d "$DELMAN_REPO" ]]; then
   echo "ERROR: DELMAN repo missing: $DELMAN_REPO" >&2
   exit 2
