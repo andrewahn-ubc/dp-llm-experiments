@@ -6,3 +6,5 @@ official_results/
 gcg_output/
 autodan_output/
 metrics_finetuned/ 
+.venv_pyrit_inspect/
+.venv_pyrit_inspect_home/

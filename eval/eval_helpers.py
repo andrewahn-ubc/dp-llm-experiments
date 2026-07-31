@@ -44,13 +44,17 @@ def generate_responses_for_batch(finetuned_model, tokenizer, batch, column,
         "gcg": "GCG Variant",
         "autodan": "AutoDAN Variant",
         "pair": "PAIR Variant",
-        "original": "Original Prompt"
+        "jailbreak_r1": "Jailbreak-R1 Variant",
+        "pyrit": "PyRIT Variant",
+        "original": "Original Prompt",
     }
     response_col = {
         "gcg": "GCG Response",
         "autodan": "AutoDAN Response",
         "pair": "PAIR Response",
-        "original": "Original Response"
+        "jailbreak_r1": "Jailbreak-R1 Response",
+        "pyrit": "PyRIT Response",
+        "original": "Original Response",
     }
 
     prompts = batch[prompt_col[column]].tolist()
@@ -90,7 +94,7 @@ def generate_responses_for_batch(finetuned_model, tokenizer, batch, column,
     return batch
 
 # Generates jailbreak responses for all relevant jailbreak families
-# REQUIRES: unseen_family must be "gcg", "autodan", "pair" or None
+# REQUIRES: unseen_family in {gcg, autodan, pair, jailbreak_r1, pyrit} or None
 def generate_all_jb_responses(df, batch_size, finetuned_model=None, tokenizer=None, 
                               testing_mode="seen-family", unseen_family=None, 
                               LLM_NAME="/home/taegyoem/scratch/llama2_7b_chat_hf",
@@ -167,33 +171,45 @@ def classify_batch(guard_model, guard_tokenizer, batch, column, classification_m
         "gcg": "GCG Variant",
         "autodan": "AutoDAN Variant",
         "pair": "PAIR Variant",
-        "original": "Original Prompt"
+        "jailbreak_r1": "Jailbreak-R1 Variant",
+        "pyrit": "PyRIT Variant",
+        "original": "Original Prompt",
     }
     response_col = {
         "gcg": "GCG Response",
         "autodan": "AutoDAN Response",
         "pair": "PAIR Response",
-        "original": "Original Response"
+        "jailbreak_r1": "Jailbreak-R1 Response",
+        "pyrit": "PyRIT Response",
+        "original": "Original Response",
     }
     safety_col = {
         "gcg": "GCG Safety",
         "autodan": "AutoDAN Safety",
         "pair": "PAIR Safety",
-        "original": "Original Safety"
+        "jailbreak_r1": "Jailbreak-R1 Safety",
+        "pyrit": "PyRIT Safety",
+        "original": "Original Safety",
     }
 
     prompts = batch[prompt_col[column]].tolist()
     responses = batch[response_col[column]].tolist()
+    # HarmBench {behavior} should be the underlying harmful goal when available
+    # (long attack strings are not the behavior itself).
+    if column in ("jailbreak_r1", "pyrit") and "goal" in batch.columns:
+        behaviors = batch["goal"].tolist()
+    else:
+        behaviors = prompts
 
     formatted_inputs = []
     labels = []
     if classification_mode == "jailbreak":
         # Official HarmBench Mistral val classifier (yes = behavior exhibited).
-        # Downstream ASR expects GCG/AutoDAN/PAIR *Safety* == "unsafe" for harmful
-        # compliance, so map yes→unsafe, no→safe.
-        for prompt, response in zip(prompts, responses):
+        # Downstream ASR expects *Safety* == "unsafe" for harmful compliance,
+        # so map yes→unsafe, no→safe.
+        for behavior, response in zip(behaviors, responses):
             formatted_inputs.append(
-                HARMBENCH_STANDARD_CLS_PROMPT.format(behavior=prompt, generation=response)
+                HARMBENCH_STANDARD_CLS_PROMPT.format(behavior=behavior, generation=response)
             )
 
         inputs = guard_tokenizer(

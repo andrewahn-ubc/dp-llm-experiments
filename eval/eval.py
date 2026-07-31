@@ -48,7 +48,9 @@ batch_size = 1
 neighbour_names = {
     "gcg": ["GCG Variant", "GCG Response"],
     "autodan": ["AutoDAN Variant", "AutoDAN Response"],
-    "pair": ["PAIR Variant", "PAIR Response"]
+    "pair": ["PAIR Variant", "PAIR Response"],
+    "jailbreak_r1": ["Jailbreak-R1 Variant", "Jailbreak-R1 Response"],
+    "pyrit": ["PyRIT Variant", "PyRIT Response"],
 }
 
 def unload_model(model, tokenizer=None, extra_tensors=None):
@@ -119,7 +121,7 @@ def load_jailbreak_classifier(model_path: str):
     return guard_model, guard_tokenizer
 
 
-# REQUIREMENT: unseen_family must be one of {"gcg", "pair", and "autodan"}
+# REQUIREMENT: unseen_family in {gcg, autodan, pair, jailbreak_r1, pyrit} (or unused)
 def main(args):
     profile = resolve_profile(getattr(args, "model_profile", DEFAULT_MODEL_PROFILE))
     base_llm = os.path.expandvars(os.path.expanduser(args.base_llm or profile.base_llm))
@@ -229,7 +231,7 @@ if __name__ == "__main__":
         "--unseen-family",
         default = None,
         help = "Name of unseen family. Only used for the unseen family testing mode.",
-        choices=["gcg", "autodan", "pair"]
+        choices=["gcg", "autodan", "pair", "jailbreak_r1", "pyrit"],
     )
     parser.add_argument(
         "--refusal-judge-path",

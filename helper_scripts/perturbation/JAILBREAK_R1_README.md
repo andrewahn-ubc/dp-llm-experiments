@@ -51,6 +51,32 @@ You get:
 - `official_data/jailbreak_r1/jailbreak_r1_variants.csv`
 - `official_data/jailbreak_r1/combined_test_with_jailbreak_r1.csv` (adds `Jailbreak-R1 Variant`)
 
+## 5) Held-out eval (Llama-3 baselines + DCL + DELMAN)
+
+Scores ASR on `Jailbreak-R1 Variant` via `--unseen-family jailbreak_r1`, plus FRR
+on `frr_test.csv`. One SLURM array task per model (6 jobs):
+
+| # | Model | Path |
+|---|--------|------|
+| 0 | base L3-8B-Instruct | profile `$SCRATCH/llama_3_8b_instruct` |
+| 1 | MixAT | `$SCRATCH/mixat` |
+| 2 | DOOR | `$SCRATCH/door` |
+| 3 | DCL λ=1, ε=-1 | `…/l3_run_lr2e-05_lam1_eps-1_finetuned_llm_epoch${EPOCH}` |
+| 4 | DCL λ=3, ε=1 | `…/l3_run_lr2e-05_lam3_eps1_finetuned_llm_epoch${EPOCH}` |
+| 5 | DELMAN (L3.1 edited) | `$SCRATCH/delman_llama31_8b_instruct` |
+
+Produce DELMAN from `$SCRATCH/llama31_8b_instruct` first:
+`experiments/delman/run_edit_llama31.sh` (see `experiments/delman/README.md`).
+
+```bash
+cd $SCRATCH/dp-llm-experiments
+mkdir -p output
+EPOCH=2 sbatch helper_scripts/perturbation/jailbreak_r1_heldout_eval_l3.sh
+# overrides: MIXAT_PATH=... DOOR_PATH=... DELMAN_PATH=... EPOCH=1 OUT_DIR=...
+```
+
+Outputs: `$SCRATCH/dp-llm-eval/jailbreak_r1_heldout_l3/*_{harmful,benign,metrics}.*`
+
 ## Train (+ validation) set
 
 Same pipeline on `official_data/train_plus_validation.csv` (~2996 rows → **150** chunks at size 20). Train CSVs use `Original Prompt` (mapped to `goal` automatically).
