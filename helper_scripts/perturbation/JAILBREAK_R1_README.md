@@ -51,6 +51,42 @@ You get:
 - `official_data/jailbreak_r1/jailbreak_r1_variants.csv`
 - `official_data/jailbreak_r1/combined_test_with_jailbreak_r1.csv` (adds `Jailbreak-R1 Variant`)
 
+## Train (+ validation) set
+
+Same pipeline on `official_data/train_plus_validation.csv` (~2996 rows → **150** chunks at size 20). Train CSVs use `Original Prompt` (mapped to `goal` automatically).
+
+```bash
+cd $SCRATCH/dp-llm-experiments
+
+python helper_scripts/perturbation/prepare_jailbreak_r1_chunks.py \
+  --input official_data/train_plus_validation.csv \
+  --out-dir $SCRATCH/dp-llm-experiments/official_data/jailbreak_r1_train \
+  --chunk-size 20
+cat official_data/jailbreak_r1_train/manifest.txt   # expect array=0-149
+
+mkdir -p output
+sbatch helper_scripts/perturbation/jailbreak_r1_train.sh
+
+# after array finishes:
+python helper_scripts/perturbation/merge_jailbreak_r1_outputs.py \
+  --chunks-dir $SCRATCH/dp-llm-experiments/official_data/jailbreak_r1_train_out \
+  --base-csv official_data/train_plus_validation.csv \
+  --out-dir official_data/jailbreak_r1
+# → official_data/jailbreak_r1/train_plus_validation_with_jailbreak_r1.csv
+```
+
+For **train.csv only** (~2489 rows → 125 chunks):
+
+```bash
+python helper_scripts/perturbation/prepare_jailbreak_r1_chunks.py \
+  --input official_data/train.csv \
+  --out-dir $SCRATCH/dp-llm-experiments/official_data/jailbreak_r1_train_only \
+  --chunk-size 20
+DATA_ROOT=$SCRATCH/dp-llm-experiments/official_data/jailbreak_r1_train_only \
+OUT_ROOT=$SCRATCH/dp-llm-experiments/official_data/jailbreak_r1_train_only_out \
+  sbatch --array=0-124 helper_scripts/perturbation/jailbreak_r1_train.sh
+```
+
 ## Notes
 
 - Generator only — no target-model responses here. To ASR-eval, run your usual

@@ -40,16 +40,24 @@ def main() -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
 
     df = pd.read_csv(in_path)
+    # Test CSVs use "goal"; Llama-2 train/val CSVs use "Original Prompt".
     if "goal" not in df.columns:
-        raise SystemExit(f"Need goal column; got {list(df.columns)}")
-    # Deduplicate goals; keep first target/dataset.
-    keep = [c for c in ("goal", "target", "dataset") if c in df.columns]
+        if "Original Prompt" in df.columns:
+            df = df.copy()
+            df["goal"] = df["Original Prompt"].astype(str)
+        else:
+            raise SystemExit(
+                f"Need 'goal' or 'Original Prompt'; got {list(df.columns)}"
+            )
+    # Deduplicate goals; keep first target/dataset/Original Prompt.
+    keep = [c for c in ("goal", "Original Prompt", "target", "dataset") if c in df.columns]
     df = df[keep].drop_duplicates(subset=["goal"], keep="first").reset_index(drop=True)
 
     n = len(df)
     n_chunks = (n + args.chunk_size - 1) // args.chunk_size
     for i in range(n_chunks):
         sl = df.iloc[i * args.chunk_size : (i + 1) * args.chunk_size]
+        # Width grows naturally: 00..99 then 100, 101, … (no zero-pad beyond 2).
         path = out_dir / f"chunk_{i:02d}.csv"
         sl.to_csv(path, index=False)
         print(f"wrote {path} ({len(sl)} rows)")

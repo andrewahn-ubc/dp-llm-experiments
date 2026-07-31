@@ -55,14 +55,29 @@ def main() -> None:
     variants.to_csv(var_path, index=False)
 
     base = pd.read_csv(args.base_csv)
-    base["goal"] = base["goal"].astype(str)
     variants["goal"] = variants["goal"].astype(str)
-    join_cols = ["goal", "Jailbreak-R1 Variant"]
-    merged = base.merge(variants[join_cols], on="goal", how="left")
+    # Join key: test uses "goal"; train/val use "Original Prompt".
+    if "goal" in base.columns:
+        base = base.copy()
+        base["goal"] = base["goal"].astype(str)
+        join_key = "goal"
+    elif "Original Prompt" in base.columns:
+        base = base.copy()
+        base["_jb_r1_join"] = base["Original Prompt"].astype(str)
+        variants = variants.rename(columns={"goal": "_jb_r1_join"})
+        join_key = "_jb_r1_join"
+    else:
+        raise SystemExit(f"base CSV needs goal or Original Prompt; cols={list(base.columns)}")
+
+    join_cols = [join_key, "Jailbreak-R1 Variant"]
+    merged = base.merge(variants[join_cols], on=join_key, how="left")
+    if join_key == "_jb_r1_join":
+        merged = merged.drop(columns=["_jb_r1_join"])
     n_ok = int(merged["Jailbreak-R1 Variant"].notna().sum())
     n_nonempty = int(merged["Jailbreak-R1 Variant"].fillna("").astype(str).str.strip().ne("").sum())
 
-    merged_path = out_dir / "combined_test_with_jailbreak_r1.csv"
+    merged_name = Path(args.base_csv).stem + "_with_jailbreak_r1.csv"
+    merged_path = out_dir / merged_name
     merged.to_csv(merged_path, index=False)
 
     print(f"chunks merged: {len(files)}")
@@ -73,9 +88,8 @@ def main() -> None:
     missing = merged["Jailbreak-R1 Variant"].isna() | merged["Jailbreak-R1 Variant"].astype(str).str.strip().eq("")
     if missing.any():
         miss_path = out_dir / "missing_goals.csv"
-        merged.loc[missing, ["goal"] + [c for c in ("target", "dataset") if c in merged.columns]].to_csv(
-            miss_path, index=False
-        )
+        cols = [c for c in ("goal", "Original Prompt", "target", "dataset") if c in merged.columns]
+        merged.loc[missing, cols].to_csv(miss_path, index=False)
         print(f"WARNING: {int(missing.sum())} goals missing variants → {miss_path}")
 
 
