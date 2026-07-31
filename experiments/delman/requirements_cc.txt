@@ -1,0 +1,14 @@
+# DELMAN deps for Compute Canada / Alliance wheelhouse (Narval, Rorqual, …).
+# Do NOT pin torch==2.4.0 — that exact build is not in the CC wheelhouse.
+# Prefer keeping whatever torch you already have in nanogcg, or install 2.4.1+.
+#
+#   source $SCRATCH/venv/nanogcg/bin/activate
+#   pip install -r experiments/delman/requirements_cc.txt
+
+transformers>=4.49,<5
+datasets>=1.18
+matplotlib>=3.5
+numpy>=1.26,<2
+accelerate>=0.30
+protobuf>=4
+sentencepiece>=0.2
