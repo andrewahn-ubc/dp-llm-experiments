@@ -4,8 +4,9 @@
 # Alliance notes:
 #   - load gcc + arrow BEFORE activating (real pyarrow, not dummy wheel)
 #   - base2048 needs Cargo (installs under $SCRATCH/.cargo if needed)
-#   - pillow: use wheelhouse binary (login nodes often fail source builds)
-#   - pyodbc: unused for local LLM attacks; install a stub if no wheel/unixodbc
+#   - pyrit wants pillow>=12.2; wheelhouse is often 12.1 → install pyrit --no-deps
+#     and keep the wheelhouse pillow (fine for text-only RedTeamingAttack)
+#   - pyodbc stub if no unixODBC (unused for local LLM attacks)
 #
 #   bash experiments/pyrit_rorqual/setup_env.sh
 
@@ -25,7 +26,6 @@ module load unixodbc 2>/dev/null || true
 export CARGO_HOME="${CARGO_HOME:-$SCRATCH/.cargo}"
 export RUSTUP_HOME="${RUSTUP_HOME:-$SCRATCH/.rustup}"
 export PATH="$CARGO_HOME/bin:$PATH"
-# Avoid parallel compile storms on login nodes if anything still builds from source.
 export MAX_JOBS="${MAX_JOBS:-1}"
 export MAKEFLAGS="${MAKEFLAGS:--j1}"
 
@@ -47,7 +47,7 @@ fi
 
 # shellcheck disable=SC1090
 source "$VENV_DIR/bin/activate"
-pip install --upgrade pip setuptools wheel
+pip install --upgrade pip setuptools wheel packaging
 
 # Core ML stack from Alliance wheelhouse when possible.
 pip install --no-index torch transformers peft accelerate pandas numpy scipy tqdm \
@@ -55,12 +55,12 @@ pip install --no-index torch transformers peft accelerate pandas numpy scipy tqd
   || pip install torch transformers peft accelerate pandas numpy scipy tqdm \
        sentencepiece tiktoken protobuf
 
-# Prefer binary pillow (source build hits "can't start new thread" on login nodes).
+# Keep wheelhouse pillow (e.g. 12.1). Do NOT let pip pull pillow>=12.2 source.
 pip install --no-index pillow \
-  || pip install --only-binary=:all: pillow \
-  || pip install pillow
+  || pip install --only-binary=:all: 'pillow<12.2' \
+  || pip install --only-binary=:all: pillow
 
-# pyodbc: try wheelhouse / binary; else stub (PyRIT lists it; we never call ODBC).
+# pyodbc stub if needed
 if ! python -c "import pyodbc" 2>/dev/null; then
   if pip install --no-index pyodbc 2>/dev/null \
     || pip install --only-binary=:all: pyodbc 2>/dev/null; then
@@ -85,12 +85,54 @@ setup(name="pyodbc", version="5.3.0", py_modules=["pyodbc"])
 PY
     pip install --no-deps "$STUB_DIR"
     rm -rf "$STUB_DIR"
-    echo "Installed pyodbc stub (no unixODBC headers on this node)"
+    echo "Installed pyodbc stub"
   fi
 fi
 
-# Do not upgrade pillow/pyodbc to source builds if already satisfied.
-pip install 'pyrit==1.0.1' --prefer-binary --upgrade-strategy only-if-needed
+# Install pyrit without resolving pillow>=12.2 (would force a source build).
+pip install 'pyrit==1.0.1' --no-deps
+
+# Install the rest of pyrit's deps, skipping pillow/pyodbc.
+python - <<'PY'
+from __future__ import annotations
+
+import subprocess
+import sys
+from importlib.metadata import requires
+
+from packaging.requirements import Requirement
+
+skip = {"pillow", "pyodbc"}
+reqs: list[str] = []
+for raw in requires("pyrit") or []:
+    req = Requirement(raw)
+    if req.marker is not None and not req.marker.evaluate():
+        continue
+    if req.name.lower() in skip:
+        print(f"skip dep: {req}", flush=True)
+        continue
+    # Drop markers for pip CLI; environment already matches evaluate() above.
+    req.marker = None
+    reqs.append(str(req))
+
+print(f"Installing {len(reqs)} pyrit deps (excluding pillow/pyodbc)...", flush=True)
+if reqs:
+    subprocess.check_call(
+        [
+            sys.executable,
+            "-m",
+            "pip",
+            "install",
+            "--prefer-binary",
+            "--upgrade-strategy",
+            "only-if-needed",
+            *reqs,
+        ]
+    )
+PY
+
+# Re-assert wheelhouse pillow in case something pulled a different one.
+pip install --no-index --force-reinstall --no-deps pillow 2>/dev/null || true
 
 python - <<'PY'
 import torch, transformers, peft, pyrit, pyarrow
@@ -98,7 +140,7 @@ import PIL
 print("ok torch", torch.__version__, "cuda", torch.cuda.is_available())
 print("ok transformers", transformers.__version__, "peft", peft.__version__)
 print("ok pyrit", pyrit.__version__, "pyarrow", pyarrow.__version__)
-print("ok pillow", PIL.__version__)
+print("ok pillow", PIL.__version__, "(Alliance wheel; pyrit wants >=12.2 — OK for text attacks)")
 from pyrit.executor.attack import RedTeamingAttack  # noqa: F401
 print("ok RedTeamingAttack import")
 PY
