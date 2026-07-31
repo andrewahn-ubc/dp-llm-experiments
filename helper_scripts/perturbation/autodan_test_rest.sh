@@ -29,9 +29,16 @@ source "$SCRATCH/venv/autodan/bin/activate"
 ID2=$(printf "%02d" "${SLURM_ARRAY_TASK_ID}")
 ID3=$(printf "%03d" "${SLURM_ARRAY_TASK_ID}")
 REPO_ROOT="${REPO_ROOT:-$SCRATCH/dp-llm-experiments}"
-DATA_ROOT="${DATA_ROOT:-${REPO_ROOT}/official_data/adaptive_test_remainder}"
+# Do not derive from REPO_ROOT — a wrong exported REPO_ROOT broke earlier runs.
+DATA_ROOT="${DATA_ROOT:-$SCRATCH/dp-llm-experiments/official_data/adaptive_test_remainder}"
 MODEL_PATH="${MODEL_PATH:-$SCRATCH/merged_adaptive_l2_lam0.1_eps-0.5_ep5}"
 SAVE_TAG="${SAVE_TAG:-autodan_l2_adapt_rest_lam0.1_eps-0.5_ep5}"
+
+echo "DATA_ROOT=$DATA_ROOT"
+if [[ ! -d "$DATA_ROOT" ]]; then
+  echo "ERROR: DATA_ROOT missing: $DATA_ROOT" >&2
+  exit 2
+fi
 
 DATA_PATH=""
 for cand in \
