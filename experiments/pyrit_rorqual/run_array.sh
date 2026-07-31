@@ -25,6 +25,8 @@ cd "$REPO_ROOT"
 mkdir -p output
 
 module load StdEnv/2023 python/3.11 cuda/12.2 || module load StdEnv/2023 python/3.11
+# arrow before activate (Alliance pyarrow); required if datasets/pyrit import pyarrow
+module load gcc arrow
 # shellcheck disable=SC1090
 source "${VENV_ACTIVATE:-$SCRATCH/venv/pyrit-rorqual/bin/activate}"
 

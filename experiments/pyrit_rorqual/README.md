@@ -23,7 +23,8 @@ Multi-turn [PyRIT](https://github.com/microsoft/PyRIT) `RedTeamingAttack` on a
 
 ```bash
 cd $SCRATCH/dp-llm-experiments
-bash experiments/pyrit_rorqual/setup_env.sh   # once (installs Rust in $SCRATCH if needed for base2048)
+# setup loads gcc+arrow before activate (Alliance pyarrow) and Rust for base2048
+bash experiments/pyrit_rorqual/setup_env.sh   # once
 bash experiments/pyrit_rorqual/submit_all.sh
 ```
 

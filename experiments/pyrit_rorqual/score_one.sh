@@ -25,6 +25,7 @@ CHUNKS_DIR="${OUT_ROOT}/${TARGET_TAG}"
 MERGED="${OUT_ROOT}/${TARGET_TAG}_harmful.csv"
 
 module load StdEnv/2023 python/3.11 cuda/12.2 || module load StdEnv/2023 python/3.11
+module load gcc arrow
 # shellcheck disable=SC1090
 source "${VENV_ACTIVATE:-$SCRATCH/venv/pyrit-rorqual/bin/activate}"
 
