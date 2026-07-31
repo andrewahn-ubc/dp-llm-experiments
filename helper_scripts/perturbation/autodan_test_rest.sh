@@ -10,8 +10,10 @@
 
 # AutoDAN on adaptive_test_remainder against merged adaptive-attack target.
 #
+# Default data: $SCRATCH/dp-llm-experiments/official_data/adaptive_test_remainder/
+#
 #   mkdir -p output/autodan
-#   N=$(ls $SCRATCH/official_data/adaptive_test_remainder/*.csv | wc -l)
+#   N=$(ls $SCRATCH/dp-llm-experiments/official_data/adaptive_test_remainder/*.csv | wc -l)
 #   sbatch --array=0-$((N-1)) helper_scripts/perturbation/autodan_test_rest.sh
 
 set -euo pipefail
@@ -27,7 +29,7 @@ source "$SCRATCH/venv/autodan/bin/activate"
 ID2=$(printf "%02d" "${SLURM_ARRAY_TASK_ID}")
 ID3=$(printf "%03d" "${SLURM_ARRAY_TASK_ID}")
 REPO_ROOT="${REPO_ROOT:-$SCRATCH/dp-llm-experiments}"
-DATA_ROOT="${DATA_ROOT:-$SCRATCH/official_data/adaptive_test_remainder}"
+DATA_ROOT="${DATA_ROOT:-${REPO_ROOT}/official_data/adaptive_test_remainder}"
 MODEL_PATH="${MODEL_PATH:-$SCRATCH/merged_adaptive_l2_lam0.1_eps-0.5_ep5}"
 SAVE_TAG="${SAVE_TAG:-autodan_l2_adapt_rest_lam0.1_eps-0.5_ep5}"
 

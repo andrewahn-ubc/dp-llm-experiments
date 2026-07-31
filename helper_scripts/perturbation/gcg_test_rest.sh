@@ -9,11 +9,11 @@
 #SBATCH --output=output/gcg_adapt_rest_%A_%a.out
 
 # GCG on adaptive_test_remainder (full test − adaptive subset).
-# Default data: $SCRATCH/official_data/adaptive_test_remainder/{test,chunk}_XX.csv
+# Default data: $SCRATCH/dp-llm-experiments/official_data/adaptive_test_remainder/
 # Default model: $SCRATCH/merged_adaptive_l2_lam0.1_eps-0.5_ep5
 #
 #   mkdir -p output
-#   N=$(ls $SCRATCH/official_data/adaptive_test_remainder/*.csv | wc -l)
+#   N=$(ls $SCRATCH/dp-llm-experiments/official_data/adaptive_test_remainder/*.csv | wc -l)
 #   sbatch --array=0-$((N-1)) helper_scripts/perturbation/gcg_test_rest.sh
 
 set -euo pipefail
@@ -25,7 +25,7 @@ module load StdEnv/2023 python/3.11
 ID2=$(printf "%02d" "${SLURM_ARRAY_TASK_ID}")
 ID3=$(printf "%03d" "${SLURM_ARRAY_TASK_ID}")
 REPO_ROOT="${REPO_ROOT:-$SCRATCH/dp-llm-experiments}"
-DATA_ROOT="${DATA_ROOT:-$SCRATCH/official_data/adaptive_test_remainder}"
+DATA_ROOT="${DATA_ROOT:-${REPO_ROOT}/official_data/adaptive_test_remainder}"
 MODEL_PATH="${MODEL_PATH:-$SCRATCH/merged_adaptive_l2_lam0.1_eps-0.5_ep5}"
 SAVE_TAG="${SAVE_TAG:-l2_adapt_rest_lam0.1_eps-0.5_ep5}"
 
