@@ -63,6 +63,8 @@ def _wandb_init(args, *, hinge_style: str):
             "unseen_family": args.unseen_family,
             "system_prompt_mode": getattr(args, "system_prompt_mode", "empty"),
             "lm_loss_input": getattr(args, "lm_loss_input", "clean"),
+            "adv_lm_weight": getattr(args, "adv_lm_weight", 1.0),
+            "loss_variant": getattr(args, "loss_variant", "dcl"),
             "model_profile": getattr(args, "model_profile", DEFAULT_MODEL_PROFILE),
             "hinge_style": hinge_style,
             "shuffle_training_rows": getattr(args, "shuffle_training_rows", True),
@@ -327,8 +329,15 @@ def lm_loss(model, tokenizer, prompts, targets):
 
     return outputs.loss
 
+# Set on first call to training_step so the branch-hit log below only fires once
+# per process instead of once per training step.
+_LOGGED_LM_BRANCH = False
+_LOGGED_STABILITY_BRANCH = False
+
+
 # Full Training Step
-def training_step(model, tokenizer, guard_model, guard_tokenizer, batch, GUARD_HEADER_EMBEDS, GUARD_FOOTER_EMBEDS, epsilon_term, LAMBDA, lm_loss_input="clean"):
+def training_step(model, tokenizer, guard_model, guard_tokenizer, batch, GUARD_HEADER_EMBEDS, GUARD_FOOTER_EMBEDS, epsilon_term, LAMBDA, lm_loss_input="clean", loss_variant="dcl", adv_lm_weight=1.0):
+    global _LOGGED_LM_BRANCH, _LOGGED_STABILITY_BRANCH
     h, r, h_p = batch
 
     # LM loss
@@ -337,10 +346,36 @@ def training_step(model, tokenizer, guard_model, guard_tokenizer, batch, GUARD_H
     # "perturbed": condition CE on (perturbed prompt -> safe response) — the canonical
     #         adversarial-SFT recipe (a la R2D2). With LAMBDA=0 this is pure adv-SFT;
     #         with LAMBDA>0 it is "adv-SFT + stability regularizer" (Variant D).
-    if lm_loss_input == "perturbed":
+    # "both": CE(r|h) + adv_lm_weight * CE(r|h') — clean+adversarial SFT (rebuttal
+    #         ablation Item 2.1), i.e. plain SFT on both the anchor and the neighbor,
+    #         with no hinge (run this with --lambda-val 0).
+    # loss_variant == "no-clean-sft" drops the LM term entirely regardless of
+    # lm_loss_input (rebuttal ablation Item 2.4), isolating the stability term.
+    #
+    # Branch-hit logging fires once (first call only) so a wrong/typo'd
+    # loss_variant or lm_loss_input string is visible in the job log instead of
+    # silently falling through to a default branch for the whole run.
+    if loss_variant == "no-clean-sft":
+        if not _LOGGED_LM_BRANCH:
+            print("[training_step] LM branch hit: no-clean-sft -> lm_loss_term = 0 (LM term disabled, Item 2.4)", flush=True)
+        lm_loss_term = torch.zeros((), device=next(model.parameters()).device)
+    elif lm_loss_input == "both":
+        if not _LOGGED_LM_BRANCH:
+            print(f"[training_step] LM branch hit: lm_loss_input='both' -> CE(r|h) + {adv_lm_weight}*CE(r|h') (Item 2.1)", flush=True)
+        lm_loss_term = lm_loss(model, tokenizer, h, r) + adv_lm_weight * lm_loss(model, tokenizer, h_p, r)
+    elif lm_loss_input == "perturbed":
+        if not _LOGGED_LM_BRANCH:
+            print("[training_step] LM branch hit: lm_loss_input='perturbed' -> CE(r|h') (adv-SFT-style)", flush=True)
         lm_loss_term = lm_loss(model, tokenizer, h_p, r)
-    else:
+    elif lm_loss_input == "clean":
+        if not _LOGGED_LM_BRANCH:
+            print("[training_step] LM branch hit: lm_loss_input='clean' -> CE(r|h) (default)", flush=True)
         lm_loss_term = lm_loss(model, tokenizer, h, r)
+    else:
+        if not _LOGGED_LM_BRANCH:
+            print(f"[training_step] WARNING: unrecognized lm_loss_input={lm_loss_input!r}; falling back to CE(r|h) (clean)", flush=True)
+        lm_loss_term = lm_loss(model, tokenizer, h, r)
+    _LOGGED_LM_BRANCH = True
 
     # Safety scores
     hard_embeddings_clean_of_conversation = hard_response_embeddings_for_guard(model=model, tokenizer=tokenizer, prompts=h, responses=r)
@@ -348,11 +383,38 @@ def training_step(model, tokenizer, guard_model, guard_tokenizer, batch, GUARD_H
     C_clean = safety_score(guard_model, guard_tokenizer, hard_embeddings_clean_of_conversation, GUARD_HEADER_EMBEDS, GUARD_FOOTER_EMBEDS, keep_grad=False)
     C_pert = safety_score(guard_model, guard_tokenizer, soft_embeddings_pert_of_conversation, GUARD_HEADER_EMBEDS, GUARD_FOOTER_EMBEDS, keep_grad=True)
 
-    # Stability hinge
-    stability = torch.clamp(
-        C_pert - epsilon_term * C_clean,
-        min=0
-    )
+    # Stability / regularizer term.
+    # "dcl" (default, and "no-clean-sft"): asymmetric hinge — penalizes only
+    #       increases in unsafe probability past an e^epsilon-scaled clean anchor.
+    # "symmetric": |C_pert - C_clean| — rebuttal ablation Item 2.2. Penalizes any
+    #       divergence, including perturbations that make the model *more* safe,
+    #       the R-Drop/UDA/PPCL-style regularizer contrasted against DCL in the paper.
+    # "direct-unsafe": C_pert alone — rebuttal ablation Item 2.3. No anchor, no
+    #       directionality; just minimizes the guard's unsafe score on the
+    #       perturbed rollout directly.
+    if loss_variant == "symmetric":
+        if not _LOGGED_STABILITY_BRANCH:
+            print("[training_step] Stability branch hit: symmetric -> |C_pert - C_clean| (Item 2.2)", flush=True)
+        stability = torch.abs(C_pert - C_clean)
+    elif loss_variant == "direct-unsafe":
+        if not _LOGGED_STABILITY_BRANCH:
+            print("[training_step] Stability branch hit: direct-unsafe -> C_pert alone (Item 2.3)", flush=True)
+        stability = C_pert
+    elif loss_variant in ("dcl", "no-clean-sft"):
+        if not _LOGGED_STABILITY_BRANCH:
+            print(f"[training_step] Stability branch hit: {loss_variant} -> asymmetric hinge max(C_pert - e^eps*C_clean, 0)", flush=True)
+        stability = torch.clamp(
+            C_pert - epsilon_term * C_clean,
+            min=0
+        )
+    else:
+        if not _LOGGED_STABILITY_BRANCH:
+            print(f"[training_step] WARNING: unrecognized loss_variant={loss_variant!r}; falling back to asymmetric hinge (dcl)", flush=True)
+        stability = torch.clamp(
+            C_pert - epsilon_term * C_clean,
+            min=0
+        )
+    _LOGGED_STABILITY_BRANCH = True
 
     # The full loss function - contains likelihood ratio minimization
     total_loss = lm_loss_term + LAMBDA * stability.mean()
@@ -383,6 +445,12 @@ def main(args):
         f"[train] lm_loss_input={args.lm_loss_input!r} "
         f"(CE conditions on {'PERTURBED prompt (adv-SFT-style)' if args.lm_loss_input == 'perturbed' else 'CLEAN prompt'}; "
         f"lambda={args.lambda_val})",
+        flush=True,
+    )
+    print(
+        f"[train] loss_variant={args.loss_variant!r} adv_lm_weight={args.adv_lm_weight} "
+        f"(stability term: "
+        f"{'DISABLED, LM only' if args.lambda_val == 0 else args.loss_variant})",
         flush=True,
     )
     wandb_on = _wandb_init(args, hinge_style=hinge_style)
@@ -497,7 +565,8 @@ def _main_train(args, wandb_on):
         model.train()
         loss, lm_loss_val, stability_val = training_step(model, tokenizer, guard_model, guard_tokenizer, batch,
                                            GUARD_HEADER_EMBEDS, GUARD_FOOTER_EMBEDS, epsilon_term, args.lambda_val,
-                                           lm_loss_input=args.lm_loss_input)
+                                           lm_loss_input=args.lm_loss_input, loss_variant=args.loss_variant,
+                                           adv_lm_weight=args.adv_lm_weight)
         if i % 10 == 0:
             print(f"Step {i}: total={loss.item():.4f}, lm={lm_loss_val.item():.4f}, stab={stability_val.item():.4f}", flush=True)
             if wandb_on:
@@ -729,7 +798,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--lm-loss-input",
         default="clean",
-        choices=["clean", "perturbed"],
+        choices=["clean", "perturbed", "both"],
         help=(
             "Which prompt to condition the language-modelling cross-entropy on. "
             "'clean' (default) uses the unperturbed Original Prompt; refusal "
@@ -738,7 +807,34 @@ if __name__ == "__main__":
             "GCG/AutoDAN/PAIR-perturbed prompt (a.k.a. R2D2-style adversarial "
             "SFT). Set --lambda-val 0 with --lm-loss-input perturbed for a pure "
             "adversarial-SFT baseline; set --lambda-val >0 for adversarial SFT "
-            "+ stability regularizer (the strict-superset variant)."
+            "+ stability regularizer (the strict-superset variant). 'both' sums "
+            "CE(r|h) + --adv-lm-weight * CE(r|h') (rebuttal ablation Item 2.1: "
+            "clean+adversarial SFT, no hinge; use with --lambda-val 0)."
+        ),
+    )
+    parser.add_argument(
+        "--adv-lm-weight",
+        default=1.0,
+        type=float,
+        help=(
+            "Weight on CE(r|h') when --lm-loss-input both is used (default 1.0, "
+            "per rebuttal ablation Item 2.1). Ignored for other --lm-loss-input values."
+        ),
+    )
+    parser.add_argument(
+        "--loss-variant",
+        default="dcl",
+        choices=["dcl", "symmetric", "direct-unsafe", "no-clean-sft"],
+        help=(
+            "Form of the stability/regularizer term (rebuttal Section 2 ablations). "
+            "'dcl' (default): asymmetric hinge [C(pert) - e^eps * C(clean)]_+, the "
+            "method as published. 'symmetric' (Item 2.2): |C(pert) - C(clean)|, "
+            "penalizing any divergence including perturbations that make the model "
+            "safer (contrast case vs. DCL's asymmetry). 'direct-unsafe' (Item 2.3): "
+            "C(pert) alone, no anchor/directionality. 'no-clean-sft' (Item 2.4): "
+            "keeps the dcl hinge but drops the LM term entirely (overrides "
+            "--lm-loss-input), isolating whether FRR gains come from the hinge "
+            "itself or from co-training on clean CE."
         ),
     )
     parser.add_argument("--resume-from", default=None)

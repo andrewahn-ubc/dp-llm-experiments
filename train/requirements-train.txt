@@ -1,0 +1,75 @@
+# Training-environment requirements for train/train.py and the rebuttal
+# core-design ablations (train/ablation_epoch.sh), for use with Compute
+# Canada's wheelhouse (`pip install --no-index ...` against avail_wheels).
+#
+# Derived from a working `pip freeze` on Vulcan, with exact pins loosened to
+# lower bounds (>=) and the `+computecanada`/`+cu124` local-version suffixes
+# stripped -- pinning the local-build suffix exactly ties you to one specific
+# wheelhouse snapshot date and will fail to resolve once CC rotates builds.
+# `>=` lets `pip install --no-index` pick whatever matching build is
+# currently indexed.
+#
+# Install with (on Vulcan, inside the venv, after `module load` per
+# ablation_epoch.sh's module list):
+#   pip install --no-index -r train/requirements-train.txt
+# (drop --no-index to fall back to PyPI instead of the CC wheelhouse.)
+
+accelerate>=1.14.0
+annotated_doc>=0.0.4
+anyio>=4.14.2
+certifi>=2026.6.17
+charset_normalizer>=3.4.9
+click>=8.4.2
+contourpy>=1.3.3
+cycler>=0.12.1
+filelock>=3.31.1
+fonttools>=4.63.0
+fsspec>=2026.6.0
+h11>=0.16.0
+hf_xet>=1.5.2
+httpcore>=1.0.9
+httpx>=0.28.1
+huggingface_hub>=0.36.2
+idna>=3.18
+jinja2>=3.1.6
+kiwisolver>=1.4.9
+markdown_it_py>=4.2.0
+markupsafe>=3.0.3
+matplotlib>=3.11.1
+mdurl>=0.1.2
+mpmath>=1.3.0
+nanogcg>=0.3.0
+networkx>=3.6.1
+numpy>=1.26.4
+packaging>=26.2
+pandas>=3.0.0
+peft>=0.17.1
+pillow>=12.1.0
+protobuf>=7.35.1
+psutil>=7.2.2
+pygments>=2.20.0
+pyparsing>=3.3.2
+python_dateutil>=2.9.0.post0
+pyyaml>=6.0.3
+regex>=2026.1.15
+requests>=2.34.2
+rich>=15.0.0
+safetensors>=0.8.0
+scipy>=1.17.0
+sentencepiece>=0.2.0
+shellingham>=1.5.4
+six>=1.17.0
+sympy>=1.13.1
+tokenizers>=0.20.0
+torch>=2.6.0
+torchaudio>=2.6.0
+tqdm>=4.69.1
+transformers>=4.46.3
+typer>=0.27.0
+typing_extensions>=4.16.0
+urllib3>=2.7.0
+
+# wandb is optional in train.py (only used if WANDB_PROJECT is set) and was
+# not in the pasted freeze -- add it explicitly since ablation runs may want
+# W&B logging.
+wandb
