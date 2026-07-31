@@ -26,16 +26,22 @@ source "$VENV_DIR/bin/activate"
 
 pip install --upgrade pip setuptools wheel
 # Prefer Alliance wheelhouse (no internet). Fall back to PyPI if a package is missing.
-pip install --no-index torch transformers peft accelerate pandas numpy scipy tqdm psutil 2>/dev/null \
-  || pip install torch transformers peft accelerate pandas numpy scipy tqdm psutil
+# sentencepiece + tiktoken are required to load Llama / HarmBench / Mistral tokenizers.
+PKGS=(
+  torch transformers peft accelerate
+  pandas numpy scipy tqdm psutil
+  sentencepiece tiktoken protobuf
+)
+pip install --no-index "${PKGS[@]}" 2>/dev/null || pip install "${PKGS[@]}"
 
 # Optional but used by training scripts:
 pip install --no-index wandb 2>/dev/null || pip install wandb || true
 
 python - <<'PY'
-import torch, transformers, peft
+import torch, transformers, peft, sentencepiece, tiktoken
 print("ok torch", torch.__version__, "cuda", torch.version.cuda, "avail", torch.cuda.is_available())
 print("ok transformers", transformers.__version__, "peft", peft.__version__)
+print("ok sentencepiece", sentencepiece.__version__, "tiktoken", tiktoken.__version__)
 PY
 
 echo
