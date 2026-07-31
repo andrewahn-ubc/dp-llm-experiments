@@ -25,13 +25,19 @@ source "$SCRATCH/venv/autodan/bin/activate"
 IDX=$(printf "%02d" "$SLURM_ARRAY_TASK_ID")
 
 REPO_ROOT="${REPO_ROOT:-$SCRATCH/dp-llm-experiments}"
-DATA_ROOT="${DATA_ROOT:-${REPO_ROOT}/official_data/adaptive_test}"
+# Hardcoded under dp-llm-experiments (do not derive from REPO_ROOT).
+DATA_ROOT="${DATA_ROOT:-$SCRATCH/dp-llm-experiments/official_data/adaptive_test}"
 DATA_PATH="${DATA_PATH:-${DATA_ROOT}/test_${IDX}.csv}"
 MODEL_PATH="${MODEL_PATH:-$SCRATCH/merged_adaptive_l2_lam0.1_eps-0.5_ep5}"
 SAVE_TAG="${SAVE_TAG:-autodan_l2_adapt_lam0.1_eps-0.5_ep5}"
 
+echo "DATA_ROOT=$DATA_ROOT"
 echo "Running on file: $DATA_PATH"
 echo "Model: $MODEL_PATH"
+if [[ ! -f "$DATA_PATH" ]]; then
+  echo "ERROR: missing $DATA_PATH" >&2
+  exit 2
+fi
 
 cd "$SCRATCH/AutoDAN"
 
