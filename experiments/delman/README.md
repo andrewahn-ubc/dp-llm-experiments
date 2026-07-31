@@ -16,10 +16,12 @@ mkdir -p $SCRATCH/DELMAN/data/stats && unzip … -d $SCRATCH/DELMAN/data/stats
 #   offset = 2
 
 # install DELMAN deps into nanogcg (do NOT use upstream requirements.txt —
-# it pins torch==2.4.0 which is missing from the Alliance wheelhouse)
+# it pins torch==2.4.0 which is missing from the Alliance wheelhouse).
+# Load Arrow *before* activating the venv so pyarrow is real, not the dummy wheel:
+deactivate 2>/dev/null || true
+module load StdEnv/2023 gcc arrow
 source $SCRATCH/venv/nanogcg/bin/activate
 pip install -r experiments/delman/requirements_cc.txt
-# optional: pip install --no-index 'torch==2.4.1'   # only if you need a newer torch
 
 cd $SCRATCH/dp-llm-experiments && mkdir -p output
 sbatch experiments/delman/run_edit_llama31.sh

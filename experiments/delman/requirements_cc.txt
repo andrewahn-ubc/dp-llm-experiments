@@ -1,14 +1,21 @@
 # DELMAN deps for Compute Canada / Alliance wheelhouse (Narval, Rorqual, …).
-# Do NOT pin torch==2.4.0 — that exact build is not in the CC wheelhouse.
-# Prefer keeping whatever torch you already have in nanogcg, or install 2.4.1+.
+# Do NOT use upstream DELMAN/requirements.txt (pins torch==2.4.0, missing here).
 #
+# If pip hits the pyarrow-noinstall dummy wheel:
+#   deactivate
+#   module load StdEnv/2023 gcc arrow
 #   source $SCRATCH/venv/nanogcg/bin/activate
 #   pip install -r experiments/delman/requirements_cc.txt
+#
+# Or skip datasets (only needed if DELMAN loads HF Datasets at runtime):
+#   pip install -r experiments/delman/requirements_cc.txt --no-deps  # not recommended
+#   better: omit datasets line and install the rest.
 
 transformers>=4.49,<5
-datasets>=1.18
+# Pin: datasets>=1.18 resolves to a new release that requires pyarrow>=21.
+datasets==1.18.3
 matplotlib>=3.5
 numpy>=1.26,<2
 accelerate>=0.30
-protobuf>=4
+protobuf>=4,<6
 sentencepiece>=0.2
