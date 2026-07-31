@@ -199,7 +199,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--target-adapter", default="", help="Optional LoRA adapter (DCL).")
     p.add_argument("--attacker-device", default="cuda:0")
     p.add_argument("--target-device", default="cuda:1")
-    p.add_argument("--max-turns", type=int, default=5)
+    p.add_argument("--max-turns", type=int, default=3)
     p.add_argument("--attacker-max-new-tokens", type=int, default=512)
     p.add_argument("--target-max-new-tokens", type=int, default=150)
     p.add_argument(

@@ -9,7 +9,7 @@
 
 # Merge PyRIT chunks for one TARGET_TAG and score with HarmBench.
 #
-#   for tag in base mixat door dcl_lam3_eps1 delman; do
+#   for tag in base mixat door dcl_lam3_eps1; do
 #     TARGET_TAG=$tag sbatch experiments/pyrit_rorqual/score_one.sh
 #   done
 
@@ -19,7 +19,7 @@ REPO_ROOT="${REPO_ROOT:-$SCRATCH/dp-llm-experiments}"
 cd "$REPO_ROOT"
 mkdir -p output
 
-TARGET_TAG="${TARGET_TAG:?Set TARGET_TAG=base|mixat|door|dcl_lam3_eps1|delman}"
+TARGET_TAG="${TARGET_TAG:?Set TARGET_TAG=base|mixat|door|dcl_lam3_eps1}"
 OUT_ROOT="${OUT_ROOT:-${REPO_ROOT}/official_data/pyrit_out}"
 CHUNKS_DIR="${OUT_ROOT}/${TARGET_TAG}"
 MERGED="${OUT_ROOT}/${TARGET_TAG}_harmful.csv"

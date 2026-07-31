@@ -4,35 +4,19 @@
 #SBATCH --gres=gpu:h100:2
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=128G
-#SBATCH --time=6:00:00
-#SBATCH --array=0-259
+#SBATCH --time=3:30:00
+#SBATCH --array=0-79
 #SBATCH --output=output/pyrit_l3_%A_%a.out
 
-# PyRIT RedTeamingAttack on the harmful test set against 5 targets.
+# PyRIT RedTeamingAttack against 4 targets on the 500-goal stratified subset
+# (225 advbench + 225 harmbench + 50 jailbreakbench).
 #
-# Layout (default CHUNK_SIZE=20 → 52 chunks; 5 models → 260 tasks = array 0-259):
-#   task = model_idx * N_CHUNKS + chunk_idx
-#   models: 0=base  1=mixat  2=door  3=dcl_lam3_eps1  4=delman
+# Defaults: MAX_TURNS=3, CHUNK_SIZE=25 → 20 chunks × 4 models = 80 jobs.
+# Prefer:  bash experiments/pyrit_rorqual/submit_all.sh
 #
+# models: 0=base  1=mixat  2=door  3=dcl_lam3_eps1
 # Attacker: $SCRATCH/qwen3-30b-a3b-instruct-2507  (cuda:0)
-# Target:   Llama-3 / DELMAN-edited Llama-3.1     (cuda:1)
-#
-# DELMAN (full HF): $SCRATCH/delman_llama31_8b_instruct
-#   produced from $SCRATCH/llama31_8b_instruct via experiments/delman/run_edit_llama31.sh
-#
-# Prep once on a login node:
-#   bash experiments/pyrit_rorqual/setup_env.sh
-#   python helper_scripts/perturbation/prepare_jailbreak_r1_chunks.py \
-#     --input official_data/combined_test_dataset.csv \
-#     --out-dir official_data/pyrit_test --chunk-size 20
-#
-# Submit:
-#   EPOCH=2 sbatch experiments/pyrit_rorqual/run_array.sh
-#
-# After array finishes, score each model:
-#   for tag in base mixat door dcl_lam3_eps1 delman; do
-#     TARGET_TAG=$tag sbatch experiments/pyrit_rorqual/score_one.sh
-#   done
+# Target:   Llama-3-8B family                     (cuda:1)
 
 set -euo pipefail
 
@@ -57,12 +41,11 @@ ATTACKER_PATH="${ATTACKER_PATH:-$SCRATCH/qwen3-30b-a3b-instruct-2507}"
 BASE_L3="${BASE_L3:-$SCRATCH/llama_3_8b_instruct}"
 MIXAT_PATH="${MIXAT_PATH:-$SCRATCH/mixat}"
 DOOR_PATH="${DOOR_PATH:-$SCRATCH/door}"
-DELMAN_PATH="${DELMAN_PATH:-$SCRATCH/delman_llama31_8b_instruct}"
 CK_ROOT="${CHECKPOINT_ROOT:-$SCRATCH/dp-llm-sweep}"
 EPOCH="${EPOCH:-2}"
-MAX_TURNS="${MAX_TURNS:-5}"
+MAX_TURNS="${MAX_TURNS:-3}"
 
-# Infer chunk count from prepared data (fallback 52 for 1022 goals / 20).
+# Infer chunk count from prepared data (fallback 20 for 500 goals / 25).
 N_CHUNKS="${N_CHUNKS:-}"
 if [[ -z "$N_CHUNKS" ]]; then
   if [[ -f "${DATA_ROOT}/manifest.txt" ]]; then
@@ -72,15 +55,15 @@ from pathlib import Path
 t = Path("${DATA_ROOT}/manifest.txt").read_text()
 import re
 m = re.search(r"array=0-(\d+)", t)
-print(int(m.group(1)) + 1 if m else 52)
+print(int(m.group(1)) + 1 if m else 20)
 PY
 )
   else
-    N_CHUNKS=52
+    N_CHUNKS=20
   fi
 fi
 
-N_MODELS=5
+N_MODELS=4
 TASK_ID="${SLURM_ARRAY_TASK_ID:?}"
 MODEL_IDX=$((TASK_ID / N_CHUNKS))
 CHUNK_IDX=$((TASK_ID % N_CHUNKS))
@@ -90,7 +73,7 @@ if (( MODEL_IDX >= N_MODELS )); then
   exit 2
 fi
 
-TAGS=(base mixat door dcl_lam3_eps1 delman)
+TAGS=(base mixat door dcl_lam3_eps1)
 TAG="${TAGS[$MODEL_IDX]}"
 CHUNK=$(printf "chunk_%02d.csv" "$CHUNK_IDX")
 # Support unpadded names if prepare script used wider indices.
@@ -109,7 +92,6 @@ case "$TAG" in
   dcl_lam3_eps1)
     TARGET_ADAPTER="${CK_ROOT}/l3_run_lr2e-05_lam3_eps1_finetuned_llm_epoch${EPOCH}"
     ;;
-  delman) TARGET_BASE="$DELMAN_PATH" ;;
 esac
 
 echo "=== PyRIT task $TASK_ID ==="

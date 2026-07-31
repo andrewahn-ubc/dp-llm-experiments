@@ -15,8 +15,8 @@ mkdir -p $SCRATCH/DELMAN/data/stats && unzip … -d $SCRATCH/DELMAN/data/stats
 # REQUIRED for Llama 3.1: in $SCRATCH/DELMAN/rome/repr_tools.py set
 #   offset = 2
 
-# venv with DELMAN requirements.txt
-python -m venv $SCRATCH/venv/delman && source $SCRATCH/venv/delman/bin/activate
+# install DELMAN deps into your nanogcg venv (script default)
+source $SCRATCH/venv/nanogcg/bin/activate
 pip install -r $SCRATCH/DELMAN/requirements.txt
 
 cd $SCRATCH/dp-llm-experiments && mkdir -p output
