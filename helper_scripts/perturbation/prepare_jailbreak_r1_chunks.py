@@ -6,7 +6,7 @@ Default: 20 goals/chunk → 52 chunks for the 1022-goal test set.
 Example::
 
   python helper_scripts/perturbation/prepare_jailbreak_r1_chunks.py \\
-    --input official/combined_test_dataset.csv \\
+    --input official_data/combined_test_dataset.csv \\
     --out-dir official_data/jailbreak_r1_test \\
     --chunk-size 20
 """
@@ -23,8 +23,9 @@ def main() -> None:
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument(
         "--input",
-        default="official/combined_test_dataset.csv",
-        help="CSV with at least a 'goal' column (and ideally target/dataset).",
+        default="official_data/combined_test_dataset.csv",
+        help="CSV with at least a 'goal' column (and ideally target/dataset). "
+        "On Narval this is official_data/ (local checkout may use official/).",
     )
     p.add_argument(
         "--out-dir",

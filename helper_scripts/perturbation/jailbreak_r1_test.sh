@@ -16,7 +16,7 @@
 #
 # Prepare chunks (from repo root):
 #   python helper_scripts/perturbation/prepare_jailbreak_r1_chunks.py \
-#     --input official/combined_test_dataset.csv \
+#     --input official_data/combined_test_dataset.csv \
 #     --out-dir $SCRATCH/dp-llm-experiments/official_data/jailbreak_r1_test \
 #     --chunk-size 20
 #   # then sync chunks if prepared locally, and set --array to match manifest

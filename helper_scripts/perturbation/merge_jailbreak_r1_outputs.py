@@ -9,8 +9,8 @@ Example::
 
   python helper_scripts/perturbation/merge_jailbreak_r1_outputs.py \\
     --chunks-dir $SCRATCH/dp-llm-experiments/official_data/jailbreak_r1_out \\
-    --base-csv official/combined_test_dataset.csv \\
-    --out-dir official/jailbreak_r1
+    --base-csv official_data/combined_test_dataset.csv \\
+    --out-dir official_data/jailbreak_r1
 """
 
 from __future__ import annotations
@@ -26,10 +26,10 @@ def main() -> None:
     p.add_argument("--chunks-dir", required=True)
     p.add_argument(
         "--base-csv",
-        default="official/combined_test_dataset.csv",
-        help="Test set to join Jailbreak-R1 Variant onto.",
+        default="official_data/combined_test_dataset.csv",
+        help="Test set to join Jailbreak-R1 Variant onto (Narval: official_data/).",
     )
-    p.add_argument("--out-dir", default="official/jailbreak_r1")
+    p.add_argument("--out-dir", default="official_data/jailbreak_r1")
     p.add_argument("--pattern", default="chunk_*.csv")
     args = p.parse_args()
 
