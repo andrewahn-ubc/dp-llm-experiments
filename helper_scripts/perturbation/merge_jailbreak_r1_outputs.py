@@ -31,6 +31,11 @@ def main() -> None:
     )
     p.add_argument("--out-dir", default="official_data/jailbreak_r1")
     p.add_argument("--pattern", default="chunk_*.csv")
+    p.add_argument(
+        "--keep-missing",
+        action="store_true",
+        help="Keep base rows with empty Jailbreak-R1 Variant (default: drop them).",
+    )
     args = p.parse_args()
 
     chunks_dir = Path(args.chunks_dir)
@@ -73,8 +78,23 @@ def main() -> None:
     merged = base.merge(variants[join_cols], on=join_key, how="left")
     if join_key == "_jb_r1_join":
         merged = merged.drop(columns=["_jb_r1_join"])
+    missing = merged["Jailbreak-R1 Variant"].isna() | merged[
+        "Jailbreak-R1 Variant"
+    ].astype(str).str.strip().eq("")
+    n_missing = int(missing.sum())
+    if missing.any():
+        miss_path = out_dir / "missing_goals.csv"
+        cols = [c for c in ("goal", "Original Prompt", "target", "dataset") if c in merged.columns]
+        merged.loc[missing, cols].to_csv(miss_path, index=False)
+        print(f"WARNING: {n_missing} goals missing variants → {miss_path}")
+        if not args.keep_missing:
+            merged = merged.loc[~missing].reset_index(drop=True)
+            print(f"Dropped {n_missing} rows without variants (eval-safe). Use --keep-missing to retain.")
+
     n_ok = int(merged["Jailbreak-R1 Variant"].notna().sum())
-    n_nonempty = int(merged["Jailbreak-R1 Variant"].fillna("").astype(str).str.strip().ne("").sum())
+    n_nonempty = int(
+        merged["Jailbreak-R1 Variant"].fillna("").astype(str).str.strip().ne("").sum()
+    )
 
     merged_name = Path(args.base_csv).stem + "_with_jailbreak_r1.csv"
     merged_path = out_dir / merged_name
@@ -82,15 +102,9 @@ def main() -> None:
 
     print(f"chunks merged: {len(files)}")
     print(f"unique goals with variants: {len(variants)}")
-    print(f"joined onto base ({len(base)} rows): non-null={n_ok} non-empty={n_nonempty}")
+    print(f"eval CSV rows: {len(merged)} (non-null={n_ok} non-empty={n_nonempty})")
     print(f"wrote {var_path}")
     print(f"wrote {merged_path}")
-    missing = merged["Jailbreak-R1 Variant"].isna() | merged["Jailbreak-R1 Variant"].astype(str).str.strip().eq("")
-    if missing.any():
-        miss_path = out_dir / "missing_goals.csv"
-        cols = [c for c in ("goal", "Original Prompt", "target", "dataset") if c in merged.columns]
-        merged.loc[missing, cols].to_csv(miss_path, index=False)
-        print(f"WARNING: {int(missing.sum())} goals missing variants → {miss_path}")
 
 
 if __name__ == "__main__":

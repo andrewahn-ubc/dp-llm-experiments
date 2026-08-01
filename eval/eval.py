@@ -171,6 +171,24 @@ def main(args):
 
     # Compute ASR on harmful prompts
     val_df = pd.read_csv(args.validation_data)
+    # Skip rows with empty attack prompts for the active family (e.g. 2 missing JB-R1).
+    _variant_col = {
+        "gcg": "GCG Variant",
+        "autodan": "AutoDAN Variant",
+        "pair": "PAIR Variant",
+        "jailbreak_r1": "Jailbreak-R1 Variant",
+        "pyrit": "PyRIT Variant",
+    }.get(args.unseen_family)
+    if _variant_col and _variant_col in val_df.columns:
+        _ok = val_df[_variant_col].notna() & val_df[_variant_col].astype(str).str.strip().ne("")
+        _n_drop = int((~_ok).sum())
+        if _n_drop:
+            print(
+                f"[eval] dropping {_n_drop} rows with empty {_variant_col!r} "
+                f"({int(_ok.sum())} remain)",
+                flush=True,
+            )
+            val_df = val_df.loc[_ok].reset_index(drop=True)
     end_of_epoch_asr_path = _ensure_csv_path(args.harmful_output_file)
     end_of_epoch_frr_path = _ensure_csv_path(args.benign_output_file)
     print(f"[eval] harmful_output={end_of_epoch_asr_path}", flush=True)
