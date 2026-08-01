@@ -15,9 +15,11 @@ Multi-turn [PyRIT](https://github.com/microsoft/PyRIT) `RedTeamingAttack` on a
 | Tag | Path |
 |-----|------|
 | `base` | `$SCRATCH/llama_3_8b_instruct` |
-| `mixat` | `$SCRATCH/mixat` |
-| `door` | `$SCRATCH/door` |
-| `dcl_lam3_eps1` | LoRA `…/l3_run_lr2e-05_lam3_eps1_finetuned_llm_epoch${EPOCH}` |
+| `mixat` | base + PEFT `$SCRATCH/mixat` |
+| `door` | base + PEFT `$SCRATCH/door` |
+| `dcl_lam3_eps1` | base + LoRA `…/l3_run_lr2e-05_lam3_eps1_finetuned_llm_epoch${EPOCH}` |
+
+MixAT/DOOR dirs are adapter-only (no tokenizer); jobs always load the Llama-3 Instruct base.
 
 ## Setup + submit
 

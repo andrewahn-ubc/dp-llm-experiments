@@ -134,13 +134,20 @@ PY
 # Re-assert wheelhouse pillow in case something pulled a different one.
 pip install --no-index --force-reinstall --no-deps pillow 2>/dev/null || true
 
+# PyRIT deps can leave these missing; Llama/Qwen tokenizers need them.
+pip install --no-index sentencepiece tiktoken protobuf \
+  || pip install sentencepiece tiktoken protobuf
+
 python - <<'PY'
 import torch, transformers, peft, pyrit, pyarrow
 import PIL
+import sentencepiece  # noqa: F401
+import tiktoken  # noqa: F401
 print("ok torch", torch.__version__, "cuda", torch.cuda.is_available())
 print("ok transformers", transformers.__version__, "peft", peft.__version__)
 print("ok pyrit", pyrit.__version__, "pyarrow", pyarrow.__version__)
 print("ok pillow", PIL.__version__, "(Alliance wheel; pyrit wants >=12.2 — OK for text attacks)")
+print("ok sentencepiece + tiktoken")
 from pyrit.executor.attack import RedTeamingAttack  # noqa: F401
 print("ok RedTeamingAttack import")
 PY

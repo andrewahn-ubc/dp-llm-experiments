@@ -65,9 +65,20 @@ class LocalCausalLMChatTarget(PromptTarget):
         self.attn_implementation = attn_implementation
         self.fixed_system_prompt = system_prompt
 
-        self.tokenizer = AutoTokenizer.from_pretrained(
-            model_path, trust_remote_code=trust_remote_code
-        )
+        try:
+            self.tokenizer = AutoTokenizer.from_pretrained(
+                model_path, trust_remote_code=trust_remote_code
+            )
+        except ValueError as e:
+            # Missing sentencepiece/tiktoken → can't build fast tokenizer.
+            logger.warning(
+                "Fast tokenizer failed (%s); retrying use_fast=False. "
+                "Install sentencepiece+tiktoken in the venv if this persists.",
+                e,
+            )
+            self.tokenizer = AutoTokenizer.from_pretrained(
+                model_path, trust_remote_code=trust_remote_code, use_fast=False
+            )
         if self.tokenizer.pad_token is None:
             self.tokenizer.pad_token = self.tokenizer.eos_token
         self.tokenizer.padding_side = "left"
