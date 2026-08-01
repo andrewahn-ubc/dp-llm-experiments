@@ -4,7 +4,7 @@
 #SBATCH --gres=gpu:1
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=64G
-#SBATCH --time=8:00:00
+#SBATCH --time=3:00:00
 #SBATCH --output=output/delman_l31_%j.out
 
 # Run DELMAN editing on Llama-3.1-8B-Instruct, then copy the edited
