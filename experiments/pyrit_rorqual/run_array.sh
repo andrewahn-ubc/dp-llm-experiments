@@ -85,14 +85,25 @@ fi
 INPUT_CSV="${DATA_ROOT}/${CHUNK}"
 OUTPUT_CSV="${OUT_ROOT}/${TAG}/${CHUNK}"
 
-# MixAT/DOOR on disk are PEFT adapters (adapter_model.safetensors), not full HF
-# checkpoints — always load tokenizer/base weights from Llama-3 Instruct.
+# MixAT is PEFT-only; DOOR is a full HF checkpoint. Detect via adapter_config.json.
 TARGET_BASE="$BASE_L3"
 TARGET_ADAPTER=""
 case "$TAG" in
   base) ;;
-  mixat) TARGET_ADAPTER="$MIXAT_PATH" ;;
-  door) TARGET_ADAPTER="$DOOR_PATH" ;;
+  mixat)
+    if [[ -f "$MIXAT_PATH/adapter_config.json" ]]; then
+      TARGET_ADAPTER="$MIXAT_PATH"
+    else
+      TARGET_BASE="$MIXAT_PATH"
+    fi
+    ;;
+  door)
+    if [[ -f "$DOOR_PATH/adapter_config.json" ]]; then
+      TARGET_ADAPTER="$DOOR_PATH"
+    else
+      TARGET_BASE="$DOOR_PATH"
+    fi
+    ;;
   dcl_lam3_eps1)
     TARGET_ADAPTER="${CK_ROOT}/l3_run_lr2e-05_lam3_eps1_finetuned_llm_epoch${EPOCH}"
     ;;
@@ -113,15 +124,13 @@ for p in "$ATTACKER_PATH" "$TARGET_BASE" "$INPUT_CSV"; do
     exit 2
   fi
 done
-if [[ -n "$TARGET_ADAPTER" ]]; then
-  if [[ ! -d "$TARGET_ADAPTER" ]]; then
-    echo "ERROR: adapter missing: $TARGET_ADAPTER" >&2
-    exit 2
-  fi
-  if [[ ! -f "$TARGET_ADAPTER/adapter_config.json" ]]; then
-    echo "ERROR: $TARGET_ADAPTER has no adapter_config.json (expected PEFT adapter)" >&2
-    exit 2
-  fi
+if [[ -n "$TARGET_ADAPTER" && ! -d "$TARGET_ADAPTER" ]]; then
+  echo "ERROR: adapter missing: $TARGET_ADAPTER" >&2
+  exit 2
+fi
+if [[ -z "$TARGET_ADAPTER" && ! -f "$TARGET_BASE/tokenizer.json" && ! -f "$TARGET_BASE/tokenizer_config.json" ]]; then
+  echo "ERROR: $TARGET_BASE looks incomplete (no tokenizer); if this is a PEFT adapter, it needs adapter_config.json" >&2
+  exit 2
 fi
 
 mkdir -p "$(dirname "$OUTPUT_CSV")"
