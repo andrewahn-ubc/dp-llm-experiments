@@ -59,8 +59,8 @@ on `frr_test.csv`. One SLURM array task per model (6 jobs):
 | # | Model | Path |
 |---|--------|------|
 | 0 | base L3-8B-Instruct | profile `$SCRATCH/llama_3_8b_instruct` |
-| 1 | MixAT | `$SCRATCH/mixat` |
-| 2 | DOOR | `$SCRATCH/door` |
+| 1 | MixAT | PEFT `$SCRATCH/mixat` on L3 base (or full HF if no `adapter_config.json`) |
+| 2 | DOOR | full HF `$SCRATCH/door` (or PEFT if `adapter_config.json` present) |
 | 3 | DCL λ=1, ε=-1 | `…/l3_run_lr2e-05_lam1_eps-1_finetuned_llm_epoch${EPOCH}` |
 | 4 | DCL λ=3, ε=1 | `…/l3_run_lr2e-05_lam3_eps1_finetuned_llm_epoch${EPOCH}` |
 | 5 | DELMAN (L3.1 edited) | `$SCRATCH/delman_llama31_8b_instruct` |

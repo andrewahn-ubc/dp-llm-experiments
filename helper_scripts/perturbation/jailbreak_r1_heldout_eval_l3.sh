@@ -11,11 +11,13 @@
 # Jailbreak-R1 held-out ASR (+ FRR). One array task = one model:
 #
 #   0  base Llama-3-8B-Instruct          ($SCRATCH/llama_3_8b_instruct)
-#   1  MixAT                             $SCRATCH/mixat
-#   2  DOOR                              $SCRATCH/door
+#   1  MixAT                             PEFT $SCRATCH/mixat on L3 base
+#   2  DOOR                              full HF $SCRATCH/door
 #   3  DCL seen λ=1, ε=-1                LoRA
 #   4  DCL seen λ=3, ε=1                 LoRA
 #   5  DELMAN (Llama-3.1 edited)         $SCRATCH/delman_llama31_8b_instruct
+#
+# MixAT is adapter-only; DOOR is a full checkpoint. Detect via adapter_config.json.
 #
 # DELMAN is produced from $SCRATCH/llama31_8b_instruct via
 #   experiments/delman/run_edit_llama31.sh
@@ -38,6 +40,7 @@ REPO_ROOT="${REPO_ROOT:-$SCRATCH/dp-llm-experiments}"
 CK_ROOT="${CHECKPOINT_ROOT:-$SCRATCH/dp-llm-sweep}"
 EPOCH="${EPOCH:-2}"
 SYSTEM_PROMPT_MODE="${SYSTEM_PROMPT_MODE:-empty}"
+BASE_L3="${BASE_L3:-$SCRATCH/llama_3_8b_instruct}"
 
 HARMFUL_DATA="${HARMFUL_DATA:-${REPO_ROOT}/official_data/jailbreak_r1/combined_test_with_jailbreak_r1.csv}"
 BENIGN_DATA="${BENIGN_DATA:-${REPO_ROOT}/official_data/frr_test.csv}"
@@ -60,13 +63,26 @@ case "$TAG" in
     RUN_TAG="base_jb_r1"
     ;;
   mixat)
-    BASE_LLM_ARGS=(--base-llm "$MIXAT_PATH")
-    NEED_DIR="$MIXAT_PATH"
+    # PEFT adapter → --base-llm L3 + --resume-from mixat; full HF → --base-llm mixat
+    if [[ -f "$MIXAT_PATH/adapter_config.json" ]]; then
+      BASE_LLM_ARGS=(--base-llm "$BASE_L3")
+      RESUME_ARGS=(--resume-from "$MIXAT_PATH")
+      NEED_DIR="$MIXAT_PATH"
+    else
+      BASE_LLM_ARGS=(--base-llm "$MIXAT_PATH")
+      NEED_DIR="$MIXAT_PATH"
+    fi
     RUN_TAG="mixat_jb_r1"
     ;;
   door)
-    BASE_LLM_ARGS=(--base-llm "$DOOR_PATH")
-    NEED_DIR="$DOOR_PATH"
+    if [[ -f "$DOOR_PATH/adapter_config.json" ]]; then
+      BASE_LLM_ARGS=(--base-llm "$BASE_L3")
+      RESUME_ARGS=(--resume-from "$DOOR_PATH")
+      NEED_DIR="$DOOR_PATH"
+    else
+      BASE_LLM_ARGS=(--base-llm "$DOOR_PATH")
+      NEED_DIR="$DOOR_PATH"
+    fi
     RUN_TAG="door_jb_r1"
     ;;
   dcl_lam1_eps-1)
@@ -97,6 +113,14 @@ if [[ -n "$NEED_DIR" && ! -d "$NEED_DIR" ]]; then
   echo "ERROR: model path not found: $NEED_DIR" >&2
   echo "For DELMAN: run experiments/delman/run_edit_llama31.sh first" >&2
   echo "(base=$SCRATCH/llama31_8b_instruct → out=\$DELMAN_PATH)." >&2
+  exit 2
+fi
+if [[ ${#RESUME_ARGS[@]} -gt 0 && ! -f "${NEED_DIR}/adapter_config.json" ]]; then
+  echo "ERROR: expected PEFT adapter at $NEED_DIR (missing adapter_config.json)" >&2
+  exit 2
+fi
+if [[ ${#RESUME_ARGS[@]} -eq 0 && -n "$NEED_DIR" && ! -f "$NEED_DIR/tokenizer.json" && ! -f "$NEED_DIR/tokenizer_config.json" ]]; then
+  echo "ERROR: $NEED_DIR looks incomplete (no tokenizer); if PEFT-only, needs adapter_config.json" >&2
   exit 2
 fi
 
@@ -133,6 +157,8 @@ echo "=== Jailbreak-R1 held-out eval ==="
 echo "tag=$TAG  task=$SLURM_ARRAY_TASK_ID"
 echo "harmful=$HARMFUL_DATA"
 [[ -n "$NEED_DIR" ]] && echo "model_dir=$NEED_DIR"
+[[ ${#BASE_LLM_ARGS[@]} -gt 0 ]] && echo "base_llm_args=${BASE_LLM_ARGS[*]}"
+[[ ${#RESUME_ARGS[@]} -gt 0 ]] && echo "resume_args=${RESUME_ARGS[*]}"
 echo "outs: ${HARMFUL_OUT}.csv / ${BENIGN_OUT}.csv"
 
 python "${REPO_ROOT}/eval/eval.py" \
