@@ -70,6 +70,8 @@ Produce DELMAN from `$SCRATCH/llama31_8b_instruct` first:
 
 ```bash
 cd $SCRATCH/dp-llm-experiments
+# preflight (paths + tokenizers; no full GPU load):
+python helper_scripts/perturbation/verify_jailbreak_r1_heldout_models.py
 mkdir -p output
 EPOCH=2 sbatch helper_scripts/perturbation/jailbreak_r1_heldout_eval_l3.sh
 # overrides: MIXAT_PATH=... DOOR_PATH=... DELMAN_PATH=... EPOCH=1 OUT_DIR=...
