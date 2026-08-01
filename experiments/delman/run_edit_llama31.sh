@@ -78,8 +78,53 @@ if [[ ! -d "$BASE_L31" ]]; then
 fi
 if [[ ! -d "$DELMAN_REPO/data/stats" ]]; then
   echo "ERROR: unpack cov matrices into $DELMAN_REPO/data/stats" >&2
+  echo "Google Drive cov zip → $DELMAN_REPO/data/stats (see DELMAN README)" >&2
   exit 2
 fi
+
+# Stats keys are path-sanitized. Local $SCRATCH/llama31_8b_instruct becomes
+# "_scratch_…_llama31_8b_instruct", while the Drive zip uses the HF hub name.
+# Symlink so MEMIT does not recompute Wikipedia mom2 on the cluster (very slow).
+STATS_KEY="$(python - <<PY
+from pathlib import Path
+p = Path(r"""$BASE_L31""").resolve()
+print(str(p).replace("/", "_"))
+PY
+)"
+STATS_DST="$DELMAN_REPO/data/stats/$STATS_KEY"
+if [[ ! -d "$STATS_DST/wikipedia_stats" ]]; then
+  echo "Looking for cov stats for key: $STATS_KEY"
+  CAND=""
+  for name in \
+    "meta-llama_Llama-3.1-8B-Instruct" \
+    "Llama-3.1-8B-Instruct" \
+    "meta-llama-Llama-3.1-8B-Instruct"
+  do
+    if [[ -d "$DELMAN_REPO/data/stats/$name/wikipedia_stats" ]]; then
+      CAND="$DELMAN_REPO/data/stats/$name"
+      break
+    fi
+  done
+  # Also accept a single top-level wikipedia_stats under data/stats
+  if [[ -z "$CAND" && -d "$DELMAN_REPO/data/stats/wikipedia_stats" ]]; then
+    CAND="$DELMAN_REPO/data/stats"
+  fi
+  if [[ -z "$CAND" ]]; then
+    # pick first dir that contains wikipedia_stats
+    CAND="$(find "$DELMAN_REPO/data/stats" -maxdepth 2 -type d -name wikipedia_stats 2>/dev/null | head -1 | xargs -I{} dirname {} 2>/dev/null || true)"
+  fi
+  if [[ -n "$CAND" && -d "$CAND/wikipedia_stats" ]]; then
+    echo "Symlinking cov stats: $STATS_DST -> $CAND"
+    ln -sfn "$CAND" "$STATS_DST"
+  else
+    echo "ERROR: no wikipedia_stats under $DELMAN_REPO/data/stats" >&2
+    echo "Unpack the Llama-3.1 cov zip from the DELMAN Drive folder, then re-run." >&2
+    ls -la "$DELMAN_REPO/data/stats" | head -30 >&2
+    exit 2
+  fi
+fi
+echo "Using cov stats: $STATS_DST/wikipedia_stats"
+ls "$STATS_DST/wikipedia_stats" | head -5
 
 # Llama 3.1 needs offset=2 (DELMAN README). Auto-set if still 1.
 REPR_TOOLS="$DELMAN_REPO/rome/repr_tools.py"

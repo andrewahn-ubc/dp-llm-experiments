@@ -9,8 +9,12 @@ on **Jailbreak-R1** and **PyRIT**.
 ```bash
 # once
 git clone https://github.com/wanglne/DELMAN.git $SCRATCH/DELMAN
-# unpack your Llama-3.1 cov zip into:
+# unpack Llama-3.1 cov zip from
+#   https://drive.google.com/drive/folders/1uee2b_rti0UlNgQ52hlY2oVB5AduO7Ch
 mkdir -p $SCRATCH/DELMAN/data/stats && unzip … -d $SCRATCH/DELMAN/data/stats
+# run_edit_llama31.sh symlinks the HF-named stats dir to the local path key
+# (_scratch_…_llama31_8b_instruct). Without that, DELMAN recomputes mom2 locally
+# (very slow) after failing to download from memit.baulab.info.
 
 # REQUIRED for Llama 3.1: in $SCRATCH/DELMAN/rome/repr_tools.py set
 #   offset = 2
