@@ -11,7 +11,9 @@
 #   pip install -r experiments/delman/requirements_cc.txt --no-deps  # not recommended
 #   better: omit datasets line and install the rest.
 
-transformers>=4.49,<5
+# Upstream DELMAN pins transformers==4.49. Newer 4.5x/5.x change Llama layer
+# outputs so compute_v_star hooks see 2D tensors → IndexError on cur_out[0][i,idx,:].
+transformers==4.49.0
 # Alliance `module load arrow` is often pyarrow>=21, which removed PyExtensionType.
 # datasets<2.19 still uses pa.PyExtensionType → AttributeError on import.
 # Need datasets>=2.20 with arrow loaded *before* venv activate.

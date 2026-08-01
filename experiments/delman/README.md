@@ -27,6 +27,9 @@ pip install -r experiments/delman/requirements_cc.txt
 # If you see: pyarrow has no attribute 'PyExtensionType'
 #   → old datasets vs arrow>=21; upgrade:
 #   pip install -U 'datasets>=2.20,<4'
+# If you see: IndexError ... cur_out[0][i, idx, :] (tensor dim 2)
+#   → transformers too new; pin:
+#   pip install 'transformers==4.49.0'
 
 cd $SCRATCH/dp-llm-experiments && mkdir -p output
 sbatch experiments/delman/run_edit_llama31.sh   # defaults to $SCRATCH/venv/delman

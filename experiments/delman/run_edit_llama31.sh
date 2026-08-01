@@ -81,12 +81,31 @@ if [[ ! -d "$DELMAN_REPO/data/stats" ]]; then
   exit 2
 fi
 
-# Llama 3.1 needs offset=2 (DELMAN README).
-OFFSET_LINE=$(grep -nE '^\s*offset\s*=' "$DELMAN_REPO/rome/repr_tools.py" | head -1 || true)
+# Llama 3.1 needs offset=2 (DELMAN README). Auto-set if still 1.
+REPR_TOOLS="$DELMAN_REPO/rome/repr_tools.py"
+OFFSET_LINE=$(grep -nE '^\s*offset\s*=' "$REPR_TOOLS" | head -1 || true)
 echo "repr_tools offset line: ${OFFSET_LINE:-not found}"
-if ! grep -qE 'offset\s*=\s*2' "$DELMAN_REPO/rome/repr_tools.py"; then
-  echo "WARN: set offset=2 in $DELMAN_REPO/rome/repr_tools.py for Llama 3.1" >&2
+if ! grep -qE 'offset\s*=\s*2' "$REPR_TOOLS"; then
+  echo "Setting offset=2 in $REPR_TOOLS for Llama 3.1"
+  sed -i 's/^\(\s*offset\s*=\s*\)[0-9]\+/\12/' "$REPR_TOOLS"
 fi
+if ! grep -qE 'offset\s*=\s*2' "$REPR_TOOLS"; then
+  echo "ERROR: could not set offset=2 in $REPR_TOOLS" >&2
+  exit 2
+fi
+
+python - <<'PY'
+import transformers
+v = transformers.__version__
+print(f"transformers={v}")
+# DELMAN expects ~4.49 layer tuple outputs
+maj = int(v.split(".")[0])
+if maj >= 5:
+    raise SystemExit(
+        f"ERROR: transformers {v} is too new for DELMAN (use 4.49.0). "
+        "pip install 'transformers==4.49.0'"
+    )
+PY
 
 cd "$DELMAN_REPO"
 echo "Running DELMAN: model=$BASE_L31 hparams=$HPARAMS out_name=$OUT_NAME"
