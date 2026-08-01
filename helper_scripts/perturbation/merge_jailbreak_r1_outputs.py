@@ -3,7 +3,8 @@
 
 Writes:
   - jailbreak_r1_variants.csv  (goal, Jailbreak-R1 Variant, …)
-  - combined_test_with_jailbreak_r1.csv  (original cols + Jailbreak-R1 Variant)
+  - <base_stem>_with_jailbreak_r1.csv  (original cols + Jailbreak-R1 Variant;
+    empty variants dropped unless --keep-missing)
 
 Example::
 
@@ -99,6 +100,11 @@ def main() -> None:
     merged_name = Path(args.base_csv).stem + "_with_jailbreak_r1.csv"
     merged_path = out_dir / merged_name
     merged.to_csv(merged_path, index=False)
+    # Short alias expected by older docs / scripts.
+    if merged_name == "combined_test_dataset_with_jailbreak_r1.csv":
+        alias = out_dir / "combined_test_with_jailbreak_r1.csv"
+        merged.to_csv(alias, index=False)
+        print(f"wrote {alias} (alias)")
 
     print(f"chunks merged: {len(files)}")
     print(f"unique goals with variants: {len(variants)}")

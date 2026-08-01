@@ -2,7 +2,7 @@
 """Map Jailbreak-R1 Variant → GCG Variant so eval.py unseen-family can score it.
 
   python helper_scripts/perturbation/prep_jailbreak_r1_eval_csv.py \\
-    --input official_data/jailbreak_r1/combined_test_with_jailbreak_r1.csv \\
+    --input official_data/jailbreak_r1/combined_test_dataset_with_jailbreak_r1.csv \\
     --output official_data/jailbreak_r1/jb_r1_as_gcg_for_eval.csv
 """
 from __future__ import annotations
@@ -18,7 +18,7 @@ def main() -> None:
     p.add_argument(
         "--input",
         type=Path,
-        default=Path("official_data/jailbreak_r1/combined_test_with_jailbreak_r1.csv"),
+        default=Path("official_data/jailbreak_r1/combined_test_dataset_with_jailbreak_r1.csv"),
     )
     p.add_argument(
         "--output",

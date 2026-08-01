@@ -42,7 +42,12 @@ EPOCH="${EPOCH:-2}"
 SYSTEM_PROMPT_MODE="${SYSTEM_PROMPT_MODE:-empty}"
 BASE_L3="${BASE_L3:-$SCRATCH/llama_3_8b_instruct}"
 
-HARMFUL_DATA="${HARMFUL_DATA:-${REPO_ROOT}/official_data/jailbreak_r1/combined_test_with_jailbreak_r1.csv}"
+# merge_jailbreak_r1_outputs.py names this from the base stem:
+#   combined_test_dataset.csv → combined_test_dataset_with_jailbreak_r1.csv
+HARMFUL_DATA="${HARMFUL_DATA:-${REPO_ROOT}/official_data/jailbreak_r1/combined_test_dataset_with_jailbreak_r1.csv}"
+if [[ ! -f "$HARMFUL_DATA" && -f "${REPO_ROOT}/official_data/jailbreak_r1/combined_test_with_jailbreak_r1.csv" ]]; then
+  HARMFUL_DATA="${REPO_ROOT}/official_data/jailbreak_r1/combined_test_with_jailbreak_r1.csv"
+fi
 BENIGN_DATA="${BENIGN_DATA:-${REPO_ROOT}/official_data/frr_test.csv}"
 OUT_DIR="${OUT_DIR:-$SCRATCH/dp-llm-eval/jailbreak_r1_heldout_l3}"
 mkdir -p "$OUT_DIR"

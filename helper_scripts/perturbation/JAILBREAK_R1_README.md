@@ -49,7 +49,7 @@ python helper_scripts/perturbation/merge_jailbreak_r1_outputs.py \
 
 You get:
 - `official_data/jailbreak_r1/jailbreak_r1_variants.csv`
-- `official_data/jailbreak_r1/combined_test_with_jailbreak_r1.csv` (adds `Jailbreak-R1 Variant`)
+- `official_data/jailbreak_r1/combined_test_dataset_with_jailbreak_r1.csv` (adds `Jailbreak-R1 Variant`; rows with empty variants are dropped)
 
 ## 5) Held-out eval (Llama-3 baselines + DCL + DELMAN)
 
