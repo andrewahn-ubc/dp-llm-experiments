@@ -209,6 +209,11 @@ def main(args):
                         output_file=end_of_epoch_asr_path) # gonna write the result in-place
     unload_model(guard_model, tokenizer=guard_tokenizer)
 
+    if args.skip_frr:
+        print("[eval] --skip-frr set; skipping benign FRR generation/classification", flush=True)
+        unload_model(model, tokenizer=tokenizer)
+        return
+
     # Compute FRR on benign prompts
     frr_val_df = pd.read_csv(args.benign_validation_data)
     df_with_regular_responses = generate_original_responses(frr_val_df, 
@@ -312,6 +317,11 @@ if __name__ == "__main__":
         ),
     )
     parser.add_argument("--resume-from", default=None) # this is the model you load at the start
+    parser.add_argument(
+        "--skip-frr",
+        action="store_true",
+        help="Only run harmful ASR (skip benign generation + refusal judge).",
+    )
 
     args = parser.parse_args()
     main(args)
