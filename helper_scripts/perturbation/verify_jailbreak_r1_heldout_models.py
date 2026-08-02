@@ -136,6 +136,7 @@ def main() -> int:
     ck = Path(os.environ.get("CHECKPOINT_ROOT", scratch / "dp-llm-sweep"))
     dcl1 = ck / f"l3_run_lr2e-05_lam1_eps-1_finetuned_llm_epoch{args.epoch}"
     dcl3 = ck / f"l3_run_lr2e-05_lam3_eps1_finetuned_llm_epoch{args.epoch}"
+    advsft = ck / f"l3_run_lr2e-05_lam0_eps0_pertlm_finetuned_llm_epoch{args.epoch}"
 
     harmful = repo / "official_data/jailbreak_r1/combined_test_dataset_with_jailbreak_r1.csv"
     if not harmful.is_file():
@@ -172,6 +173,7 @@ def main() -> int:
     check_peft(dcl1, base_l3, "3 dcl_lam1_eps-1", errors, args.load_tokenizer)
     check_peft(dcl3, base_l3, "4 dcl_lam3_eps1", errors, args.load_tokenizer)
     check_full_hf(delman, "5 delman", errors, args.load_tokenizer)
+    check_peft(advsft, base_l3, "6 advsft (seen pertlm)", errors, args.load_tokenizer)
 
     if args.load_weights:
         print("\n=== weight load (CPU / slow) ===")
@@ -210,6 +212,7 @@ def main() -> int:
         load_peft(dcl1, base_l3, "3 dcl_lam1_eps-1")
         load_peft(dcl3, base_l3, "4 dcl_lam3_eps1")
         load_base(delman, "5 delman")
+        load_peft(advsft, base_l3, "6 advsft")
 
     print()
     if errors:

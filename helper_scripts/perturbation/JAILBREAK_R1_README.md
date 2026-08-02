@@ -54,7 +54,7 @@ You get:
 ## 5) Held-out eval (Llama-3 baselines + DCL + DELMAN)
 
 Scores ASR on `Jailbreak-R1 Variant` via `--unseen-family jailbreak_r1`, plus FRR
-on `frr_test.csv`. One SLURM array task per model (6 jobs):
+on `frr_test.csv`. One SLURM array task per model (7 jobs):
 
 | # | Model | Path |
 |---|--------|------|
@@ -64,6 +64,7 @@ on `frr_test.csv`. One SLURM array task per model (6 jobs):
 | 3 | DCL λ=1, ε=-1 | `…/l3_run_lr2e-05_lam1_eps-1_finetuned_llm_epoch${EPOCH}` |
 | 4 | DCL λ=3, ε=1 | `…/l3_run_lr2e-05_lam3_eps1_finetuned_llm_epoch${EPOCH}` |
 | 5 | DELMAN (L3.1 edited) | `$SCRATCH/delman_llama31_8b_instruct` |
+| 6 | Adv-SFT (seen pertlm, λ=0) | `…/l3_run_lr2e-05_lam0_eps0_pertlm_finetuned_llm_epoch${EPOCH}` (GCG/AutoDAN/PAIR LM only; R1 held out) |
 
 Produce DELMAN from `$SCRATCH/llama31_8b_instruct` first:
 `experiments/delman/run_edit_llama31.sh` (see `experiments/delman/README.md`).

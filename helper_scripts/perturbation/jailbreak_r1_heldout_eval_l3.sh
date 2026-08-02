@@ -5,7 +5,7 @@
 #SBATCH --cpus-per-task=6
 #SBATCH --mem=48G
 #SBATCH --time=5:00:00
-#SBATCH --array=0-5
+#SBATCH --array=0-6
 #SBATCH --output=output/jb_r1_heldout_l3_%A_%a.out
 
 # Jailbreak-R1 held-out ASR (+ FRR). One array task = one model:
@@ -16,6 +16,8 @@
 #   3  DCL seen λ=1, ε=-1                LoRA
 #   4  DCL seen λ=3, ε=1                 LoRA
 #   5  DELMAN (Llama-3.1 edited)         $SCRATCH/delman_llama31_8b_instruct
+#   6  Adv-SFT seen (pertlm, λ=0)        LoRA — SFT on GCG/AutoDAN/PAIR only
+#                                      (Jailbreak-R1 never seen at train time)
 #
 # MixAT is adapter-only; DOOR is a full checkpoint. Detect via adapter_config.json.
 #
@@ -56,7 +58,7 @@ MIXAT_PATH="${MIXAT_PATH:-$SCRATCH/mixat}"
 DOOR_PATH="${DOOR_PATH:-$SCRATCH/door}"
 DELMAN_PATH="${DELMAN_PATH:-$SCRATCH/delman_llama31_8b_instruct}"
 
-TAGS=(base mixat door dcl_lam1_eps-1 dcl_lam3_eps1 delman)
+TAGS=(base mixat door dcl_lam1_eps-1 dcl_lam3_eps1 delman advsft)
 TAG="${TAGS[$SLURM_ARRAY_TASK_ID]}"
 
 BASE_LLM_ARGS=()
@@ -107,6 +109,14 @@ case "$TAG" in
     BASE_LLM_ARGS=(--base-llm "$DELMAN_PATH")
     NEED_DIR="$DELMAN_PATH"
     RUN_TAG="delman_l31_jb_r1"
+    ;;
+  advsft)
+    # Seen-family Adv-SFT: LM on GCG/AutoDAN/PAIR variants, λ=0 (no DCL hinge).
+    # Held-out w.r.t. Jailbreak-R1 (that family was never in training).
+    CKPT="${CK_ROOT}/l3_run_lr2e-05_lam0_eps0_pertlm_finetuned_llm_epoch${EPOCH}"
+    RESUME_ARGS=(--resume-from "$CKPT")
+    NEED_DIR="$CKPT"
+    RUN_TAG="advsft_lam0_eps0_pertlm_ep${EPOCH}_jb_r1"
     ;;
   *)
     echo "Unknown TAG=$TAG" >&2
