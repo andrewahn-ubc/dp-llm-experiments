@@ -195,10 +195,16 @@ class Task:
     eps: float
     lm_loss_input: str
     model_profile: str
+    seed: int | None = None
 
     def slug(self) -> str:
         return make_run_slug(
-            self.lr, self.lam, self.eps, self.lm_loss_input, model_profile=self.model_profile
+            self.lr,
+            self.lam,
+            self.eps,
+            self.lm_loss_input,
+            model_profile=self.model_profile,
+            seed=self.seed,
         )
 
 

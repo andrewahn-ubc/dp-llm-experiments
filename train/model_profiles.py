@@ -82,8 +82,13 @@ def make_run_slug(
     *,
     model_profile: str = DEFAULT_MODEL_PROFILE,
     rollout_length: int | None = None,
+    seed: int | None = None,
 ) -> str:
-    """Filesystem slug; optional profile prefix keeps checkpoints from different targets apart."""
+    """Filesystem slug; optional profile prefix keeps checkpoints from different targets apart.
+
+    When ``seed`` is set, inserts ``seed{N}_`` after the profile prefix, e.g.
+    ``l3_seed1_run_lr2e-05_lam1_eps-0.5``.
+    """
     profile = resolve_profile(model_profile)
     base = f"run_lr{lr:g}_lam{lam:g}_eps{eps:g}".replace(" ", "_")
     if lm_loss_input == "perturbed":
@@ -92,7 +97,8 @@ def make_run_slug(
         core = base
     if rollout_length is not None:
         core = f"{core}_T{int(rollout_length)}"
-    return f"{profile.slug_prefix}{core}"
+    seed_part = f"seed{int(seed)}_" if seed is not None else ""
+    return f"{profile.slug_prefix}{seed_part}{core}"
 
 # Full hinge *header* text for --hinge-style mistral_self_twin (train.py footer matches llama_guard).
 # The train loop still concatenates: [header embeds][student response embeds][footer embeds].

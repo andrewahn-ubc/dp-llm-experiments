@@ -262,6 +262,7 @@ def render_job_script(
     train_data_frac_start: float = 0.0,
     train_data_frac_end: float = 1.0,
     rollout_length: int = 5,
+    seed: int | None = None,
 ) -> str:
     # W&B run display name (visible after sync)
     run_name = run_slug
@@ -413,7 +414,10 @@ def render_job_script(
         lines.append(f"    --epsilon {eps} \\")
         lines.append("    --lora-rank 8 \\")
         lines.append(f"    --total-epochs {train_te_label} \\")
-        if training_halves_phase in ("first", "second", "both"):
+        if seed is not None:
+            lines.append(f"    --seed {int(seed)} \\")
+            lines.append(f"    --training-shuffle-seed {int(seed)} \\")
+        elif training_halves_phase in ("first", "second", "both"):
             # Same seed across halves (first/second re-submits, or both rounds in one job):
             # derived from slug (stable), not WANDB_RUN_ID (new uuid each submission), so the
             # two halves partition the same shuffled order.
@@ -556,6 +560,16 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         help=(
             "Soft autoregressive rollout length T passed to train.py --rollout-length "
             "(default: 5). Appended to the run slug as _T{T}."
+        ),
+    )
+    p.add_argument(
+        "--seed",
+        type=int,
+        default=None,
+        help=(
+            "Global RNG seed forwarded to train.py --seed and embedded in the run slug "
+            "as seed{N}_ (e.g. l3_seed1_run_…). Also used as --training-shuffle-seed. "
+            "Omit for legacy slug names without a seed infix."
         ),
     )
     p.add_argument(
@@ -928,6 +942,7 @@ def main(argv: list[str]) -> int:
                 lm_loss_input=args.lm_loss_input,
                 model_profile=args.model_profile,
                 rollout_length=args.rollout_length,
+                seed=args.seed,
             )
             for fam in families:
                 if fam is None:
@@ -990,6 +1005,7 @@ def main(argv: list[str]) -> int:
                         train_data_frac_start=args.train_data_frac_start,
                         train_data_frac_end=args.train_data_frac_end,
                         rollout_length=args.rollout_length,
+                        seed=args.seed,
                     )
 
                     sh_path = script_dir / f"{run_slug}{suffix}.sh"

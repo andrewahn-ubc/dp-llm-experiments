@@ -685,6 +685,15 @@ if __name__ == "__main__":
         ),
     )
     parser.add_argument(
+        "--seed",
+        type=int,
+        default=None,
+        help=(
+            "Global RNG seed (python/numpy/torch/cuda). When set and --training-shuffle-seed "
+            "is omitted, also used as the training-row shuffle seed."
+        ),
+    )
+    parser.add_argument(
         "--train-data-frac-start",
         type=float,
         default=0.0,
@@ -794,6 +803,22 @@ if __name__ == "__main__":
     args = parser.parse_args()
     if args.rollout_length < 1:
         raise SystemExit("--rollout-length / -T must be >= 1")
+
+    if args.seed is not None:
+        seed = int(args.seed)
+        random.seed(seed)
+        try:
+            import numpy as np
+
+            np.random.seed(seed)
+        except ImportError:
+            pass
+        torch.manual_seed(seed)
+        if torch.cuda.is_available():
+            torch.cuda.manual_seed_all(seed)
+        if args.training_shuffle_seed is None:
+            args.training_shuffle_seed = seed
+        print(f"[train] --seed={seed} (shuffle_seed={args.training_shuffle_seed})", flush=True)
 
     main(args)
 
