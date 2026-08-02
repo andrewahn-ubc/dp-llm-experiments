@@ -14,6 +14,8 @@
 #   sbatch --dependency=afterok:${TRAIN_ID} experiments/llama3_multiseed/eval_array.sh
 #
 # Outputs: $SCRATCH/dp-llm-eval/llama3_multiseed/seed{S}/points_{config_id}.csv
+#
+# Missing checkpoints fail the task (exit 2). Do not use --skip-missing unless debugging.
 
 set -euo pipefail
 
@@ -33,6 +35,36 @@ mkdir -p "$TRANSFORMERS_CACHE" "$HF_HOME"
 export CHECKPOINT_ROOT="${CHECKPOINT_ROOT:-$SCRATCH/dp-llm-sweep/multiseed_l3}"
 export EVAL_OUT_DIR="${EVAL_OUT_DIR:-$SCRATCH/dp-llm-eval/llama3_multiseed}"
 
+# Preflight before the multi-hour eval.py call.
+python - <<'PY'
+import sys
+from pathlib import Path
+
+repo = Path.cwd()
+ok = True
+for rel in ("experiments/llama3_multiseed/eval_one.py", "eval/eval.py"):
+    p = repo / rel
+    if not p.is_file():
+        print(f"ERROR: missing {p}", file=sys.stderr)
+        ok = False
+if not any((repo / r).is_file() for r in ("official_data/llama3_test.csv", "official/llama3_test.csv")):
+    print("ERROR: llama3_test.csv not found under official_data/ or official/", file=sys.stderr)
+    ok = False
+if not any(
+    (repo / r).is_file()
+    for r in (
+        "official_data/frr_text.csv",
+        "official_data/frr_test.csv",
+        "official/frr_text.csv",
+        "official/frr_test.csv",
+    )
+):
+    print("ERROR: frr_text/frr_test.csv not found under official_data/ or official/", file=sys.stderr)
+    ok = False
+sys.exit(0 if ok else 2)
+PY
+
+# shellcheck disable=SC2086
 python experiments/llama3_multiseed/eval_one.py \
   --task-id "${SLURM_ARRAY_TASK_ID:?}" \
   --checkpoint-root "$CHECKPOINT_ROOT" \

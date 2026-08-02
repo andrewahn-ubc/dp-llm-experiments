@@ -28,6 +28,16 @@ python experiments/llama3_multiseed/configs.py
 
 ## Submit on Narval
 
+Before submitting, confirm data paths exist (train CSV + `llama3_test.csv` + FRR CSV under `official_data/`):
+
+```bash
+ls official_data/llama3_train_plus_validation.csv \
+   official_data/llama3_test.csv \
+   official_data/frr_test.csv
+# optional but recommended for per-benchmark ASR:
+ls official_data/combined_test_dataset.csv || ls official/combined_test_dataset.csv
+```
+
 ```bash
 cd $SCRATCH/dp-llm-experiments
 mkdir -p output
@@ -43,6 +53,8 @@ AGG_ID=$(sbatch --parsable --dependency=afterok:${EVAL_ID} \
   experiments/llama3_multiseed/aggregate.sh)
 echo "aggregate job: $AGG_ID"
 ```
+
+W&B is **off by default** in `train_array.sh` (set `ENABLE_WANDB=1` only if you need it).
 
 Or step-by-step after each stage finishes:
 

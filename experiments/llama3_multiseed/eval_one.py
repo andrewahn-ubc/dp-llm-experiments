@@ -60,6 +60,28 @@ def _pct(x: float | None) -> float | None:
     return float(x) * 100.0
 
 
+def _soft_attach_dataset(df: pd.DataFrame, labels: pd.DataFrame | None) -> pd.DataFrame:
+    """Like ``_attach_dataset`` but never abort after a successful GPU eval.
+
+    Missing / unmatched labels → empty ``dataset`` (per-benchmark ASR becomes NaN);
+    aggregate still gets pooled cells from family means where possible.
+    """
+    out = df.copy()
+    if "dataset" in out.columns and out["dataset"].astype(str).str.strip().ne("").any():
+        out["dataset"] = out["dataset"].astype(str).str.strip().str.lower()
+        return out
+    if labels is None or "goal" not in out.columns:
+        out["dataset"] = ""
+        print("[eval_one] WARN: no dataset labels; per-benchmark ASR will be empty", flush=True)
+        return out
+    try:
+        return _attach_dataset(out, labels)
+    except SystemExit as e:
+        print(f"[eval_one] WARN: dataset join failed ({e}); continuing without benches", flush=True)
+        out["dataset"] = ""
+        return out
+
+
 def _build_points(
     *,
     mode: str,
@@ -72,7 +94,7 @@ def _build_points(
     labels: pd.DataFrame | None,
     families: tuple[str, ...],
 ) -> list[dict[str, Any]]:
-    labeled = _attach_dataset(harmful, labels)
+    labeled = _soft_attach_dataset(harmful, labels)
     rows: list[dict[str, Any]] = []
     for fam in families:
         for bench in list(BENCHMARKS) + ["mean"]:
@@ -138,20 +160,43 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p.add_argument("--labels-csv", default="")
     p.add_argument("--model-profile", default=MODEL_PROFILE)
     p.add_argument("--epoch", type=int, default=EPOCH)
-    p.add_argument("--skip-missing", action="store_true", default=True)
+    # Default False: missing checkpoints must fail the SLURM task (not silent success).
+    p.add_argument("--skip-missing", action="store_true", default=False)
     p.add_argument("--no-skip-missing", action="store_false", dest="skip_missing")
     args = p.parse_args(argv)
 
     repo = Path(expand_path(args.repo_root))
     if not args.harmful_test:
-        args.harmful_test = str(repo / "official_data" / "llama3_test.csv")
+        for rel in (
+            Path("official_data") / "llama3_test.csv",
+            Path("official") / "llama3_test.csv",
+        ):
+            cand = repo / rel
+            if cand.is_file():
+                args.harmful_test = str(cand)
+                break
+        else:
+            args.harmful_test = str(repo / "official_data" / "llama3_test.csv")
     if not args.benign_test:
-        text = repo / "official_data" / "frr_text.csv"
-        test = repo / "official_data" / "frr_test.csv"
-        args.benign_test = str(text if text.is_file() else test)
+        for rel in (
+            Path("official_data") / "frr_text.csv",
+            Path("official_data") / "frr_test.csv",
+            Path("official") / "frr_text.csv",
+            Path("official") / "frr_test.csv",
+        ):
+            cand = repo / rel
+            if cand.is_file():
+                args.benign_test = str(cand)
+                break
+        else:
+            args.benign_test = str(repo / "official_data" / "frr_test.csv")
     if not args.labels_csv:
         resolved = _resolve_labels_path(repo, "")
-        args.labels_csv = str(resolved) if resolved is not None else ""
+        # Prefer an existing file; do not keep a non-existent default path.
+        if resolved is not None and Path(expand_path(str(resolved))).is_file():
+            args.labels_csv = str(resolved)
+        else:
+            args.labels_csv = ""
     return args
 
 
@@ -179,7 +224,11 @@ def main(argv: list[str] | None = None) -> int:
     eval_py = repo / "eval" / "eval.py"
     harmful_test = Path(expand_path(args.harmful_test))
     benign_test = Path(expand_path(args.benign_test))
-    labels = _load_labels(Path(expand_path(args.labels_csv)) if args.labels_csv else None)
+    # Never abort the job solely for missing labels (GPU eval is the expensive part).
+    labels = _load_labels(
+        Path(expand_path(args.labels_csv)) if args.labels_csv else None,
+        required=False,
+    )
 
     ckpt = Path(cfg.ckpt_path(ck_root, seed, args.epoch))
     tag = f"{cfg.config_id}_{cfg.run_slug(seed)}_ep{args.epoch}"
@@ -188,15 +237,26 @@ def main(argv: list[str] | None = None) -> int:
         flush=True,
     )
 
-    if not ckpt.is_dir():
-        msg = f"Missing checkpoint: {ckpt}"
+    if not harmful_test.is_file():
+        print(f"ERROR: harmful test CSV missing: {harmful_test}", file=sys.stderr)
+        return 2
+    if not benign_test.is_file():
+        print(f"ERROR: benign/FRR CSV missing: {benign_test}", file=sys.stderr)
+        return 2
+    if not eval_py.is_file():
+        print(f"ERROR: eval.py missing: {eval_py}", file=sys.stderr)
+        return 2
+
+    if not ckpt.is_dir() or not (ckpt / "adapter_config.json").is_file():
+        msg = f"Missing/incomplete checkpoint: {ckpt}"
         if args.dry_run:
             print(f"[dry-run] WARN: {msg}", flush=True)
             return 0
         if args.skip_missing:
             print(msg, "; skip", flush=True)
             return 0
-        raise FileNotFoundError(msg)
+        print(f"ERROR: {msg}", file=sys.stderr)
+        return 2
 
     if not args.dry_run:
         out_dir.mkdir(parents=True, exist_ok=True)
