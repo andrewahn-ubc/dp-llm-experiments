@@ -26,10 +26,14 @@ if _repo_root not in sys.path:
     sys.path.insert(0, _repo_root)
 
 from eval.eval_helpers import generate_all_jb_responses, classify_all_jb_safety, generate_original_responses, classify_refusal
+from train.dcl_critic import (
+    precompute_hinge_context,
+    probabilities_to_embeddings,
+    safety_score,
+)
 from train.model_profiles import (
     DEFAULT_MODEL_PROFILE,
     MODEL_PROFILE_CHOICES,
-    MISTRAL_SELF_HINGE_PROMPT,
     resolve_profile,
 )
 import psutil, torch
@@ -211,45 +215,6 @@ def format_prompt(tokenizer, prompt):
         add_generation_prompt=True
     )
 
-# Safety Scoring Function (differentiable wrt generated tokens)
-# Input: (batched) soft embeddings
-# Output: scalar safety scores, ie. P(unsafe | prompt, response)
-def safety_score(guard_model, guard_tokenizer, soft_response_embeds, GUARD_HEADER_EMBEDS, GUARD_FOOTER_EMBEDS, keep_grad=True):
-    full_embeddings = torch.cat([GUARD_HEADER_EMBEDS, soft_response_embeds, GUARD_FOOTER_EMBEDS], dim=1)
-
-    outputs = guard_model(inputs_embeds=full_embeddings)
-    logits = outputs.logits[:, -1, :] # Final token logit
-
-    # Extract safe/unsafe probabilities
-    unsafe_id = guard_tokenizer.encode("unsafe", add_special_tokens=False)[0]
-    safe_id = guard_tokenizer.encode("safe", add_special_tokens=False)[0]
-    
-    return torch.sigmoid(logits[:, unsafe_id] - logits[:, safe_id])
-
-def precompute_hinge_context(guard_model, guard_tokenizer, hinge_style: str):
-    """Prefix/suffix embeddings for the hinge guard (Llama-Guard-style or Mistral self-twin)."""
-    dev = next(guard_model.parameters()).device
-    if hinge_style == "llama_guard":
-        header_text = """[INST] Task: Check if the following PARTIAL Agent response is starting to generate unsafe content according to our safety policy. Even if the sentence is incomplete, classify as 'unsafe' if the intent is clearly not safe.
-
-<BEGIN CONVERSATION>
-"""
-    elif hinge_style == "mistral_self_twin":
-        header_text = MISTRAL_SELF_HINGE_PROMPT
-    else:
-        raise ValueError(f"Unknown hinge_style: {hinge_style!r}")
-
-    footer_text = " ...\n<END CONVERSATION> [/INST]"
-
-    header_ids = guard_tokenizer.encode(header_text, return_tensors="pt").to(dev)
-    footer_ids = guard_tokenizer.encode(footer_text, add_special_tokens=False, return_tensors="pt").to(dev)
-
-    with torch.no_grad():
-        header_embeds = guard_model.get_input_embeddings()(header_ids)
-        footer_embeds = guard_model.get_input_embeddings()(footer_ids)
-
-    return header_embeds, footer_embeds
-
 # Generate Responses
 # Input: batched prompts
 # Output: soft embeddings of shape (batch_size, prompt_len + num_steps, hidden_dim)
@@ -280,7 +245,7 @@ def soft_autoregressive_generate(model, tokenizer, prompts, num_steps, temperatu
             probs = F.softmax(logits / temperature, dim=-1) # (batch_size, vocab_size)
 
             # Expected embedding (soft token)
-            next_embed = (probs @ vocab_embeds).unsqueeze(1).requires_grad_() # (batch_size, 1, hidden_dim)
+            next_embed = probabilities_to_embeddings(probs, vocab_embeds).unsqueeze(1).requires_grad_() # (batch_size, 1, hidden_dim)
 
             # Append soft token
             soft_embeds_of_conversation = torch.cat([soft_embeds_of_conversation, next_embed], dim=1)
