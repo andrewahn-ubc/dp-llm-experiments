@@ -86,6 +86,27 @@ def unsafe_score_from_logits(
     return torch.sigmoid(unsafe_logits - safe_logits)
 
 
+def stability_hinge(
+    clean_score: torch.Tensor,
+    perturbed_score: torch.Tensor,
+    epsilon_multiplier: torch.Tensor | float,
+    *,
+    squared: bool = False,
+) -> tuple[torch.Tensor, torch.Tensor]:
+    """Return the active consistency gap and its hinge penalty.
+
+    The DCL constraint is ``C_perturbed <= exp(epsilon) * C_clean``.  The
+    first returned tensor is the positive violation of that constraint.  The
+    second is either the historical linear hinge or the requested L2
+    (squared-hinge) penalty.  Computing the gap in fp32 avoids losing small
+    violations before squaring when the models run in fp16.
+    """
+    gap = perturbed_score.float() - clean_score.float() * epsilon_multiplier
+    active_gap = torch.relu(gap)
+    penalty = active_gap.square() if squared else active_gap
+    return active_gap, penalty
+
+
 def critic_readout(
     model_outputs: Any,
     tokenizer: Any,

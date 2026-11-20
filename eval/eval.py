@@ -90,11 +90,12 @@ def load_model(LLM_NAME, resume_from=None):
     )
 
     if resume_from is None:
-        return base_model, tokenizer
+        model = base_model
     else:
-        model = PeftModel.from_pretrained(base_model, resume_from, is_trainable=True)
+        model = PeftModel.from_pretrained(base_model, resume_from, is_trainable=False)
 
-        return model, tokenizer
+    model.eval()
+    return model, tokenizer
 
 def load_jailbreak_classifier(model_path: str):
     """HarmBench Mistral val classifier (HF snapshot) for GCG/AutoDAN/PAIR ASR labels."""
@@ -137,7 +138,9 @@ def main(args):
     )
 
     model, tokenizer = load_model(base_llm, resume_from=args.resume_from)
-    guard_model, guard_tokenizer = load_jailbreak_classifier(jb_path)
+    guard_model = guard_tokenizer = None
+    if not args.skip_harmful:
+        guard_model, guard_tokenizer = load_jailbreak_classifier(jb_path)
 
     system_prompt = (
         profile.default_system_prompt
@@ -169,45 +172,51 @@ def main(args):
             return p
         return f"{p}.csv"
 
-    # Compute ASR on harmful prompts
-    val_df = pd.read_csv(args.validation_data)
-    # Skip rows with empty attack prompts for the active family (e.g. 2 missing JB-R1).
-    _variant_col = {
-        "gcg": "GCG Variant",
-        "autodan": "AutoDAN Variant",
-        "pair": "PAIR Variant",
-        "jailbreak_r1": "Jailbreak-R1 Variant",
-        "pyrit": "PyRIT Variant",
-    }.get(args.unseen_family)
-    if _variant_col and _variant_col in val_df.columns:
-        _ok = val_df[_variant_col].notna() & val_df[_variant_col].astype(str).str.strip().ne("")
-        _n_drop = int((~_ok).sum())
-        if _n_drop:
-            print(
-                f"[eval] dropping {_n_drop} rows with empty {_variant_col!r} "
-                f"({int(_ok.sum())} remain)",
-                flush=True,
-            )
-            val_df = val_df.loc[_ok].reset_index(drop=True)
     end_of_epoch_asr_path = _ensure_csv_path(args.harmful_output_file)
     end_of_epoch_frr_path = _ensure_csv_path(args.benign_output_file)
-    print(f"[eval] harmful_output={end_of_epoch_asr_path}", flush=True)
-    print(f"[eval] benign_output={end_of_epoch_frr_path}", flush=True)
-    df_with_jb_responses =  generate_all_jb_responses(val_df, 
-                            batch_size=8, 
-                            finetuned_model=model, 
-                            tokenizer=tokenizer, 
-                            testing_mode=args.eval_mode, 
-                            unseen_family=args.unseen_family,
-                            system_prompt=system_prompt)
-    classify_all_jb_safety(df_with_jb_responses, 
-                        batch_size = 8, 
-                        guard_model=guard_model, 
-                        guard_tokenizer=guard_tokenizer, 
-                        testing_mode=args.eval_mode,  
-                        unseen_family=args.unseen_family,
-                        output_file=end_of_epoch_asr_path) # gonna write the result in-place
-    unload_model(guard_model, tokenizer=guard_tokenizer)
+    if not args.skip_harmful:
+        # Compute ASR on harmful prompts.
+        val_df = pd.read_csv(args.validation_data)
+        # Skip rows with empty attack prompts for the active family.
+        _variant_col = {
+            "gcg": "GCG Variant",
+            "autodan": "AutoDAN Variant",
+            "pair": "PAIR Variant",
+            "jailbreak_r1": "Jailbreak-R1 Variant",
+            "pyrit": "PyRIT Variant",
+        }.get(args.unseen_family)
+        if _variant_col and _variant_col in val_df.columns:
+            _ok = val_df[_variant_col].notna() & val_df[_variant_col].astype(str).str.strip().ne("")
+            _n_drop = int((~_ok).sum())
+            if _n_drop:
+                print(
+                    f"[eval] dropping {_n_drop} rows with empty {_variant_col!r} "
+                    f"({int(_ok.sum())} remain)",
+                    flush=True,
+                )
+                val_df = val_df.loc[_ok].reset_index(drop=True)
+        print(f"[eval] harmful_output={end_of_epoch_asr_path}", flush=True)
+        df_with_jb_responses = generate_all_jb_responses(
+            val_df,
+            batch_size=8,
+            finetuned_model=model,
+            tokenizer=tokenizer,
+            testing_mode=args.eval_mode,
+            unseen_family=args.unseen_family,
+            system_prompt=system_prompt,
+        )
+        classify_all_jb_safety(
+            df_with_jb_responses,
+            batch_size=8,
+            guard_model=guard_model,
+            guard_tokenizer=guard_tokenizer,
+            testing_mode=args.eval_mode,
+            unseen_family=args.unseen_family,
+            output_file=end_of_epoch_asr_path,
+        )
+        unload_model(guard_model, tokenizer=guard_tokenizer)
+    else:
+        print("[eval] --skip-harmful set; skipping ASR generation/classification", flush=True)
 
     if args.skip_frr:
         print("[eval] --skip-frr set; skipping benign FRR generation/classification", flush=True)
@@ -215,6 +224,7 @@ def main(args):
         return
 
     # Compute FRR on benign prompts
+    print(f"[eval] benign_output={end_of_epoch_frr_path}", flush=True)
     frr_val_df = pd.read_csv(args.benign_validation_data)
     df_with_regular_responses = generate_original_responses(frr_val_df, 
                                 batch_size=8, 
@@ -322,8 +332,15 @@ if __name__ == "__main__":
         action="store_true",
         help="Only run harmful ASR (skip benign generation + refusal judge).",
     )
+    parser.add_argument(
+        "--skip-harmful",
+        action="store_true",
+        help="Only run benign FRR (skip harmful generation + HarmBench judge).",
+    )
 
     args = parser.parse_args()
+    if args.skip_frr and args.skip_harmful:
+        raise SystemExit("--skip-frr and --skip-harmful cannot both be set")
     main(args)
 
     end_time = time.time()

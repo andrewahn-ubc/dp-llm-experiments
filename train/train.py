@@ -30,6 +30,7 @@ from train.dcl_critic import (
     precompute_hinge_context,
     probabilities_to_embeddings,
     safety_score,
+    stability_hinge,
 )
 from train.model_profiles import (
     DEFAULT_MODEL_PROFILE,
@@ -75,7 +76,13 @@ def _wandb_init(args, *, hinge_style: str):
             "lm_loss_input": getattr(args, "lm_loss_input", "clean"),
             "model_profile": getattr(args, "model_profile", DEFAULT_MODEL_PROFILE),
             "hinge_style": hinge_style,
+            "stability_loss": getattr(args, "stability_loss", "linear_hinge"),
             "rollout_length": int(getattr(args, "rollout_length", MAX_GEN_TOKENS)),
+            "benign_training_data": getattr(args, "benign_training_data", ""),
+            "benign_lm_weight": float(getattr(args, "benign_lm_weight", 0.0)),
+            "benign_max_target_tokens": int(
+                getattr(args, "benign_max_target_tokens", 0)
+            ),
             "shuffle_training_rows": getattr(args, "shuffle_training_rows", True),
             "training_shuffle_seed": getattr(args, "training_shuffle_seed", None),
             "train_data_frac_start": float(getattr(args, "train_data_frac_start", 0.0)),
@@ -108,7 +115,8 @@ def _wandb_finish(wandb_on):
 
 
 print(f"CPU RAM available: {psutil.virtual_memory().available / 1e9:.1f}G")
-print(f"GPU memory: {torch.cuda.get_device_properties(0).total_memory / 1e9:.1f}G")
+if torch.cuda.is_available():
+    print(f"GPU memory: {torch.cuda.get_device_properties(0).total_memory / 1e9:.1f}G")
 
 DEVICE = "cuda"
 DTYPE = torch.float16
@@ -223,7 +231,12 @@ def soft_autoregressive_generate(model, tokenizer, prompts, num_steps, temperatu
     with context:
         # Tokenize prompt
         prompts = [format_prompt(tokenizer, prompt) for prompt in prompts]
-        inputs = tokenizer(prompts, return_tensors="pt", padding=True)
+        inputs = tokenizer(
+            prompts,
+            return_tensors="pt",
+            padding=True,
+            add_special_tokens=False,
+        )
         inputs = {k: v.to(DEVICE) for k, v in inputs.items()}
         input_ids = inputs["input_ids"]                      # (batch_size, seq_len)
 
@@ -262,7 +275,8 @@ def hard_response_embeddings_for_guard(model, tokenizer, prompts, responses):
         conversations,
         return_tensors="pt",
         padding=True,
-        truncation=True
+        truncation=True,
+        add_special_tokens=False,
     )["input_ids"].to(DEVICE)
 
     with torch.no_grad():
@@ -271,7 +285,7 @@ def hard_response_embeddings_for_guard(model, tokenizer, prompts, responses):
     return embeds
 
 # Likelihood Loss
-def lm_loss(model, tokenizer, prompts, targets):
+def lm_loss(model, tokenizer, prompts, targets, max_target_tokens=0):
     input_ids = []
     labels = []
 
@@ -280,6 +294,10 @@ def lm_loss(model, tokenizer, prompts, targets):
 
         p_ids = tokenizer(prompt_text, add_special_tokens=False).input_ids
         t_ids = tokenizer(t, add_special_tokens=False).input_ids
+        if max_target_tokens and max_target_tokens > 0:
+            t_ids = t_ids[:max_target_tokens]
+        if not t_ids:
+            raise ValueError("LM target tokenized to an empty sequence")
 
         ids = p_ids + t_ids
         lbls = [-100] * len(p_ids) + t_ids
@@ -313,6 +331,11 @@ def training_step(
     LAMBDA,
     lm_loss_input="clean",
     max_gen_tokens=5,
+    stability_loss="linear_hinge",
+    benign_batch=None,
+    benign_lm_weight=0.0,
+    benign_max_target_tokens=0,
+    backward_in_step=False,
 ):
     h, r, h_p = batch
 
@@ -326,29 +349,99 @@ def training_step(
         lm_loss_term = lm_loss(model, tokenizer, h_p, r)
     else:
         lm_loss_term = lm_loss(model, tokenizer, h, r)
+    lm_loss_value = lm_loss_term.detach()
+    if backward_in_step:
+        # Accumulate the additive terms one at a time. This is the same summed
+        # gradient as one final backward call, but releases each LM graph before
+        # constructing the next graph (important with a 7B student + 7B guard).
+        lm_loss_term.backward()
 
-    # Safety scores
-    hard_embeddings_clean_of_conversation = hard_response_embeddings_for_guard(model=model, tokenizer=tokenizer, prompts=h, responses=r)
-    soft_embeddings_pert_of_conversation = soft_autoregressive_generate(
-        model=model,
-        tokenizer=tokenizer,
-        prompts=h_p,
-        num_steps=max_gen_tokens,
-        keep_grad=True,
+    # Optional benign CE anchor. One benign pair is matched to each harmful
+    # training step; beta therefore controls the relative *mean CE term*.
+    benign_lm_term = lm_loss_value.new_zeros(())
+    if benign_lm_weight > 0:
+        if benign_batch is None:
+            raise ValueError("benign_batch is required when benign_lm_weight > 0")
+        benign_prompts, benign_targets = benign_batch
+        benign_lm_term = lm_loss(
+            model,
+            tokenizer,
+            benign_prompts,
+            benign_targets,
+            max_target_tokens=benign_max_target_tokens,
+        )
+    benign_lm_value = benign_lm_term.detach()
+    if backward_in_step and benign_lm_weight > 0:
+        (benign_lm_weight * benign_lm_term).backward()
+
+    # Skip the guard and soft rollout entirely for lambda=0 controls.
+    active_gap = lm_loss_value.new_zeros(())
+    stability_penalty = lm_loss_value.new_zeros(())
+    if LAMBDA > 0:
+        if guard_model is None or guard_tokenizer is None:
+            raise ValueError("guard model/tokenizer are required when lambda > 0")
+        hard_embeddings_clean_of_conversation = hard_response_embeddings_for_guard(
+            model=model,
+            tokenizer=tokenizer,
+            prompts=h,
+            responses=r,
+        )
+        soft_embeddings_pert_of_conversation = soft_autoregressive_generate(
+            model=model,
+            tokenizer=tokenizer,
+            prompts=h_p,
+            num_steps=max_gen_tokens,
+            keep_grad=True,
+        )
+        C_clean = safety_score(
+            guard_model,
+            guard_tokenizer,
+            hard_embeddings_clean_of_conversation,
+            GUARD_HEADER_EMBEDS,
+            GUARD_FOOTER_EMBEDS,
+            keep_grad=False,
+        )
+        C_pert = safety_score(
+            guard_model,
+            guard_tokenizer,
+            soft_embeddings_pert_of_conversation,
+            GUARD_HEADER_EMBEDS,
+            GUARD_FOOTER_EMBEDS,
+            keep_grad=True,
+        )
+        active_gap_values, penalty_values = stability_hinge(
+            C_clean,
+            C_pert,
+            epsilon_term,
+            squared=stability_loss == "squared_hinge",
+        )
+        active_gap = active_gap_values.mean()
+        stability_penalty = penalty_values.mean()
+    active_gap_value = active_gap.detach()
+    stability_penalty_value = stability_penalty.detach()
+    if backward_in_step and LAMBDA > 0:
+        (LAMBDA * stability_penalty).backward()
+
+    if backward_in_step:
+        total_loss = (
+            lm_loss_value
+            + LAMBDA * stability_penalty_value
+            + benign_lm_weight * benign_lm_value
+        )
+    else:
+        total_loss = (
+            lm_loss_term
+            + LAMBDA * stability_penalty
+            + benign_lm_weight * benign_lm_term
+        )
+
+    return (
+        total_loss,
+        lm_loss_value,
+        benign_lm_value,
+        active_gap_value,
+        stability_penalty_value,
     )
-    C_clean = safety_score(guard_model, guard_tokenizer, hard_embeddings_clean_of_conversation, GUARD_HEADER_EMBEDS, GUARD_FOOTER_EMBEDS, keep_grad=False)
-    C_pert = safety_score(guard_model, guard_tokenizer, soft_embeddings_pert_of_conversation, GUARD_HEADER_EMBEDS, GUARD_FOOTER_EMBEDS, keep_grad=True)
-
-    # Stability hinge
-    stability = torch.clamp(
-        C_pert - epsilon_term * C_clean,
-        min=0
-    )
-
-    # The full loss function - contains likelihood ratio minimization
-    total_loss = lm_loss_term + LAMBDA * stability.mean()
-
-    return total_loss, lm_loss_term.detach(), stability.mean().detach()
 
 # REQUIREMENT: unseen_family must be one of {"gcg", "pair", and "autodan"}
 def main(args):
@@ -373,7 +466,8 @@ def main(args):
     print(
         f"[train] lm_loss_input={args.lm_loss_input!r} "
         f"(CE conditions on {'PERTURBED prompt (adv-SFT-style)' if args.lm_loss_input == 'perturbed' else 'CLEAN prompt'}; "
-        f"lambda={args.lambda_val}; rollout_length T={args.rollout_length})",
+        f"lambda={args.lambda_val}; stability_loss={args.stability_loss}; "
+        f"rollout_length T={args.rollout_length}; benign_beta={args.benign_lm_weight})",
         flush=True,
     )
     wandb_on = _wandb_init(args, hinge_style=hinge_style)
@@ -392,6 +486,11 @@ def _main_train(args, wandb_on):
     base_llm = os.path.expandvars(os.path.expanduser(args.base_llm or profile.base_llm))
     hinge_path = os.path.expandvars(os.path.expanduser(args.hinge_guard_path or profile.hinge_guard_path))
     hinge_style = args.hinge_style or profile.hinge_style
+    checkpoint_path = (
+        os.path.expandvars(os.path.expanduser(args.checkpoint_output))
+        if args.checkpoint_output
+        else f"{args.finetuned_llm_path}_epoch{args.start_epoch}"
+    )
 
     model, tokenizer = load_model(
         base_llm,
@@ -401,10 +500,15 @@ def _main_train(args, wandb_on):
     train_dev = next(model.parameters()).device
     epsilon_term = torch.exp(torch.tensor(args.epsilon, dtype=torch.float32, device=train_dev))
 
-    guard_model, guard_tokenizer = load_guard(hinge_path)
-    GUARD_HEADER_EMBEDS, GUARD_FOOTER_EMBEDS = precompute_hinge_context(
-        guard_model, guard_tokenizer, hinge_style
-    )
+    guard_model = guard_tokenizer = None
+    GUARD_HEADER_EMBEDS = GUARD_FOOTER_EMBEDS = None
+    if args.lambda_val > 0:
+        guard_model, guard_tokenizer = load_guard(hinge_path)
+        GUARD_HEADER_EMBEDS, GUARD_FOOTER_EMBEDS = precompute_hinge_context(
+            guard_model, guard_tokenizer, hinge_style
+        )
+    else:
+        print("[train] lambda=0: skipping guard load and soft rollout", flush=True)
 
     # Load data
     df = pd.read_csv(args.training_data) 
@@ -429,6 +533,7 @@ def _main_train(args, wandb_on):
             f"require 0 <= train_data_frac_start < train_data_frac_end <= 1; got {fs=}, {fe=}"
         )
     n_all = len(df)
+    i0, i1 = 0, n_all
     if n_all > 0:
         i0 = max(0, min(n_all, math.floor(fs * n_all + 1e-12)))
         i1 = max(0, min(n_all, math.floor(fe * n_all + 1e-12)))
@@ -441,6 +546,51 @@ def _main_train(args, wandb_on):
             flush=True,
         )
 
+    benign_df = None
+    if args.benign_lm_weight > 0:
+        if not args.benign_training_data:
+            raise ValueError(
+                "--benign-training-data is required when --benign-lm-weight > 0"
+            )
+        benign_df = pd.read_csv(args.benign_training_data)
+        benign_cols = [args.benign_prompt_column, args.benign_response_column]
+        missing = [c for c in benign_cols if c not in benign_df.columns]
+        if missing:
+            raise ValueError(
+                f"benign training CSV is missing columns {missing}; "
+                f"available={list(benign_df.columns)}"
+            )
+        benign_df = benign_df.dropna(subset=benign_cols).copy()
+        for col in benign_cols:
+            benign_df[col] = benign_df[col].astype(str).str.strip()
+        benign_df = benign_df[
+            benign_df[args.benign_prompt_column].ne("")
+            & benign_df[args.benign_response_column].ne("")
+        ].reset_index(drop=True)
+        if getattr(args, "shuffle_training_rows", True):
+            benign_df = benign_df.sample(
+                frac=1.0,
+                random_state=args.benign_shuffle_seed,
+            ).reset_index(drop=True)
+        if len(benign_df) < n_all:
+            raise ValueError(
+                f"benign training CSV has {len(benign_df)} usable rows, but "
+                f"{n_all} are required for one-to-one harmful/benign pairing"
+            )
+        # Use the same global index interval as the harmful shard. This makes
+        # staged sub-hour jobs cover each benign row once without overlap.
+        benign_df = benign_df.iloc[i0:i1].reset_index(drop=True)
+        if len(benign_df) != len(df):
+            raise RuntimeError(
+                f"harmful/benign shard mismatch: {len(df)} vs {len(benign_df)}"
+            )
+        print(
+            f"[train] Loaded {len(benign_df)} paired benign rows from "
+            f"{args.benign_training_data!r} (beta={args.benign_lm_weight}, "
+            f"shuffle_seed={args.benign_shuffle_seed})",
+            flush=True,
+        )
+
     print(
         f"[train] Training on {len(df)} rows this run (after NaN filter, optional shuffle, "
         f"and optional frac slice)",
@@ -448,7 +598,7 @@ def _main_train(args, wandb_on):
     )
     print(
         f"Epoch {args.start_epoch}/{args.total_epochs} — checkpoint will be saved under "
-        f"{args.finetuned_llm_path}_epoch{args.start_epoch}",
+        f"{checkpoint_path}",
         flush=True,
     )
 
@@ -484,9 +634,23 @@ def _main_train(args, wandb_on):
             list(chunk["Original Response"]),
             list(chunk[perturbed_prompt])
         )
+        benign_batch = None
+        if benign_df is not None:
+            benign_chunk = benign_df.iloc[i:i + batch_size]
+            benign_batch = (
+                list(benign_chunk[args.benign_prompt_column]),
+                list(benign_chunk[args.benign_response_column]),
+            )
 
         model.train()
-        loss, lm_loss_val, stability_val = training_step(
+        optimizer.zero_grad(set_to_none=True)
+        (
+            loss,
+            lm_loss_val,
+            benign_lm_val,
+            active_gap_val,
+            stability_penalty_val,
+        ) = training_step(
             model,
             tokenizer,
             guard_model,
@@ -498,26 +662,36 @@ def _main_train(args, wandb_on):
             args.lambda_val,
             lm_loss_input=args.lm_loss_input,
             max_gen_tokens=args.rollout_length,
+            stability_loss=args.stability_loss,
+            benign_batch=benign_batch,
+            benign_lm_weight=args.benign_lm_weight,
+            benign_max_target_tokens=args.benign_max_target_tokens,
+            backward_in_step=True,
         )
         if i % 10 == 0:
-            print(f"Step {i}: total={loss.item():.4f}, lm={lm_loss_val.item():.4f}, stab={stability_val.item():.4f}", flush=True)
+            print(
+                f"Step {i}: total={loss.item():.4f}, harmful_lm={lm_loss_val.item():.4f}, "
+                f"benign_lm={benign_lm_val.item():.4f}, "
+                f"active_gap={active_gap_val.item():.6f}, "
+                f"stability_penalty={stability_penalty_val.item():.6f}",
+                flush=True,
+            )
             if wandb_on:
                 import wandb
                 wandb.log(
                     {
                         "train/total_loss": loss.item(),
-                        "train/lm_loss": lm_loss_val.item(),
-                        "train/stability": stability_val.item(),
+                        "train/harmful_lm_loss": lm_loss_val.item(),
+                        "train/benign_lm_loss": benign_lm_val.item(),
+                        "train/stability_active_gap": active_gap_val.item(),
+                        "train/stability_penalty": stability_penalty_val.item(),
                     },
                     step=i,
                 )
         
-        loss.backward()
         optimizer.step()
-        optimizer.zero_grad()
         torch.cuda.empty_cache()
 
-    checkpoint_path = f"{args.finetuned_llm_path}_epoch{args.start_epoch}"
     model.save_pretrained(checkpoint_path)
     tokenizer.save_pretrained(checkpoint_path)
     torch.save(optimizer.state_dict(), os.path.join(checkpoint_path, "optimizer.pt"))
@@ -618,6 +792,14 @@ if __name__ == "__main__":
         "--finetuned-llm-path",
         default="/home/taegyoem/scratch/finetuned_llm",
         help="path prefix for finetuned main LLM checkpoints (see submit_wandb_sweep FINETUNED_BASE).",
+    )
+    parser.add_argument(
+        "--checkpoint-output",
+        default="",
+        help=(
+            "Optional exact checkpoint directory. When unset, preserve the historical "
+            "<finetuned-llm-path>_epoch<N> naming."
+        ),
     )
     parser.add_argument(
         "--refusal-judge-path",
@@ -752,6 +934,59 @@ if __name__ == "__main__":
         ),
     )
     parser.add_argument(
+        "--stability-loss",
+        default="linear_hinge",
+        choices=["linear_hinge", "squared_hinge"],
+        help=(
+            "Penalty applied to max(C_pert-exp(epsilon)*C_clean, 0). "
+            "'linear_hinge' preserves the historical objective; 'squared_hinge' "
+            "uses L2 so the active gradient scales with the violation magnitude."
+        ),
+    )
+    parser.add_argument(
+        "--benign-training-data",
+        default="",
+        help=(
+            "Optional CSV of benign prompt/response targets. Required when "
+            "--benign-lm-weight is positive."
+        ),
+    )
+    parser.add_argument(
+        "--benign-lm-weight",
+        type=float,
+        default=0.0,
+        help="Beta coefficient on the additional benign response LM loss.",
+    )
+    parser.add_argument(
+        "--benign-prompt-column",
+        default="Original Prompt",
+        help="Prompt column in --benign-training-data.",
+    )
+    parser.add_argument(
+        "--benign-response-column",
+        default="Original Response",
+        help="Response column in --benign-training-data.",
+    )
+    parser.add_argument(
+        "--benign-shuffle-seed",
+        type=int,
+        default=None,
+        help=(
+            "Deterministic shuffle seed for benign pairs. Defaults to "
+            "--training-shuffle-seed + 1 (or 1 when unset)."
+        ),
+    )
+    parser.add_argument(
+        "--benign-max-target-tokens",
+        type=int,
+        default=0,
+        help=(
+            "Optional response-token cap for benign LM targets (0 = no cap). "
+            "The Nectar preparation script filters to a bounded sequence length, "
+            "so the experiment launcher leaves this at 0."
+        ),
+    )
+    parser.add_argument(
         "--rollout-length",
         "-T",
         type=int,
@@ -768,6 +1003,12 @@ if __name__ == "__main__":
     args = parser.parse_args()
     if args.rollout_length < 1:
         raise SystemExit("--rollout-length / -T must be >= 1")
+    if args.lambda_val < 0:
+        raise SystemExit("--lambda-val must be >= 0")
+    if args.benign_lm_weight < 0:
+        raise SystemExit("--benign-lm-weight must be >= 0")
+    if args.benign_max_target_tokens < 0:
+        raise SystemExit("--benign-max-target-tokens must be >= 0")
 
     if args.seed is not None:
         seed = int(args.seed)
@@ -784,6 +1025,14 @@ if __name__ == "__main__":
         if args.training_shuffle_seed is None:
             args.training_shuffle_seed = seed
         print(f"[train] --seed={seed} (shuffle_seed={args.training_shuffle_seed})", flush=True)
+
+    if args.benign_shuffle_seed is None:
+        base_shuffle_seed = (
+            int(args.training_shuffle_seed)
+            if args.training_shuffle_seed is not None
+            else 0
+        )
+        args.benign_shuffle_seed = base_shuffle_seed + 1
 
     main(args)
 
