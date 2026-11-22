@@ -58,7 +58,7 @@ hf download berkeley-nest/Nectar data/rlaif.parquet \
   --local-dir "$HOME/Downloads/nectar"
 ```
 
-Then create 10,000 decontaminated candidates. Replace `REPO` with the local
+Then create 20,000 decontaminated candidates. Replace `REPO` with the local
 path to this repository; local data in this checkout is currently under
 `official/`, while Narval uses `official_data/`.
 
@@ -70,7 +70,8 @@ python "$REPO/experiments/llama2_benign_sweep/prepare_nectar.py" extract \
   --exclude "$REPO/official/validation.csv" \
   --exclude "$REPO/official/combined_test_dataset.csv" \
   --exclude "$REPO/official/frr_validation.csv" \
-  --exclude "$REPO/official/frr_test.csv"
+  --exclude "$REPO/official/frr_test.csv" \
+  --candidate-count 20000
 ```
 
 This also writes `nectar_candidates.csv.manifest.json` with the pinned revision,

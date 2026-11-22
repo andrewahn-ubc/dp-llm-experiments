@@ -399,7 +399,10 @@ def parse_args() -> argparse.Namespace:
     p_extract.add_argument("--input-parquet", required=True)
     p_extract.add_argument("--output", required=True)
     p_extract.add_argument("--exclude", action="append", default=[])
-    p_extract.add_argument("--candidate-count", type=int, default=10000)
+    # Empirically, only about 28% of the decontaminated candidates survive the
+    # exact Llama-2 prompt/response token limits on Narval.  Twenty thousand
+    # leaves a comfortable buffer above the 2,996 final pairs.
+    p_extract.add_argument("--candidate-count", type=int, default=20000)
     p_extract.add_argument("--seed", type=int, default=20261119)
     p_extract.add_argument("--batch-size", type=int, default=1024)
     p_extract.add_argument("--revision", default="3c6b4c4")
