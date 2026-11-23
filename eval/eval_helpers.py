@@ -7,7 +7,12 @@ import os
 import pandas as pd
 import torch
 
-from eval.eval_data import harmbench_behaviors
+if __package__:
+    from .eval_data import harmbench_behaviors
+else:
+    # eval.py and eval_sweep.py are also launched directly by path on Narval,
+    # which imports this file as the top-level ``eval_helpers`` module.
+    from eval_data import harmbench_behaviors
 
 DEVICE = "cuda"
 DTYPE = torch.float16
